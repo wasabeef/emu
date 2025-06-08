@@ -1,0 +1,30 @@
+// Test file to verify the form structure
+use std::collections::VecDeque;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CreateDeviceField {
+    DeviceType,
+    Version,
+    RamSize,
+    StorageSize,
+    Name,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateDeviceForm {
+    pub active_field: CreateDeviceField,
+    pub name: String,
+    pub device_type: String,
+    pub device_type_id: String,
+    pub version: String,
+    pub version_display: String,
+    pub ram_size: String,
+    pub storage_size: String,
+    pub available_device_types: Vec<(String, String)>,
+    pub available_versions: Vec<(String, String)>,
+    pub error_message: Option<String>,
+}
+
+fn main() {
+    println!("Test compiled successfully");
+}

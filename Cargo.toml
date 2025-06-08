@@ -1,0 +1,65 @@
+[package]
+name = "emu"
+version = "0.1.0"
+edition = "2021"
+authors = ["Daichi Furiya"]
+description = "A terminal user interface for managing Android emulators and iOS simulators with a lazygit-inspired design"
+readme = "README.md"
+repository = "https://github.com/wasabeef/emu"
+license = "MIT OR Apache-2.0"
+keywords = ["android", "ios", "emulator", "simulator", "tui"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# TUI Framework
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Async Runtime
+tokio = { version = "1.45", features = ["full"] }
+
+# CLI Parsing
+clap = { version = "4.5", features = ["derive", "env"] }
+clap_complete = "4.5"
+
+# Error Handling
+anyhow = "1.0"
+thiserror = "2.0"
+color-eyre = "0.6"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Logging
+env_logger = "0.11"
+log = "0.4"
+
+# Utility
+dirs = "6.0"
+which = "7.0"
+regex = "1.11"
+chrono = { version = "0.4", features = ["serde"] }
+lazy_static = "1.5"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.20"
+mockall = "0.13"
+criterion = "0.5"
+
+[[bin]]
+name = "debug-avd"
+path = "src/bin/debug_avd.rs"
+
+[[bench]]
+name = "performance"
+harness = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

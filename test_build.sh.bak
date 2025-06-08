@@ -1,0 +1,15 @@
+#!/bin/bash
+# Test build script for emu
+
+cd /Users/a12622/git/emu
+
+echo "Checking for syntax errors..."
+cargo check 2>&1 | head -30
+
+echo -e "\nChecking for warnings..."
+cargo clippy 2>&1 | head -30
+
+echo -e "\nBuilding project..."
+cargo build 2>&1 | head -30
+
+echo -e "\nBuild complete."
