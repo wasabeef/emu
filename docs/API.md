@@ -15,7 +15,7 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 ## Keyboard Shortcuts
 
 ### Global Commands
-- `q` or `Ctrl+c` - Quit the application
+- `q` or `Ctrl+q` - Quit the application
 - `Tab` / `Shift+Tab` - Switch between panels
 - `h/l` or `←/→` - Switch between Android and iOS panels
 
@@ -28,7 +28,7 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 
 ### Device Operations
 - `Enter` or `Space` - Start/Stop selected device
-- `n` - Create new device
+- `c` - Create new device
 - `d` - Delete selected device
 - `w` - Wipe selected device
 - `r` - Refresh device lists

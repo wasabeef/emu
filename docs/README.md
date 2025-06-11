@@ -81,7 +81,7 @@ Three-panel layout (30% | 30% | 40%):
 │                    │                   │ Path: /Users/.android/avd  │
 ├───────────────────┴───────────────────┴────────────────────────┤
 │ [Tab] Switch panels │ [↑↓/jk] Navigate │ [Enter] Start/Stop         │
-│ [n] Create [d] Delete [w] Wipe [r] Refresh [f] Filter [q] Quit    │
+│ [c] Create [d] Delete [w] Wipe [r] Refresh [f] Filter [q] Quit    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +97,7 @@ Three-panel layout (30% | 30% | 40%):
   - `g/G`: Go to top/bottom of list.
 - **Device Operations:**
   - `Enter`: Start/Stop selected device.
-  - `n`: Create new device with guided form.
+  - `c`: Create new device with guided form.
   - `d`: Delete selected device (confirmation pending).
   - `w`: Wipe device data (Android - pending implementation).
   - `r`: Refresh device lists.

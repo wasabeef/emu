@@ -59,7 +59,7 @@ emu --debug
 | `↑`/`↓` | Navigate devices |
 | `j`/`k` | Navigate devices (vim-style) |
 | `Enter` | Start/Stop device |
-| `n` | Create new device |
+| `c` | Create new device |
 | `d` | Delete device |
 | `w` | Wipe device |
 | `r` | Refresh |

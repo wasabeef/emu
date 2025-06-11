@@ -338,7 +338,7 @@ impl App {
                                     state.add_info_notification("Logs cleared".to_string());
                                 }
                                 // Removed all log area specific controls
-                                KeyCode::Char('n') => {
+                                KeyCode::Char('c') => {
                                     let active_panel = state.active_panel;
                                     state.mode = Mode::CreateDevice;
                                     // Initialize form based on active panel

@@ -287,10 +287,10 @@ use crate::{
     utils::command::CommandRunner,
 };
 use anyhow::{bail, Context, Result};
-use std::path::Path;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -1734,9 +1734,7 @@ impl DeviceManager for AndroidManager {
             }
 
             if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
-                if let Some((name, _path, mut target, _abi, device)) =
-                    current_device_info.take()
-                {
+                if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
                     // Append any additional target info
                     if !current_target_full.is_empty() {
                         target.push_str(&current_target_full);
@@ -1759,8 +1757,7 @@ impl DeviceManager for AndroidManager {
 
                             if let Ok(config_content) = fs::read_to_string(&config_path).await {
                                 // Try regex first (with or without trailing slash)
-                                if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content)
-                                {
+                                if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
                                     if let Ok(parsed_api) = caps[1].parse::<u32>() {
                                         api = parsed_api;
                                     }
@@ -1780,11 +1777,8 @@ impl DeviceManager for AndroidManager {
                         if api == 0 {
                             if let Ok(Some(avd_path)) = self.get_avd_path(&name).await {
                                 let config_path = avd_path.join("config.ini");
-                                if let Ok(config_content) =
-                                    fs::read_to_string(&config_path).await
-                                {
-                                    if let Some(caps) =
-                                        IMAGE_SYSDIR_REGEX.captures(&config_content)
+                                if let Ok(config_content) = fs::read_to_string(&config_path).await {
+                                    if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content)
                                     {
                                         if let Ok(parsed_api) = caps[1].parse::<u32>() {
                                             api = parsed_api;
@@ -1828,8 +1822,7 @@ impl DeviceManager for AndroidManager {
                                 .join("config.ini");
 
                             if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                if let Some(caps) =
-                                    AVD_DISPLAYNAME_REGEX.captures(&config_content)
+                                if let Some(caps) = AVD_DISPLAYNAME_REGEX.captures(&config_content)
                                 {
                                     display_name = caps[1].trim().to_string();
                                 }
@@ -1867,9 +1860,7 @@ impl DeviceManager for AndroidManager {
             }
 
             if let Some(caps) = AVD_NAME_REGEX.captures(trimmed_line) {
-                if let Some((name, _path, mut target, _abi, device)) =
-                    current_device_info.take()
-                {
+                if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
                     // Push previous device if any
                     // Append any additional target info
                     if !current_target_full.is_empty() {
@@ -1886,21 +1877,15 @@ impl DeviceManager for AndroidManager {
                             Self::parse_android_version_to_api_level(version)
                         }
                         // Second try: extract from "API level XX"
-                        else if let Some(caps) =
-                            API_LEVEL_REGEX.captures(&target)
-                        {
+                        else if let Some(caps) = API_LEVEL_REGEX.captures(&target) {
                             caps[1].parse().unwrap_or(0)
                         }
                         // Third try: extract from "android-XX"
-                        else if let Some(caps) =
-                            ANDROID_VERSION_REGEX.captures(&target)
-                        {
+                        else if let Some(caps) = ANDROID_VERSION_REGEX.captures(&target) {
                             caps[1].parse().unwrap_or(0)
                         }
                         // Fourth try: extract from any number pattern
-                        else if let Some(caps) =
-                            NUMBER_PATTERN_REGEX.captures(&target)
-                        {
+                        else if let Some(caps) = NUMBER_PATTERN_REGEX.captures(&target) {
                             let potential_api = caps[1].parse().unwrap_or(0);
                             // Validate that it's a reasonable API level (21-35)
                             if (21..=40).contains(&potential_api) {
@@ -1926,8 +1911,7 @@ impl DeviceManager for AndroidManager {
                                 .join("config.ini");
 
                             if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                if let Some(caps) =
-                                    AVD_DISPLAYNAME_REGEX.captures(&config_content)
+                                if let Some(caps) = AVD_DISPLAYNAME_REGEX.captures(&config_content)
                                 {
                                     display_name = caps[1].trim().to_string();
                                 }
@@ -2004,16 +1988,13 @@ impl DeviceManager for AndroidManager {
 
                     if let Ok(config_content) = fs::read_to_string(&config_path).await {
                         // Try regex first (with or without trailing slash)
-                        if let Some(caps) =
-                            IMAGE_SYSDIR_REGEX.captures(&config_content)
-                        {
+                        if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
                             if let Ok(parsed_api) = caps[1].parse::<u32>() {
                                 api = parsed_api;
                             }
                         }
                         // Fallback to target line
-                        else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content)
-                        {
+                        else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content) {
                             if let Ok(parsed_api) = caps[1].parse::<u32>() {
                                 api = parsed_api;
                             }
@@ -2026,8 +2007,7 @@ impl DeviceManager for AndroidManager {
                     if let Some(caps) = BASED_ON_REGEX.captures(&target) {
                         let version = &caps[1];
                         api = Self::parse_android_version_to_api_level(version);
-                    } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(&target)
-                    {
+                    } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(&target) {
                         api = caps[1].parse().unwrap_or(0);
                     }
                 }
@@ -2062,10 +2042,7 @@ impl DeviceManager for AndroidManager {
         Ok(devices)
     }
 
-    async fn start_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn start_device(&self, identifier: &str) -> Result<()> {
         // Start emulator with reduced console output
         let args = vec![
             "-avd",
@@ -2082,10 +2059,7 @@ impl DeviceManager for AndroidManager {
         Ok(())
     }
 
-    async fn stop_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn stop_device(&self, identifier: &str) -> Result<()> {
         // log::info!("Attempting to stop Android emulator: {}", identifier);
 
         // Get running AVDs to find the emulator ID for the given AVD name
@@ -2104,10 +2078,7 @@ impl DeviceManager for AndroidManager {
         Ok(())
     }
 
-    async fn create_device(
-        &self,
-        config: &DeviceConfig,
-    ) -> Result<()> {
+    async fn create_device(&self, config: &DeviceConfig) -> Result<()> {
         // AVD names must follow strict rules: only a-z A-Z 0-9 . _ - are allowed
         // But preserve the original name for display purposes in config.ini
         let safe_name = config
@@ -2183,14 +2154,13 @@ impl DeviceManager for AndroidManager {
         let mut args = vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
 
         // Add device parameter if valid - use ID for better compatibility
-        let device_param = if !config.device_type.is_empty()
-            && config.device_type.to_lowercase() != "custom"
-        {
-            let available_devices = self.list_available_devices().await?;
-            Self::find_matching_device_id(&available_devices, &config.device_type)
-        } else {
-            None
-        };
+        let device_param =
+            if !config.device_type.is_empty() && config.device_type.to_lowercase() != "custom" {
+                let available_devices = self.list_available_devices().await?;
+                Self::find_matching_device_id(&available_devices, &config.device_type)
+            } else {
+                None
+            };
 
         // デバイスパラメータが見つからない場合はデフォルトを使用
         if let Some(ref device_id) = device_param {
@@ -2334,10 +2304,7 @@ impl DeviceManager for AndroidManager {
         }
     }
 
-    async fn delete_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn delete_device(&self, identifier: &str) -> Result<()> {
         // Check if device is running and stop it first
         let running_avds = self.get_running_avd_names().await.unwrap_or_default();
         if running_avds.contains_key(identifier) {
@@ -2366,10 +2333,7 @@ impl DeviceManager for AndroidManager {
         Ok(())
     }
 
-    async fn wipe_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn wipe_device(&self, identifier: &str) -> Result<()> {
         // For Android, wipe means clearing user data without starting the device
         // First, stop the device if it's running
         let running_avds = self.get_running_avd_names().await?;

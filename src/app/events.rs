@@ -100,12 +100,12 @@ impl AppEvent {
     /// * `↑/↓` - Navigate items in list
     /// * `Enter`, `Space` - Toggle device state
     /// * `r` - Refresh device lists
-    /// * `n` - Create new device
+    /// * `c` - Create new device
     /// * `d` - Delete device
     /// * `w` - Wipe device
     /// * `h`, `?` - Show help
     /// * `q` - Quit (Normal mode only)
-    /// * `Ctrl+c` - Quit
+    /// * `Ctrl+q` - Quit
     pub fn from_key(key: KeyEvent) -> Option<Self> {
         match (key.code, key.modifiers) {
             // Application control
@@ -131,7 +131,7 @@ impl AppEvent {
             (KeyCode::Char(' '), _) => Some(Self::ToggleDevice),
             (KeyCode::Char('s'), _) => Some(Self::StartDevice),
             (KeyCode::Char('S'), _) => Some(Self::StopDevice),
-            (KeyCode::Char('n'), _) => Some(Self::EnterCreateMode),
+            (KeyCode::Char('c'), _) => Some(Self::EnterCreateMode),
             (KeyCode::Char('d'), _) => Some(Self::EnterDeleteMode),
             (KeyCode::Char('w'), _) => Some(Self::WipeDevice),
 

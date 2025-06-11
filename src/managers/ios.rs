@@ -422,14 +422,15 @@ impl IosManager {
             .replace("_", " ");
 
         // Special case handling
-        let display = cleaned
-            .replace(" inch", "\""); // 12.9 inch -> 12.9"
+        let display = cleaned.replace(" inch", "\""); // 12.9 inch -> 12.9"
 
         // Capitalize properly
         display
             .split_whitespace()
             .map(|word| {
-                if word == "inch" || word == "se" || word == "mini" 
+                if word == "inch"
+                    || word == "se"
+                    || word == "mini"
                     || (word.starts_with("i")
                         && (word.starts_with("iPhone")
                             || word.starts_with("iPad")
@@ -535,10 +536,7 @@ impl DeviceManager for IosManager {
         Ok(devices)
     }
 
-    async fn start_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn start_device(&self, identifier: &str) -> Result<()> {
         log::info!("Attempting to start iOS device: {}", identifier);
 
         // Check if device is already booted
@@ -558,9 +556,7 @@ impl DeviceManager for IosManager {
                     for device in devices_array {
                         if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
                             if udid == identifier {
-                                if let Some(state) =
-                                    device.get("state").and_then(|v| v.as_str())
-                                {
+                                if let Some(state) = device.get("state").and_then(|v| v.as_str()) {
                                     if state == "Booted" {
                                         is_already_booted = true;
                                         break;
@@ -592,8 +588,7 @@ impl DeviceManager for IosManager {
                             identifier
                         );
                     } else {
-                        return Err(e)
-                            .context(format!("Failed to boot iOS device {}", identifier));
+                        return Err(e).context(format!("Failed to boot iOS device {}", identifier));
                     }
                 }
             }
@@ -610,10 +605,7 @@ impl DeviceManager for IosManager {
         Ok(())
     }
 
-    async fn stop_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn stop_device(&self, identifier: &str) -> Result<()> {
         log::info!("Attempting to stop iOS device: {}", identifier);
 
         let shutdown_result = self
@@ -638,10 +630,7 @@ impl DeviceManager for IosManager {
         }
     }
 
-    async fn create_device(
-        &self,
-        config: &DeviceConfig,
-    ) -> Result<()> {
+    async fn create_device(&self, config: &DeviceConfig) -> Result<()> {
         log::info!(
             "Attempting to create iOS device: {} of type {} with runtime {}",
             config.name,
@@ -671,10 +660,7 @@ impl DeviceManager for IosManager {
         Ok(())
     }
 
-    async fn delete_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn delete_device(&self, identifier: &str) -> Result<()> {
         log::info!("Attempting to delete iOS device: {}", identifier);
 
         // First try to shutdown the device if it's running
@@ -687,22 +673,24 @@ impl DeviceManager for IosManager {
         self.command_runner
             .run("xcrun", &["simctl", "delete", identifier])
             .await
-            .context(format!("Failed to delete iOS device {}. Make sure the device exists and is not in use.", identifier))?;
+            .context(format!(
+                "Failed to delete iOS device {}. Make sure the device exists and is not in use.",
+                identifier
+            ))?;
 
         log::info!("Successfully deleted iOS device {}", identifier);
         Ok(())
     }
 
-    async fn wipe_device(
-        &self,
-        identifier: &str,
-    ) -> Result<()> {
+    async fn wipe_device(&self, identifier: &str) -> Result<()> {
         log::info!("Attempting to wipe iOS device: {}", identifier);
         // For iOS, we use the erase command which wipes all content and settings
         self.erase_device(identifier).await
     }
 
-    async fn is_available(&self) -> bool { which::which("xcrun").is_ok() }
+    async fn is_available(&self) -> bool {
+        which::which("xcrun").is_ok()
+    }
 }
 
 // Stub implementation for non-macOS platforms
