@@ -108,12 +108,18 @@ jobs:
 
   homebrew:
     needs: [create-release, release]
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Update Homebrew formula
-        uses: dawidd6/action-homebrew-bump-formula@v3
+        uses: mislav/bump-homebrew-formula-action@v3
         with:
-          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
-          tap: wasabeef/emu-tap
-          formula: emu
-          tag: ${{ github.ref }}
+          formula-name: emu
+          homebrew-tap: wasabeef/homebrew-emu-tap
+          base-branch: main
+          download-url: https://github.com/wasabeef/emu/archive/${{ github.ref }}.tar.gz
+          commit-message: |
+            {{formulaName}} {{version}}
+            
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
