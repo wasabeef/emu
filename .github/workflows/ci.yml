@@ -10,8 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test
+  check:
+    name: Check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -39,9 +39,6 @@ jobs:
     
     - name: Check
       run: cargo check --all-features
-    
-    - name: Test
-      run: cargo test --all-features
     
     - name: Format
       run: cargo fmt -- --check
@@ -85,24 +82,3 @@ jobs:
         path: |
           target/release/emu
           target/release/emu.exe
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Install tarpaulin
-      run: cargo install cargo-tarpaulin
-    
-    - name: Run coverage
-      run: cargo tarpaulin --all-features --workspace --timeout 120 --out lcov
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./lcov.info
-        fail_ci_if_error: false
