@@ -6,7 +6,7 @@
 
 A TUI for managing Android emulators and iOS simulators, inspired by lazygit.
 
-<!-- Demo GIF placeholder - add demo.gif to repository -->
+https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
 
 ## Features
 
