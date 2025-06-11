@@ -1,4 +1,4 @@
-# Emu 📱
+# 🦤 Emu - Device Manager
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/wasabeef/emu/ci.yml?branch=main)](https://github.com/wasabeef/emu/actions)
 [![Crates.io](https://img.shields.io/crates/v/emu.svg)](https://crates.io/crates/emu)
