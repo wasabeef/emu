@@ -1,7 +1,6 @@
 # 🦤 Emu - Device Manager
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/wasabeef/emu/ci.yml?branch=main)](https://github.com/wasabeef/emu/actions)
-[![Crates.io](https://img.shields.io/crates/v/emu.svg)](https://crates.io/crates/emu)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE-MIT)
 
 A TUI for managing Android emulators and iOS simulators, inspired by lazygit.
