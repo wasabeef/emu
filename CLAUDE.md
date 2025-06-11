@@ -57,7 +57,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
 - **Device details panel**: Shows device specifications, status, RAM/Storage in MB, full paths
 - **Modal workflows**: Guided device creation with field validation
-- **Keyboard navigation**: Vim-like keybindings (hjkl) with circular navigation
+- **Keyboard navigation**: Vim-like keybindings (jk for up/down) with circular navigation and page scrolling
 - **Real-time feedback**: Status notifications, operation progress, log streaming
 
 ### Performance Optimizations
@@ -154,7 +154,6 @@ cargo test startup_performance_test -- --nocapture
 ### Known Issues & Limitations
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved but not perfect)
 - **iOS device details**: Limited device information display compared to Android
-- **Configuration system**: TOML config structure fully defined in examples/config.toml but loading/saving not implemented
 - **Device operations**: Some platform-specific edge cases in device start/stop operations
 
 ### Architecture Strengths

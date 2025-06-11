@@ -303,38 +303,12 @@ impl AppState {
 
 ### Config
 
-Application configuration structure.
+Application configuration structure (simplified).
 
 ```rust
 pub struct Config {
-    pub theme: ThemeConfig,
-    pub android: AndroidConfig,
-    pub ios: IosConfig,
-    pub logging: LoggingConfig,
-    pub performance: PerformanceConfig,
-}
-
-pub struct ThemeConfig {
-    pub name: String,
-}
-
-pub struct AndroidConfig {
-    pub default_ram: String,
-    pub default_storage: String,
-}
-
-pub struct IosConfig {
-    pub default_device: String,
-}
-
-pub struct LoggingConfig {
-    pub max_entries: usize,
-    pub auto_scroll: bool,
-}
-
-pub struct PerformanceConfig {
-    pub refresh_interval: u64,
-    pub log_update_delay: u64,
+    // Currently minimal configuration
+    // The project focuses on simplicity
 }
 ```
 
@@ -342,20 +316,11 @@ pub struct PerformanceConfig {
 
 ```rust
 impl Config {
-    /// Load configuration from file
-    pub fn load() -> Result<Self>;
-    
-    /// Load from specific path
-    pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Self>;
-    
     /// Get default configuration
     pub fn default() -> Self;
     
     /// Get theme
     pub fn theme(&self) -> Theme;
-    
-    /// Save configuration to file
-    pub fn save(&self) -> Result<()>;
 }
 ```
 

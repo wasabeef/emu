@@ -91,11 +91,8 @@ Recommended extensions:
 
 ### Environment Variables
 
-Create `.env` file for development:
+Environment variables for development:
 ```bash
-# Optional: Custom config path
-EMU_CONFIG=/path/to/dev/config.toml
-
 # Debug logging
 RUST_LOG=debug
 
@@ -124,6 +121,7 @@ src/
 │   ├── device.rs       # Device models
 │   ├── device_config.rs # Device configuration
 │   ├── device_info.rs  # Device information
+│   ├── device_info.rs  # Device information
 │   ├── error.rs        # Error types
 │   ├── platform.rs     # Platform enums
 │   └── mod.rs          # Module exports
@@ -136,7 +134,6 @@ src/
 │   ├── command.rs      # Command execution
 │   ├── logger.rs       # Logging utilities
 │   └── mod.rs          # Module exports
-├── config.rs           # Configuration management
 ├── constants.rs        # Application constants
 ├── lib.rs             # Library root
 └── main.rs            # Application entry point
@@ -202,7 +199,7 @@ cargo test
 cargo build --release
 
 # Run with debug output
-RUST_LOG=debug cargo run -- --debug
+RUST_LOG=debug cargo run
 
 # Profile performance
 cargo build --release

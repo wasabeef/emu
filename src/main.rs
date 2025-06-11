@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use clap::Parser;
-use emu::{app::App, config::Config};
+use emu::app::App;
 
 #[derive(Parser)]
 #[command(
@@ -11,9 +11,6 @@ use emu::{app::App, config::Config};
     about = "A lazygit-inspired TUI for managing Android emulators and iOS simulators"
 )]
 struct Cli {
-    #[arg(short, long, value_name = "FILE", env = "EMU_CONFIG")]
-    config: Option<std::path::PathBuf>,
-
     #[arg(short, long, default_value = "info")]
     log_level: String,
 
@@ -40,11 +37,10 @@ async fn main() -> Result<()> {
     }
     // In normal TUI mode, logging is disabled to prevent console output
 
-    let config = Config::load(cli.config.clone())?;
-    run_tui(config).await
+    run_tui().await
 }
 
-async fn run_tui(config: Config) -> Result<()> {
+async fn run_tui() -> Result<()> {
     use crossterm::{
         execute,
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -60,7 +56,7 @@ async fn run_tui(config: Config) -> Result<()> {
     let terminal = Terminal::new(backend)?;
 
     // Run app
-    let app = App::new(config).await?;
+    let app = App::new().await?;
     let result = app.run(terminal).await;
 
     // Restore terminal

@@ -30,8 +30,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body: ${{ steps.release_notes.outputs.content }}
           draft: false
           prerelease: false
@@ -108,18 +108,78 @@ jobs:
 
   homebrew:
     needs: [create-release, release]
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
+      - name: Checkout emu repository
+        uses: actions/checkout@v4
         with:
-          formula-name: emu
-          homebrew-tap: wasabeef/homebrew-emu-tap
-          base-branch: main
-          download-url: https://github.com/wasabeef/emu/archive/${{ github.ref }}.tar.gz
-          commit-message: |
-            {{formulaName}} {{version}}
-            
-            Created by https://github.com/mislav/bump-homebrew-formula-action
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          path: emu
+
+      - name: Checkout emu-tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: wasabeef/homebrew-emu-tap
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          path: emu-tap
+
+      - name: Wait for release assets
+        run: sleep 30
+
+      - name: Update Homebrew formula
+        run: |
+          cd emu
+          VERSION=${{ github.ref_name }}
+          VERSION_NUM=${VERSION#v}
+          
+          # Download and calculate SHA256
+          echo "Calculating SHA256 for each platform..."
+          
+          MACOS_ARM64_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Darwin-aarch64.tar.gz"
+          MACOS_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Darwin-x86_64.tar.gz"
+          LINUX_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Linux-x86_64.tar.gz"
+          
+          MACOS_ARM64_SHA=$(curl -sL "$MACOS_ARM64_URL" | shasum -a 256 | cut -d' ' -f1)
+          MACOS_X86_SHA=$(curl -sL "$MACOS_X86_URL" | shasum -a 256 | cut -d' ' -f1)
+          LINUX_X86_SHA=$(curl -sL "$LINUX_X86_URL" | shasum -a 256 | cut -d' ' -f1)
+          
+          # Generate formula
+          cat > ../emu-tap/Formula/emu.rb << EOF
+          class Emu < Formula
+            desc "TUI for managing Android emulators and iOS simulators"
+            homepage "https://github.com/wasabeef/emu"
+            version "${VERSION_NUM}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${MACOS_ARM64_URL}"
+                sha256 "${MACOS_ARM64_SHA}"
+              else
+                url "${MACOS_X86_URL}"
+                sha256 "${MACOS_X86_SHA}"
+              end
+            end
+
+            on_linux do
+              url "${LINUX_X86_URL}"
+              sha256 "${LINUX_X86_SHA}"
+            end
+
+            def install
+              bin.install "emu"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/emu --version")
+            end
+          end
+          EOF
+
+      - name: Commit and push formula update
+        run: |
+          cd emu-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/emu.rb
+          git commit -m "emu ${{ github.ref_name }}"
+          git push

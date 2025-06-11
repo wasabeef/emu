@@ -41,13 +41,11 @@ This document describes the release process for Emu.
    - Create a GitHub release with auto-generated release notes
    - Upload the binaries
 
-3. Update the Homebrew formula:
-   - The release workflow will attempt to update the tap automatically
-   - If manual update is needed:
-     ```bash
-     # In wasabeef/homebrew-tap repository
-     brew bump-formula-pr --url=https://github.com/wasabeef/emu/archive/v0.1.0.tar.gz emu
-     ```
+3. Homebrew formula update:
+   - The release workflow automatically updates the formula
+   - It calculates SHA256 for all platform binaries
+   - Creates a commit in wasabeef/homebrew-emu-tap
+   - No manual intervention required
 
 ## Post-Release
 

@@ -5,7 +5,6 @@ pub mod events;
 pub mod state;
 
 use crate::{
-    config::Config,
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
     models::error::format_user_error,
@@ -23,7 +22,6 @@ pub use self::state::{AppState, FocusedPanel, Mode, Panel};
 
 pub struct App {
     state: Arc<Mutex<AppState>>,
-    config: Config,
     android_manager: AndroidManager,
     ios_manager: Option<IosManager>,
     log_update_handle: Option<tokio::task::JoinHandle<()>>, // Handle for delayed log update
@@ -31,7 +29,7 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         let state = Arc::new(Mutex::new(AppState::new()));
         let android_manager = AndroidManager::new()?;
         let ios_manager = if cfg!(target_os = "macos") {
@@ -42,7 +40,6 @@ impl App {
 
         let mut app = Self {
             state,
-            config,
             android_manager,
             ios_manager,
             log_update_handle: None,
@@ -95,7 +92,7 @@ impl App {
             }
 
             let mut state = self.state.lock().await;
-            terminal.draw(|f| ui::render::draw_app(f, &mut state, &self.config.theme()))?;
+            terminal.draw(|f| ui::render::draw_app(f, &mut state, &ui::Theme::dark()))?;
             drop(state);
 
             if event::poll(Duration::from_millis(100))? {

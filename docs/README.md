@@ -4,18 +4,17 @@ This document provides a more detailed technical overview of the Emu project, ba
 
 ## 1. Project Overview
 
-**Project Name:** Emu (derived from Emulator/Simulator Management Utility)
+**Project Name:** Emu
 
-**Goal:** To create a Command-Line User Interface (CUI) tool, inspired by lazygit, for unified management of Android emulators and iOS simulators. The primary aim is to enhance mobile developer productivity by offering intuitive, keyboard-driven navigation and operations.
+**Goal:** To create a Terminal User Interface (TUI) tool, inspired by lazygit, for unified management of Android emulators and iOS simulators. The primary aim is to enhance mobile developer productivity by offering intuitive, keyboard-driven navigation and operations.
 
 ## 2. Technical Requirements
 
 ### 2.1. Core Technologies
 
 - **Language:** Rust (chosen for performance, safety, and cross-platform capabilities)
-- **Primary UI Library:** Ratatui (or a similar TUI library like `tui-rs` which Ratatui is a fork of)
+- **Primary UI Library:** Ratatui
 - **Async Runtime:** Tokio (for managing concurrent operations, especially I/O with external commands)
-- **CLI Argument Parsing:** Clap
 
 ### 2.2. Supported Operating Systems
 
@@ -62,7 +61,6 @@ This document provides a more detailed technical overview of the Emu project, ba
 - **Configuration:** Allow users to customize some aspects of the tool via a configuration file.
 - **Logging:** Implement logging for debugging and issue tracking.
 - **Error Handling:** Robust error handling with user-friendly messages.
-- **Headless Mode:** Support for executing commands directly without launching the TUI (e.g., `emu start my_avd`).
 
 ## 4. UI/UX Requirements
 
@@ -91,7 +89,7 @@ A multi-pane layout, potentially with tabs:
 │ └────────────────────────────────────────────────┘ │
 ├──────────────────────────────────────────────────┤
 │ [s]tart/stop [c]reate [d]elete [w]ipe [r]efresh  │
-│ [q]uit                                           │
+│ [f]ilter logs [Page Up/Down] scroll [q]uit       │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -104,6 +102,7 @@ A multi-pane layout, potentially with tabs:
 - **List Navigation:**
   - `↑` / `k`: Move up.
   - `↓` / `j`: Move down.
+  - `Page Up` / `Page Down`: Scroll device lists.
 - **Emulator/Simulator Actions:**
   - `Enter`: Start/Stop selected device.
   - `c`: Initiate creation wizard for the current platform.
@@ -140,9 +139,8 @@ src/
 ├── models/
 │   ├── mod.rs
 │   ├── device.rs     // Data structures for emulators/simulators
-│   ├── config.rs     // Application configuration structure and loading
+│   ├── config.rs     // Application configuration structure
 │   └── error.rs      // Custom error types
-├── headless.rs       // Logic for headless mode operations
 └── utils/
     ├── mod.rs
     ├── command.rs    // Wrapper for executing external commands
@@ -175,7 +173,6 @@ src/
 1.  **Android AVD Creation Wizard:** TUI flow for creating new AVDs.
 2.  **Android AVD Delete/Wipe:** Implement these operations with confirmations.
 3.  **iOS Simulator Listing & Launch (macOS):** Implement `ios_manager.rs` and UI components.
-4.  **Configuration File:** Implement loading/saving of basic settings.
 
 ### Phase 3: Refinement and Polish
 

@@ -312,7 +312,7 @@ Validate performance requirements:
 #[tokio::test]
 async fn test_startup_performance() {
     let start = std::time::Instant::now();
-    let app = App::new(Config::default()).await?;
+    let app = App::new().await?;
     let duration = start.elapsed();
     
     assert!(duration < std::time::Duration::from_millis(150));
