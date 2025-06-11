@@ -26,7 +26,7 @@ pre-push:
   parallel: true
   commands:
     test:
-      run: cargo test --quiet
+      run: cargo test --bins --tests --quiet
       skip:
         - wip
 
