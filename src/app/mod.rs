@@ -6,9 +6,6 @@
 //! - Background task management for async operations
 //! - User input handling and action dispatch
 
-/// User action definitions and handlers.
-pub mod actions;
-
 /// Event type definitions for user input and system events.
 pub mod events;
 

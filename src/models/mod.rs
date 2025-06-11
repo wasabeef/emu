@@ -6,13 +6,11 @@
 //! # Module Organization
 //!
 //! - `device` - Device structures for Android and iOS virtual devices
-//! - `device_config` - Legacy device configuration (deprecated)
 //! - `device_info` - Dynamic device information and discovery system
 //! - `error` - Custom error types and error handling utilities
 //! - `platform` - Platform definitions and platform-specific information
 
 pub mod device;
-pub mod device_config;
 pub mod device_info;
 pub mod error;
 pub mod platform;
