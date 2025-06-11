@@ -1,19 +1,32 @@
-//! Platform definitions
+//! Platform definitions and platform-specific information.
+//!
+//! This module defines the supported platforms (Android and iOS) and provides
+//! utilities for checking platform availability, requirements, and configuration.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Represents the supported virtual device platforms.
+///
+/// Each platform has different requirements and availability based on
+/// the host operating system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Platform {
+    /// Android platform - available on all operating systems
     Android,
+    /// iOS platform - only available on macOS
     Ios,
 }
 
 impl Platform {
+    /// Returns all possible platform variants.
     pub fn all() -> Vec<Platform> {
         vec![Platform::Android, Platform::Ios]
     }
 
+    /// Returns only the platforms supported on the current operating system.
+    ///
+    /// Android is supported on all platforms, while iOS is only supported on macOS.
     pub fn supported() -> Vec<Platform> {
         let mut platforms = vec![Platform::Android];
 
@@ -24,6 +37,12 @@ impl Platform {
         platforms
     }
 
+    /// Checks if this platform is supported on the current operating system.
+    ///
+    /// # Returns
+    /// - `true` for Android on all systems
+    /// - `true` for iOS only on macOS
+    /// - `false` for iOS on non-macOS systems
     pub fn is_supported(&self) -> bool {
         match self {
             Platform::Android => true,
@@ -31,6 +50,7 @@ impl Platform {
         }
     }
 
+    /// Returns the human-readable display name of the platform.
     pub fn display_name(&self) -> &'static str {
         match self {
             Platform::Android => "Android",
@@ -38,6 +58,7 @@ impl Platform {
         }
     }
 
+    /// Returns the lowercase short name of the platform.
     pub fn short_name(&self) -> &'static str {
         match self {
             Platform::Android => "android",
@@ -45,6 +66,7 @@ impl Platform {
         }
     }
 
+    /// Returns a descriptive name for the platform's virtual devices.
     pub fn description(&self) -> &'static str {
         match self {
             Platform::Android => "Android Emulators",
@@ -52,6 +74,9 @@ impl Platform {
         }
     }
 
+    /// Returns the requirements for using this platform.
+    ///
+    /// These are the tools and environment needed for the platform to work.
     pub fn requirements(&self) -> Vec<&'static str> {
         match self {
             Platform::Android => vec!["Android SDK", "ANDROID_HOME environment variable"],
@@ -78,12 +103,21 @@ impl std::str::FromStr for Platform {
     }
 }
 
+/// Information about a platform's configuration and available tools.
+///
+/// This struct contains details about whether a platform is properly
+/// configured, what tools are available, and where the SDK is located.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatformInfo {
+    /// The platform this information describes
     pub platform: Platform,
+    /// SDK or tool version (e.g., "34.0.0" for Android SDK)
     pub version: String,
+    /// Path to the SDK installation
     pub sdk_path: Option<String>,
+    /// List of available command-line tools
     pub tools_available: Vec<String>,
+    /// Whether the platform is properly configured and ready to use
     pub is_configured: bool,
 }
 

@@ -234,8 +234,25 @@ fn extract_ios_version(display_name: &str) -> f32 {
 }
 
 #[cfg(target_os = "macos")]
+/// iOS Simulator manager implementation for macOS.
+///
+/// This struct provides comprehensive management of iOS simulators through
+/// Xcode's `xcrun simctl` command-line interface. It handles device discovery,
+/// creation, lifecycle management, and status monitoring.
+///
+/// # Requirements
+/// - macOS only (compile-time gated)
+/// - Xcode or Xcode Command Line Tools installed
+/// - `xcrun simctl` available in PATH
+///
+/// # Key Features
+/// - Dynamic discovery of device types and runtimes
+/// - Graceful handling of already-booted/shutdown states
+/// - Automatic Simulator.app integration
+/// - Real-time device status monitoring
 #[derive(Clone)]
 pub struct IosManager {
+    /// Command runner for executing xcrun simctl commands
     command_runner: CommandRunner,
 }
 
@@ -711,6 +728,12 @@ impl DeviceManager for IosManager {
 
 // Stub implementation for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
+/// iOS Simulator manager stub for non-macOS platforms.
+///
+/// This is a placeholder implementation that returns appropriate errors
+/// when iOS simulator operations are attempted on non-macOS systems.
+/// All methods return errors indicating that iOS simulator management
+/// is only available on macOS.
 #[derive(Clone)]
 pub struct IosManager;
 

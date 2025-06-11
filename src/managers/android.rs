@@ -314,16 +314,50 @@ lazy_static! {
     static ref ANDROID_VERSION_REGEX: Regex = Regex::new(r"android-(\d+)").unwrap();
     static ref AVD_DISPLAYNAME_REGEX: Regex = Regex::new(r"avd\.ini\.displayname=(.+)").unwrap();
 }
+/// Android Virtual Device (AVD) manager implementation.
+///
+/// This struct provides comprehensive management of Android emulators through
+/// the Android SDK command-line tools. It handles device discovery, creation,
+/// lifecycle management, and real-time status monitoring.
+///
+/// # Key Responsibilities
+/// - Discovers and manages Android SDK tools (avdmanager, emulator, adb)
+/// - Lists available device types and system images dynamically
+/// - Creates, starts, stops, and deletes AVDs
+/// - Monitors running emulators and maps them to AVD names
+/// - Provides detailed device information and logs
+///
+/// # Tool Integration
+/// - **avdmanager**: For AVD creation, deletion, and listing
+/// - **emulator**: For starting AVDs with optimized parameters
+/// - **adb**: For device status, log streaming, and property queries
+/// - **sdkmanager**: For system image discovery and API level information
 #[derive(Clone)]
 pub struct AndroidManager {
+    /// Command runner for executing Android SDK tools
     command_runner: CommandRunner,
+    /// Path to Android SDK home directory (from ANDROID_HOME or ANDROID_SDK_ROOT)
     _android_home: PathBuf,
+    /// Path to avdmanager executable
     avdmanager_path: PathBuf,
+    /// Path to emulator executable
     emulator_path: PathBuf,
 }
 
 impl AndroidManager {
-    // Inherent methods
+    /// Creates a new AndroidManager instance.
+    ///
+    /// Discovers the Android SDK location from environment variables and
+    /// locates required command-line tools (avdmanager, emulator).
+    ///
+    /// # Returns
+    /// - `Ok(AndroidManager)` - If Android SDK and tools are found
+    /// - `Err` - If Android SDK is not installed or tools are missing
+    ///
+    /// # Environment Variables
+    /// Checks in order:
+    /// 1. `ANDROID_HOME` - Primary Android SDK location
+    /// 2. `ANDROID_SDK_ROOT` - Alternative SDK location
     pub fn new() -> Result<Self> {
         let android_home = Self::find_android_home()?;
         let avdmanager_path = Self::find_tool(&android_home, commands::AVDMANAGER)?;
@@ -337,6 +371,11 @@ impl AndroidManager {
         })
     }
 
+    /// Locates the Android SDK home directory from environment variables.
+    ///
+    /// # Returns
+    /// - `Ok(PathBuf)` - Path to Android SDK
+    /// - `Err` - If neither ANDROID_HOME nor ANDROID_SDK_ROOT is set
     fn find_android_home() -> Result<PathBuf> {
         if let Ok(path) = std::env::var(env_vars::ANDROID_HOME) {
             return Ok(PathBuf::from(path));
@@ -349,6 +388,20 @@ impl AndroidManager {
         bail!("Android SDK not found. Please set ANDROID_HOME or ANDROID_SDK_ROOT")
     }
 
+    /// Finds a specific tool within the Android SDK directory structure.
+    ///
+    /// Searches multiple possible locations in order:
+    /// 1. cmdline-tools/latest/bin/
+    /// 2. tools/bin/
+    /// 3. emulator/ (for emulator tool)
+    ///
+    /// # Arguments
+    /// * `android_home` - Android SDK root directory
+    /// * `tool` - Tool name to find (e.g., "avdmanager", "emulator")
+    ///
+    /// # Returns
+    /// - `Ok(PathBuf)` - Full path to the tool executable
+    /// - `Err` - If tool is not found in any expected location
     fn find_tool(android_home: &PathBuf, tool: &str) -> Result<PathBuf> {
         let paths = [
             android_home
@@ -367,6 +420,23 @@ impl AndroidManager {
         bail!("Tool '{}' not found in Android SDK", tool)
     }
 
+    /// Maps running emulator instances to their AVD names.
+    ///
+    /// Uses multiple methods to resolve AVD names from emulator serial numbers:
+    /// 1. Boot property: `ro.boot.qemu.avd_name` (most reliable)
+    /// 2. EMU console command: `adb emu avd name`
+    /// 3. Kernel property: `ro.kernel.qemu.avd_name` (fallback)
+    ///
+    /// Also handles AVD names with spaces by storing normalized versions
+    /// (spaces replaced with underscores) for compatibility.
+    ///
+    /// # Returns
+    /// HashMap mapping AVD names to emulator serial numbers (e.g., "emulator-5554")
+    ///
+    /// # Example
+    /// ```
+    /// // Returns: {"Pixel_7_API_34" => "emulator-5554", "Pixel 7 API 34" => "emulator-5554"}
+    /// ```
     pub async fn get_running_avd_names(&self) -> Result<HashMap<String, String>> {
         let mut avd_map = HashMap::new();
         let mut normalized_map = HashMap::new();
@@ -549,7 +619,22 @@ impl AndroidManager {
         Ok(result)
     }
 
-    /// List available Android device definitions
+    /// Lists all available Android device definitions from the SDK.
+    ///
+    /// Parses output from `avdmanager list device` to discover all device types
+    /// that can be used to create AVDs. Returns devices sorted by priority
+    /// (phones first, then tablets, etc.) and version.
+    ///
+    /// # Returns
+    /// Vector of tuples containing:
+    /// - Device ID (e.g., "pixel_7")
+    /// - Display name (e.g., "Pixel 7")
+    ///
+    /// # Device Priority
+    /// Devices are sorted using dynamic priority calculation based on:
+    /// 1. Category (phone > tablet > tv > wear > automotive)
+    /// 2. Version number (newer versions first)
+    /// 3. Manufacturer (Google/Pixel prioritized)
     pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_runner

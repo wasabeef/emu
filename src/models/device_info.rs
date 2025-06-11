@@ -190,36 +190,62 @@ use anyhow::Result;
 /// These are used only when the SDK is completely unavailable.
 use std::collections::HashMap;
 
-/// Information about a device that can be discovered dynamically
+/// Information about a device discovered dynamically from the SDK.
+///
+/// This struct contains device metadata retrieved from platform tools
+/// (avdmanager for Android, xcrun simctl for iOS) at runtime.
 #[derive(Debug, Clone)]
 pub struct DeviceInfo {
+    /// Device identifier (e.g., "pixel_7", "tv_1080p")
     pub id: String,
+    /// Human-readable device name (e.g., "Pixel 7", "Android TV (1080p)")
     pub display_name: String,
+    /// Original Equipment Manufacturer name if available
     pub oem: Option<String>,
+    /// Dynamically determined device category
     pub category: DeviceCategory,
 }
 
-/// Device category based on dynamic detection
+/// Device category determined by dynamic analysis of device characteristics.
+///
+/// Categories are assigned based on device specifications, screen size,
+/// and naming patterns discovered at runtime rather than hardcoded lists.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeviceCategory {
+    /// Mobile phone devices (typically 3-6.9 inch screens)
     Phone,
+    /// Tablet devices (typically 7+ inch screens)
     Tablet,
+    /// Wearable devices (watches, fitness trackers)
     Wear,
+    /// Television and streaming devices
     TV,
+    /// In-vehicle entertainment systems
     Automotive,
+    /// Foldable devices with flexible displays
     Foldable,
+    /// Devices that don't fit other categories
     Unknown,
 }
 
-/// Android API level information discovered dynamically
+/// Android API level information discovered from the SDK.
+///
+/// Contains version mappings and available system image tags
+/// retrieved dynamically from sdkmanager and platform tools.
 #[derive(Debug, Clone)]
 pub struct ApiLevelInfo {
+    /// API level number (e.g., 34)
     pub level: u32,
+    /// Android version name (e.g., "Android 14")
     pub version_name: String,
+    /// Available system image tags (e.g., ["google_apis", "google_apis_playstore"])
     pub available_tags: Vec<String>,
 }
 
-/// Device manager trait that provides dynamic information
+/// Trait for device managers that provide dynamic device information.
+///
+/// Implementors discover device configurations at runtime from platform SDKs
+/// rather than relying on hardcoded device lists or mappings.
 pub trait DynamicDeviceProvider: Send + Sync {
     /// Get all available devices from the system
     fn get_available_devices(
@@ -244,10 +270,19 @@ pub trait DynamicDeviceProvider: Send + Sync {
     ) -> impl std::future::Future<Output = Result<u32>> + Send;
 }
 
-/// Dynamic device configuration that replaces hardcoded values
-/// Note: This will be implemented directly in AndroidManager to avoid async trait object issues
+/// Dynamic device configuration system that replaces hardcoded device mappings.
+///
+/// This struct provides runtime device discovery and prioritization algorithms
+/// that adapt to new devices and SDK updates without code changes. It caches
+/// discovered information for performance while maintaining flexibility.
+///
+/// # Implementation Note
+/// Some async operations are implemented directly in AndroidManager to avoid
+/// async trait object limitations in Rust.
 pub struct DynamicDeviceConfig {
+    /// Cache of discovered device information keyed by device ID
     device_cache: HashMap<String, DeviceInfo>,
+    /// Cache of API level to version name mappings
     api_cache: HashMap<u32, ApiLevelInfo>,
 }
 

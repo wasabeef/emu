@@ -1,4 +1,8 @@
-//! UI widgets
+//! Custom UI widgets for the terminal interface.
+//!
+//! This module provides reusable widget components built on top of ratatui's
+//! primitive widgets. These widgets encapsulate common UI patterns and styling
+//! logic for consistency across the application.
 
 use crate::models::{AndroidDevice, DeviceStatus, IosDevice};
 use ratatui::{
@@ -7,10 +11,18 @@ use ratatui::{
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
 };
 
+/// A widget for displaying a list of devices with selection support.
+///
+/// This widget renders a bordered list with highlighting for the selected item
+/// and visual indication of whether the list is currently focused.
 pub struct DeviceListWidget {
+    /// Title displayed in the border
     pub title: String,
+    /// List of items to display
     pub items: Vec<String>,
+    /// Index of the currently selected item
     pub selected: Option<usize>,
+    /// Whether this widget is currently active/focused
     pub is_active: bool,
 }
 
@@ -70,8 +82,14 @@ impl DeviceListWidget {
     }
 }
 
+/// A status bar widget for displaying application status and loading indicators.
+///
+/// This widget shows status text at the bottom of the screen with optional
+/// loading animation and consistent styling.
 pub struct StatusBar {
+    /// The status text to display
     pub text: String,
+    /// Whether to show a loading indicator
     pub is_loading: bool,
 }
 
@@ -101,14 +119,25 @@ impl StatusBar {
     }
 }
 
-/// Enhanced device list widget with detailed information
+/// Enhanced device list widget that displays detailed device information.
+///
+/// This widget shows device lists with rich information including status icons,
+/// API levels, device types, and runtime information. It supports both Android
+/// and iOS devices with platform-specific formatting.
 pub struct EnhancedDeviceListWidget {
+    /// Title displayed in the border
     pub title: String,
+    /// List of Android devices to display
     pub android_devices: Vec<AndroidDevice>,
+    /// List of iOS devices to display
     pub ios_devices: Vec<IosDevice>,
+    /// Index of selected Android device
     pub selected_android: usize,
+    /// Index of selected iOS device
     pub selected_ios: usize,
+    /// Which platform panel is currently active
     pub active_panel: crate::app::state::Panel,
+    /// Whether this widget is currently active/focused
     pub is_active: bool,
 }
 
@@ -258,11 +287,19 @@ impl EnhancedDeviceListWidget {
     }
 }
 
-/// Progress indicator widget for long-running operations
+/// Progress indicator widget for long-running operations.
+///
+/// This widget displays a progress bar with optional determinate or
+/// indeterminate states, suitable for showing progress of device operations
+/// like creation, deletion, or startup.
 pub struct ProgressWidget {
+    /// Title displayed in the border
     pub title: String,
-    pub progress: f64, // 0.0 to 1.0
+    /// Progress value from 0.0 to 1.0
+    pub progress: f64,
+    /// Message describing the current operation
     pub message: String,
+    /// Whether to show indeterminate progress (unknown duration)
     pub is_indeterminate: bool,
 }
 
@@ -304,8 +341,14 @@ impl ProgressWidget {
     }
 }
 
+/// Header widget for displaying application title and version.
+///
+/// This widget is typically displayed at the top of the application
+/// and shows the application name with optional version information.
 pub struct Header {
+    /// Application title
     pub title: String,
+    /// Optional version string
     pub version: Option<String>,
 }
 

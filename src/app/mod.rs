@@ -1,7 +1,18 @@
-//! Application core module
+//! Application core module for coordinating all Emu functionality.
+//!
+//! This module serves as the central controller for the application, managing:
+//! - Application lifecycle and main event loop
+//! - Coordination between UI, state, and device managers
+//! - Background task management for async operations
+//! - User input handling and action dispatch
 
+/// User action definitions and handlers.
 pub mod actions;
+
+/// Event type definitions for user input and system events.
 pub mod events;
+
+/// Application state management and data structures.
 pub mod state;
 
 use crate::{
@@ -18,17 +29,66 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
+// Re-export commonly used types from the state module
 pub use self::state::{AppState, FocusedPanel, Mode, Panel};
 
+/// Main application controller that coordinates all components.
+///
+/// The `App` struct is responsible for:
+/// - Managing application state through an Arc<Mutex<AppState>>
+/// - Coordinating platform-specific device managers
+/// - Handling background tasks for non-blocking operations
+/// - Processing user input and updating the UI
+///
+/// # Architecture
+///
+/// The application uses a shared state pattern with async mutex protection
+/// to allow safe concurrent access from multiple tasks. Background operations
+/// are managed through join handles that can be cancelled when needed.
 pub struct App {
+    /// Shared application state protected by an async mutex.
+    /// This allows multiple tasks to safely access and modify state.
     state: Arc<Mutex<AppState>>,
+
+    /// Android device manager for AVD operations.
+    /// Always present as Android is supported on all platforms.
     android_manager: AndroidManager,
+
+    /// iOS device manager for simulator operations.
+    /// Only present on macOS where Xcode tools are available.
     ios_manager: Option<IosManager>,
-    log_update_handle: Option<tokio::task::JoinHandle<()>>, // Handle for delayed log update
-    detail_update_handle: Option<tokio::task::JoinHandle<()>>, // Handle for delayed detail update
+
+    /// Join handle for background log streaming task.
+    /// Cancelled and recreated when switching devices or panels.
+    log_update_handle: Option<tokio::task::JoinHandle<()>>,
+
+    /// Join handle for background device detail fetching.
+    /// Used to debounce detail updates during rapid navigation.
+    detail_update_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl App {
+    /// Creates a new application instance with initialized managers and state.
+    ///
+    /// This function:
+    /// 1. Initializes the application state
+    /// 2. Creates platform-specific device managers
+    /// 3. Starts background cache loading for fast startup
+    /// 4. Initiates background device discovery
+    ///
+    /// # Performance
+    ///
+    /// The function prioritizes fast startup by deferring expensive operations:
+    /// - Device discovery runs in the background
+    /// - Cache loading is non-blocking
+    /// - UI renders immediately with loading indicators
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Android SDK is not properly configured
+    /// - iOS tools are unavailable on macOS
+    /// - Initial manager creation fails
     pub async fn new() -> Result<Self> {
         let state = Arc::new(Mutex::new(AppState::new()));
         let android_manager = AndroidManager::new()?;
@@ -46,18 +106,40 @@ impl App {
             detail_update_handle: None,
         };
 
-        // Start background cache loading (truly background, non-blocking)
+        // Start background operations for optimal startup performance
         app.start_background_cache_loading();
-
-        // 起動速度を優先し、デバイス一覧は遅延読み込み
-        // app.refresh_devices().await?; // ← これが起動を遅くしている原因
-
-        // バックグラウンドでデバイス一覧を読み込み
         app.start_background_device_loading();
 
         Ok(app)
     }
 
+    /// Runs the main application event loop.
+    ///
+    /// This function implements the core application loop that:
+    /// 1. Renders the UI at ~60 FPS (100ms polling interval)
+    /// 2. Processes user input events
+    /// 3. Manages background refresh cycles
+    /// 4. Handles notification timeouts
+    ///
+    /// # Event Processing
+    ///
+    /// The loop uses crossterm's event polling with a 100ms timeout to balance:
+    /// - Responsive input handling
+    /// - Smooth UI updates
+    /// - CPU efficiency
+    ///
+    /// # Background Tasks
+    ///
+    /// Two background timers run during the event loop:
+    /// - Auto-refresh: Checks every 1000ms for device status updates
+    /// - Notification cleanup: Runs every 500ms to dismiss expired messages
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Terminal operations fail
+    /// - Device refresh encounters an error
+    /// - Critical system errors occur
     pub async fn run(
         mut self,
         mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,

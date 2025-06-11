@@ -1,7 +1,16 @@
-//! Error types
+//! Error types and error handling utilities.
+//!
+//! This module defines custom error types for device management operations
+//! and provides utilities for converting technical errors into user-friendly
+//! messages suitable for display in the TUI.
 
 use thiserror::Error;
 
+/// Comprehensive error type for device management operations.
+///
+/// This enum covers all possible error conditions that can occur during
+/// device lifecycle operations, from SDK issues to device-specific failures.
+/// Each variant includes relevant context for debugging and user display.
 #[derive(Error, Debug)]
 pub enum DeviceError {
     #[error("Device not found: {name}")]
@@ -51,6 +60,7 @@ pub enum DeviceError {
 }
 
 impl DeviceError {
+    /// Creates a NotFound error for the specified device name.
     pub fn not_found(name: impl Into<String>) -> Self {
         Self::NotFound { name: name.into() }
     }
@@ -156,7 +166,22 @@ impl DeviceError {
     }
 }
 
-/// Helper function to convert anyhow::Error to user-friendly message
+/// Converts an anyhow::Error to a user-friendly message for TUI display.
+///
+/// This function analyzes error messages for common patterns and provides
+/// helpful suggestions to users. It handles SDK configuration issues,
+/// missing tools, permission errors, and other common problems.
+///
+/// # Arguments
+/// * `error` - The anyhow error to format
+///
+/// # Returns
+/// A user-friendly error message with actionable suggestions when possible.
+///
+/// # Examples
+/// - "licenses not accepted" → "Run 'sdkmanager --licenses' to accept"
+/// - "ANDROID_HOME not found" → "Set ANDROID_HOME environment variable"
+/// - Long technical errors → Truncated to 150 characters
 pub fn format_user_error(error: &anyhow::Error) -> String {
     let error_str = error.to_string();
 
@@ -214,4 +239,8 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
     }
 }
 
+/// Convenience type alias for Results with DeviceError.
+///
+/// This type alias simplifies function signatures throughout the codebase
+/// when returning results that may contain device-specific errors.
 pub type DeviceResult<T> = Result<T, DeviceError>;
