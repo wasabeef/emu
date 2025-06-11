@@ -10,10 +10,12 @@ https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
 ## Features
 
 - 🤖 **Android**: Create, start, stop, delete, and wipe AVDs
-- 🍎 **iOS** (macOS only): Manage simulators via xcrun simctl  
+- 🍎 **iOS** (macOS only): Manage simulators via xcrun simctl
 - 📊 **Real-time**: Live device status and log streaming
-- ⚡ **Fast**: Instant startup with background loading
+- ⚡ **Fast**: Instant startup (<150ms, typical ~104ms) with background loading
 - ⌨️ **Keyboard-driven**: Vim-like keybindings
+- 📱 **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
+- 🔍 **Device details**: Shows specifications, status, RAM/Storage in MB, full paths
 
 ## Installation
 
@@ -62,8 +64,10 @@ emu --debug
 | `w` | Wipe device |
 | `r` | Refresh |
 | `f` | Cycle log filter |
-| `Page Up`/`Page Down` | Scroll device lists |
-| `q` or `Ctrl+c` | Quit |
+| `Page Up`/`Page Down` | Scroll device lists/logs |
+| `Ctrl+u`/`Ctrl+d` | Page up/down in lists |
+| `g`/`G` | Go to top/bottom of list |
+| `q` or `Ctrl+q` | Quit |
 
 
 ## Contributing

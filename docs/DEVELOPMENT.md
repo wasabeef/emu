@@ -126,9 +126,9 @@ src/
 │   ├── platform.rs     # Platform enums
 │   └── mod.rs          # Module exports
 ├── ui/                 # Terminal user interface
-│   ├── render.rs       # Main rendering logic
-│   ├── theme.rs        # Color themes
-│   ├── widgets.rs      # Custom widgets
+│   ├── render.rs       # Main rendering logic (three-panel layout)
+│   ├── theme.rs        # Color themes and focus indicators
+│   ├── widgets.rs      # Custom UI widgets
 │   └── mod.rs          # Module exports
 ├── utils/              # Shared utilities
 │   ├── command.rs      # Command execution
@@ -277,6 +277,9 @@ cargo audit
 
 ### Test Categories
 
+#### Test Suite Overview
+The project has 15 test files with 31+ test functions covering all major functionality.
+
 #### Unit Tests
 Located in source files with `#[cfg(test)]`:
 ```rust
@@ -364,6 +367,7 @@ cargo tarpaulin --out Html
 3. **Independent**: Tests should not depend on each other
 4. **Fast**: Unit tests should run quickly
 5. **Reliable**: Tests should pass consistently
+6. **Coverage**: Aim for comprehensive coverage - current suite has 31+ test functions
 
 #### Mock Usage
 ```rust
@@ -396,11 +400,11 @@ async fn test_with_mock() {
 ## Performance Guidelines
 
 ### Performance Requirements
-- **Startup Time**: < 150ms (target: ~100ms)
+- **Startup Time**: < 150ms (typical: ~104ms)
 - **Panel Switching**: < 100ms
 - **Device Navigation**: < 50ms
 - **Memory Usage**: < 50MB baseline
-- **Log Streaming**: < 10ms latency
+- **Log Streaming**: Real-time with < 10ms latency
 
 ### Optimization Strategies
 
@@ -455,7 +459,7 @@ impl AppState {
     pub fn add_log(&mut self, level: String, message: String) {
         self.device_logs.push_back(LogEntry::new(level, message));
         
-        // Limit log entries
+        // Limit log entries (max 1000)
         while self.device_logs.len() > self.max_log_entries {
             self.device_logs.pop_front();
         }
@@ -646,15 +650,17 @@ cargo publish
 
 ### Code Quality
 - Run `cargo fmt` and `cargo clippy` before committing
-- Write comprehensive tests for new functionality
+- Write comprehensive tests for new functionality (follow the pattern of 31+ existing tests)
 - Use meaningful variable and function names
 - Add documentation for public APIs
+- Follow the trait-based abstraction pattern for platform-specific code
 
 ### Performance
-- Keep startup time under 150ms
+- Keep startup time under 150ms (typical: ~104ms)
 - Use background loading for heavy operations
-- Implement debouncing for UI operations
-- Monitor memory usage and prevent leaks
+- Implement debouncing for UI operations (50-100ms delays)
+- Monitor memory usage and prevent leaks (log rotation at 1000 entries)
+- Smart caching with platform-aware invalidation
 
 ### Error Handling
 - Use `Result<T, E>` for fallible operations

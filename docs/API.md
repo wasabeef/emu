@@ -20,8 +20,10 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 - `h/l` or `←/→` - Switch between Android and iOS panels
 
 ### Navigation
-- `↑/↓` or `j/k` - Move up/down in device list
-- `Page Up/Page Down` - Jump to top/bottom of list
+- `↑/↓` or `j/k` - Move up/down in device list (circular navigation)
+- `Page Up/Page Down` - Scroll device lists/logs
+- `Ctrl+u/Ctrl+d` - Page up/down in lists
+- `g/G` - Go to top/bottom of list
 - `Home/End` - Move to first/last item
 
 ### Device Operations
@@ -33,8 +35,8 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 
 ### Log Panel
 - `f` - Cycle through log filters (All → Error → Warning → Info → Debug)
-- `Shift+L` - Clear logs
-- `Shift+F` - Toggle fullscreen log view
+- Real-time log streaming with color-coded log levels
+- Automatic log rotation (1000 entries max)
 
 ### Device Creation Dialog
 - `Tab` - Next field
@@ -54,34 +56,33 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 The `DeviceManager` trait provides a unified interface for device operations across platforms.
 
 ```rust
-#[async_trait]
 pub trait DeviceManager: Send + Sync + Clone {
     /// List all available devices
-    async fn list_devices(&self) -> Result<Vec<Device>>;
+    fn list_devices(&self) -> impl Future<Output = Result<Vec<Device>>> + Send;
     
     /// Start a device by identifier
-    async fn start_device(&self, id: &str) -> Result<()>;
+    fn start_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
     
     /// Stop a device by identifier
-    async fn stop_device(&self, id: &str) -> Result<()>;
+    fn stop_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
     
     /// Create a new device with the given configuration
-    async fn create_device(&self, config: &DeviceConfig) -> Result<()>;
+    fn create_device(&self, config: &DeviceConfig) -> impl Future<Output = Result<()>> + Send;
     
     /// Delete a device by identifier
-    async fn delete_device(&self, id: &str) -> Result<()>;
+    fn delete_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
     
     /// Wipe device data (cold boot)
-    async fn wipe_device(&self, id: &str) -> Result<()>;
+    fn wipe_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
     
     /// Get detailed information about a device
-    async fn get_device_details(&self, id: &str) -> Result<DeviceDetails>;
+    fn get_device_details(&self, id: &str) -> impl Future<Output = Result<DeviceDetails>> + Send;
     
     /// List available device types for creation
-    async fn list_device_types(&self) -> Result<Vec<(String, String)>>;
+    fn list_device_types(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
     
     /// List available system images or runtimes
-    async fn list_available_targets(&self) -> Result<Vec<(String, String)>>;
+    fn list_available_targets(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
 }
 ```
 
