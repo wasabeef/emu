@@ -221,7 +221,7 @@ cargo doc --open
 #### Branch Naming
 - **Feature**: `feature/device-details-panel`
 - **Bug Fix**: `fix/android-state-detection`
-- **Documentation**: `docs/api-documentation`
+- **Documentation**: `docs/development-guide-updates`
 - **Performance**: `perf/startup-optimization`
 - **Refactor**: `refactor/async-state-management`
 
@@ -687,4 +687,270 @@ cargo publish
 - Document architectural decisions
 - Maintain comprehensive README
 
-This development guide provides a solid foundation for contributing to Emu. For questions or clarifications, please create an issue or start a discussion.
+## API Reference
+
+### Core Traits
+
+#### DeviceManager Trait
+
+The `DeviceManager` trait provides a unified interface for device operations across platforms:
+
+```rust
+pub trait DeviceManager: Send + Sync + Clone {
+    /// List all available devices
+    fn list_devices(&self) -> impl Future<Output = Result<Vec<Device>>> + Send;
+    
+    /// Start a device by identifier
+    fn start_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    
+    /// Stop a device by identifier
+    fn stop_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    
+    /// Create a new device with the given configuration
+    fn create_device(&self, config: &DeviceConfig) -> impl Future<Output = Result<()>> + Send;
+    
+    /// Delete a device by identifier
+    fn delete_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    
+    /// Wipe device data (cold boot)
+    fn wipe_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+    
+    /// Get detailed information about a device
+    fn get_device_details(&self, id: &str) -> impl Future<Output = Result<DeviceDetails>> + Send;
+    
+    /// List available device types for creation
+    fn list_device_types(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
+    
+    /// List available system images or runtimes
+    fn list_available_targets(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
+}
+```
+
+#### Usage Example
+
+```rust
+use emu::managers::{AndroidManager, DeviceManager};
+use emu::models::DeviceConfig;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let manager = AndroidManager::new()?;
+    
+    // List all devices
+    let devices = manager.list_devices().await?;
+    
+    // Create a new device
+    let config = DeviceConfig::new("MyDevice", "pixel_7", "31");
+    manager.create_device(&config).await?;
+    
+    // Start the device
+    manager.start_device("MyDevice").await?;
+    
+    Ok(())
+}
+```
+
+### Data Models
+
+#### Device Types
+
+```rust
+// Android Device
+pub struct AndroidDevice {
+    pub name: String,
+    pub target: String,
+    pub status: DeviceStatus,
+    pub path: String,
+}
+
+// iOS Device  
+pub struct IosDevice {
+    pub udid: String,
+    pub name: String,
+    pub runtime: String,
+    pub status: DeviceStatus,
+}
+
+// Device Status
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeviceStatus {
+    Running,
+    Stopped,
+    Starting,
+    Stopping,
+    Unknown,
+}
+```
+
+#### Configuration Types
+
+```rust
+pub struct DeviceConfig {
+    pub name: String,
+    pub device_type: String,
+    pub target: String,
+    pub ram_size: Option<u32>,    // In MB
+    pub storage_size: Option<u32>, // In MB
+}
+
+impl DeviceConfig {
+    pub fn new(name: &str, device_type: &str, target: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            device_type: device_type.to_string(),
+            target: target.to_string(),
+            ram_size: None,
+            storage_size: None,
+        }
+    }
+}
+```
+
+## Release Process
+
+### Prerequisites
+
+1. Ensure all tests are passing:
+   ```bash
+   cargo test --bins --tests --all-features  # Recommended: excludes doctests
+   # cargo test --all-features              # Optional: includes doctests (may have import issues)
+   cargo fmt -- --check
+   cargo clippy --all-features -- -D warnings
+   ```
+
+2. Update version in `Cargo.toml`:
+   ```toml
+   [package]
+   version = "0.1.0"  # Update this
+   ```
+
+3. Update `CHANGELOG.md` (optional - automated release notes are generated):
+   - The release process will automatically generate release notes using git-cliff
+   - Manual updates are only needed for major releases or special announcements
+
+4. Commit the version bump:
+   ```bash
+   git add Cargo.toml CHANGELOG.md
+   git commit -m "chore: bump version to v0.1.0"
+   ```
+
+### Creating a Release
+
+1. Create and push a tag:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+2. The GitHub Actions workflow will automatically:
+   - Generate release notes from commit history using git-cliff
+   - Build binaries for all platforms
+   - Create a GitHub release with auto-generated release notes
+   - Upload the binaries
+
+3. Homebrew formula update:
+   - The release workflow automatically updates the formula
+   - It calculates SHA256 for all platform binaries
+   - Creates a commit in wasabeef/homebrew-emu-tap
+   - No manual intervention required
+
+### Post-Release
+
+1. Verify the release on GitHub
+2. Test installation via Homebrew:
+   ```bash
+   brew tap wasabeef/tap
+   brew install emu
+   ```
+
+3. Announce the release:
+   - Twitter/X
+   - Reddit (r/rust, r/androiddev)
+   - Hacker News (if significant release)
+
+### Version Numbering
+
+We follow [Semantic Versioning](https://semver.org/):
+- MAJOR version for incompatible API changes
+- MINOR version for backwards-compatible functionality
+- PATCH version for backwards-compatible bug fixes
+
+### Commit Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for automatic changelog generation:
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation changes
+- `perf:` Performance improvements
+- `refactor:` Code refactoring
+- `test:` Test additions/changes
+- `chore:` Maintenance tasks
+
+Example:
+```bash
+git commit -m "feat: add iOS simulator log streaming"
+git commit -m "fix: prevent crash on small terminal sizes"
+git commit -m "docs: update installation instructions"
+```
+
+## Troubleshooting
+
+### Android SDK Issues
+
+```bash
+# Verify SDK installation
+echo $ANDROID_HOME
+ls $ANDROID_HOME/emulator
+ls $ANDROID_HOME/platform-tools
+
+# Check PATH
+which avdmanager
+which emulator
+which adb
+```
+
+### iOS Issues (macOS)
+
+```bash
+# Verify Xcode installation
+xcode-select -p
+xcrun simctl list devices
+
+# Install command line tools
+xcode-select --install
+```
+
+### AVD Creation Debug
+
+If AVD creation fails, check the following:
+
+1. **System Image Availability**: Ensure the target system image is installed
+2. **Device Definition**: Verify the device type exists in the SDK
+3. **Storage Space**: Check available disk space for AVD creation
+4. **Permissions**: Ensure write permissions to AVD directory
+
+```bash
+# Debug AVD creation
+avdmanager list target
+avdmanager list device
+emulator -list-avds
+```
+
+### Common Issues
+
+#### Build Issues
+1. **Dependency conflicts**: `cargo clean && cargo build`
+2. **Rust version**: `rustup update`
+3. **Missing components**: `rustup component add clippy rustfmt`
+
+#### Runtime Issues
+1. **Android SDK**: Verify `ANDROID_HOME` and PATH
+2. **iOS Simulator**: Check Xcode installation
+3. **Permissions**: Ensure terminal has necessary permissions
+
+#### Test Issues
+1. **Flaky tests**: Check for race conditions
+2. **Platform-specific**: Use conditional compilation
+3. **Performance tests**: Run on consistent hardware
+
+This comprehensive development guide provides everything needed for contributing to Emu. For questions or clarifications, please create an issue or start a discussion.
