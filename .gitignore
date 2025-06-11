@@ -2,12 +2,14 @@
 target/
 Cargo.lock
 **/*.rs.bk
+*.pdb
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
@@ -15,3 +17,37 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.ilk
+*.map
+*.exp
+
+# Backup files
+*.orig
+*.bak
+
+# Lefthook
+.lefthook-local/
+
+# Test coverage
+tarpaulin-report.html
+cobertura.xml
+
+# Profiling
+perf.data
+perf.data.old
+flamegraph.svg
+
+# Documentation
+/target/doc/
+
+# Cargo configuration (local overrides)
+.cargo/config.toml
+
+# Environment files
+.env
+.env.local

@@ -1,0 +1,23 @@
+{
+  "name": "emu",
+  "version": "0.1.0",
+  "description": "A lazygit-inspired TUI for managing Android emulators and iOS simulators",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wasabeef/emu.git"
+  },
+  "scripts": {
+    "prepare": "lefthook install",
+    "lefthook": "lefthook",
+    "fmt": "cargo fmt --all",
+    "lint": "cargo clippy --all-targets --all-features -- -D warnings",
+    "test": "cargo test",
+    "check": "bun run fmt && bun run lint && bun run test",
+    "build": "cargo build --release",
+    "dev": "cargo run",
+    "watch": "cargo watch -x run"
+  },
+  "devDependencies": {
+    "lefthook": "^1.10.0"
+  }
+}
