@@ -962,56 +962,48 @@ impl AppState {
         // Fall back to basic details
         match self.active_panel {
             Panel::Android => {
-                if let Some(device) = self.android_devices.get(self.selected_android) {
-                    Some(DeviceDetails {
-                        name: device.name.clone(),
-                        status: if device.is_running {
-                            "Running".to_string()
-                        } else {
-                            "Stopped".to_string()
-                        },
-                        platform: Panel::Android,
-                        device_type: device.device_type.clone(),
-                        api_level_or_version: format!(
-                            "API {} (Android {})",
-                            device.api_level,
-                            self.get_android_version_name(device.api_level)
-                        ),
-                        ram_size: None,     // Will be filled by manager
-                        storage_size: None, // Will be filled by manager
-                        resolution: None,   // Will be filled by manager
-                        dpi: None,          // Will be filled by manager
-                        device_path: None,  // Will be filled by manager
-                        system_image: None, // Will be filled by manager
-                        identifier: device.name.clone(),
-                    })
-                } else {
-                    None
-                }
+                self.android_devices.get(self.selected_android).map(|device| DeviceDetails {
+                    name: device.name.clone(),
+                    status: if device.is_running {
+                        "Running".to_string()
+                    } else {
+                        "Stopped".to_string()
+                    },
+                    platform: Panel::Android,
+                    device_type: device.device_type.clone(),
+                    api_level_or_version: format!(
+                        "API {} (Android {})",
+                        device.api_level,
+                        self.get_android_version_name(device.api_level)
+                    ),
+                    ram_size: None,     // Will be filled by manager
+                    storage_size: None, // Will be filled by manager
+                    resolution: None,   // Will be filled by manager
+                    dpi: None,          // Will be filled by manager
+                    device_path: None,  // Will be filled by manager
+                    system_image: None, // Will be filled by manager
+                    identifier: device.name.clone(),
+                })
             }
             Panel::Ios => {
-                if let Some(device) = self.ios_devices.get(self.selected_ios) {
-                    Some(DeviceDetails {
-                        name: device.name.clone(),
-                        status: if device.is_running {
-                            "Booted".to_string()
-                        } else {
-                            "Shutdown".to_string()
-                        },
-                        platform: Panel::Ios,
-                        device_type: device.device_type.clone(),
-                        api_level_or_version: device.runtime_version.clone(),
-                        ram_size: None,     // iOS simulators don't expose RAM info
-                        storage_size: None, // iOS simulators don't expose storage info
-                        resolution: None,   // Will be filled by manager
-                        dpi: None,          // iOS uses scale factor instead
-                        device_path: None,  // Will be filled by manager
-                        system_image: None, // iOS doesn't use system images
-                        identifier: device.udid.clone(),
-                    })
-                } else {
-                    None
-                }
+                self.ios_devices.get(self.selected_ios).map(|device| DeviceDetails {
+                    name: device.name.clone(),
+                    status: if device.is_running {
+                        "Booted".to_string()
+                    } else {
+                        "Shutdown".to_string()
+                    },
+                    platform: Panel::Ios,
+                    device_type: device.device_type.clone(),
+                    api_level_or_version: device.runtime_version.clone(),
+                    ram_size: None,     // iOS simulators don't expose RAM info
+                    storage_size: None, // iOS simulators don't expose storage info
+                    resolution: None,   // Will be filled by manager
+                    dpi: None,          // iOS uses scale factor instead
+                    device_path: None,  // Will be filled by manager
+                    system_image: None, // iOS doesn't use system images
+                    identifier: device.udid.clone(),
+                })
             }
         }
     }

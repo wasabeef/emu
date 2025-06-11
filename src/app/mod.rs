@@ -903,7 +903,7 @@ impl App {
         let (active_panel, selected_android, selected_ios, android_devices, ios_devices) = {
             let state = self.state.lock().await;
             (
-                state.active_panel.clone(),
+                state.active_panel,
                 state.selected_android,
                 state.selected_ios,
                 state.android_devices.clone(),
@@ -1136,7 +1136,7 @@ impl App {
         ) = {
             let state_lock = state.lock().await;
             (
-                state_lock.active_panel.clone(),
+                state_lock.active_panel,
                 state_lock.selected_android,
                 state_lock.selected_ios,
                 state_lock.android_devices.clone(),
@@ -1181,7 +1181,7 @@ impl App {
         // Update current log device
         {
             let mut state_lock = state.lock().await;
-            state_lock.current_log_device = Some((active_panel.clone(), device_name.clone()));
+            state_lock.current_log_device = Some((active_panel, device_name.clone()));
 
             // Cancel existing log task before starting new one
             if let Some(handle) = state_lock.log_task_handle.take() {
@@ -1277,7 +1277,7 @@ impl App {
         emulator_serial: String,
     ) {
         let result = Command::new("adb")
-            .args(&["-s", &emulator_serial, "logcat", "-v", "time"])
+            .args(["-s", &emulator_serial, "logcat", "-v", "time"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null()) // Suppress stderr output
             .stdin(std::process::Stdio::null()) // No stdin needed
@@ -1709,7 +1709,7 @@ impl App {
                 }
             }
 
-            (state.active_panel.clone(), form_data, config)
+            (state.active_panel, form_data, config)
         };
 
         // Set creating state
@@ -1983,7 +1983,7 @@ impl App {
             let state = self.state.lock().await;
             let device_cache_clone = Arc::clone(&state.device_cache);
             (
-                state.active_panel.clone(),
+                state.active_panel,
                 state.create_device_form.device_category_filter.clone(),
                 device_cache_clone,
             )

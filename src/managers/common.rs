@@ -430,7 +430,7 @@ pub async fn check_tool_version(tool_path: &std::path::Path) -> Result<String> {
         .next()
         .unwrap_or("unknown")
         .split_whitespace()
-        .find(|s| s.chars().next().map_or(false, |c| c.is_ascii_digit()))
+        .find(|s| s.chars().next().is_some_and(|c| c.is_ascii_digit()))
         .unwrap_or("unknown")
         .to_string();
 

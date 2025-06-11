@@ -177,10 +177,10 @@ fn test_up_down_keys_field_movement_only() {
 
     // Test that move_selection_up/down always return false (no selection change)
     let result_up = state.create_device_form.move_selection_up();
-    assert_eq!(result_up, false);
+    assert!(!result_up);
 
     let result_down = state.create_device_form.move_selection_down();
-    assert_eq!(result_down, false);
+    assert!(!result_down);
 
     // Verify selections didn't change
     assert_eq!(state.create_device_form.selected_api_level_index, 1);

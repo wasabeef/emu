@@ -286,6 +286,12 @@ pub struct DynamicDeviceConfig {
     api_cache: HashMap<u32, ApiLevelInfo>,
 }
 
+impl Default for DynamicDeviceConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DynamicDeviceConfig {
     pub fn new() -> Self {
         Self {
@@ -584,7 +590,7 @@ impl DynamicDeviceConfig {
 
             // Handle hyphenated versions like "iPhone-15"
             if part.contains('-') {
-                if let Some(num_part) = part.split('-').last() {
+                if let Some(num_part) = part.split('-').next_back() {
                     if let Ok(num) = num_part.parse::<u32>() {
                         if num > 0 && num <= 50 {
                             return num;
@@ -625,7 +631,7 @@ impl DynamicDeviceConfig {
     /// Parse device name using cached device information
     pub fn parse_device_name(&self, device_type: &str) -> Vec<String> {
         // Try to find matching device in cache
-        for (_, device) in &self.device_cache {
+        for device in self.device_cache.values() {
             if device_type.contains(&device.display_name) || device_type.contains(&device.id) {
                 return self.extract_name_parts(&device.display_name);
             }
@@ -687,7 +693,7 @@ impl DynamicDeviceConfig {
 
             // Handle cases like "pixel_9", "iphone_15"
             if part.contains('_') {
-                if let Some(num_part) = part.split('_').last() {
+                if let Some(num_part) = part.split('_').next_back() {
                     if let Ok(num) = num_part.parse::<u32>() {
                         if num > 0 && num <= 50 {
                             return Some(100 - num);

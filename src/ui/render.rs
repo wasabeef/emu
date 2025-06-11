@@ -127,8 +127,8 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
     let status_with_icon = match state.mode {
         crate::app::Mode::Normal => format!("🚪 {}", status_text),
         crate::app::Mode::CreateDevice => format!("📝 {}", status_text),
-        crate::app::Mode::ConfirmDelete => format!("{}", status_text),
-        crate::app::Mode::ConfirmWipe => format!("{}", status_text),
+        crate::app::Mode::ConfirmDelete => status_text.to_string(),
+        crate::app::Mode::ConfirmWipe => status_text.to_string(),
         _ => status_text.to_string(),
     };
     let status = Paragraph::new(status_with_icon)

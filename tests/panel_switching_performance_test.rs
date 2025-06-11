@@ -9,7 +9,7 @@ async fn test_panel_switching_responsiveness() {
     let _app = App::new().await.expect("Failed to create app");
 
     // Simulate rapid panel switching
-    let switch_events = vec![
+    let switch_events = [
         KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), // Android -> iOS
         KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), // iOS -> Android
         KeyEvent::new(KeyCode::Right, KeyModifiers::NONE), // Android -> iOS

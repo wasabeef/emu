@@ -23,6 +23,12 @@ use tokio::process::Command;
 #[derive(Clone)]
 pub struct CommandRunner;
 
+impl Default for CommandRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommandRunner {
     /// Creates a new CommandRunner instance.
     ///

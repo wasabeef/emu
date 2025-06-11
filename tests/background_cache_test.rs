@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 
 #[tokio::test]
 async fn test_device_cache_creation() {
-    let cache = DeviceCache::new();
+    let cache = DeviceCache::default();
 
     assert!(cache.android_device_types.is_empty());
     assert!(cache.android_api_levels.is_empty());
@@ -19,7 +19,7 @@ async fn test_device_cache_creation() {
 
 #[tokio::test]
 async fn test_device_cache_android_update() {
-    let mut cache = DeviceCache::new();
+    let mut cache = DeviceCache::default();
 
     let device_types = vec![
         ("pixel_7".to_string(), "Pixel 7 (Google)".to_string()),
@@ -43,7 +43,7 @@ async fn test_device_cache_android_update() {
 
 #[tokio::test]
 async fn test_device_cache_ios_update() {
-    let mut cache = DeviceCache::new();
+    let mut cache = DeviceCache::default();
 
     let device_types = vec![
         ("iPhone_15_Pro".to_string(), "iPhone 15 Pro".to_string()),
@@ -67,10 +67,10 @@ async fn test_device_cache_ios_update() {
 
 #[tokio::test]
 async fn test_device_cache_staleness() {
-    let mut cache = DeviceCache::new();
-
-    // 5分以上前の時刻を設定
-    cache.last_updated = std::time::Instant::now() - Duration::from_secs(301);
+    let mut cache = DeviceCache {
+        last_updated: std::time::Instant::now() - Duration::from_secs(301),
+        ..DeviceCache::default()
+    };
 
     assert!(cache.is_stale(), "Cache should be stale after 5+ minutes");
 
@@ -178,7 +178,7 @@ async fn test_background_cache_update_startup() {
 
 #[tokio::test]
 async fn test_cache_respects_staleness_policy() {
-    let mut cache = DeviceCache::new();
+    let mut cache = DeviceCache::default();
 
     // 新しいキャッシュは有効
     assert!(!cache.is_stale());
@@ -204,7 +204,7 @@ async fn test_cache_respects_staleness_policy() {
 #[test]
 fn test_cache_thread_safety() {
     // Arc<RwLock<DeviceCache>> のスレッドセーフティをテスト
-    let cache = Arc::new(RwLock::new(DeviceCache::new()));
+    let cache = Arc::new(RwLock::new(DeviceCache::default()));
 
     // 複数のスレッドから安全にアクセスできることを確認
     let _cache_clone = Arc::clone(&cache);

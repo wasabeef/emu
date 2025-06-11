@@ -553,7 +553,7 @@ fn test_realistic_device_ordering() {
 #[test]
 fn test_pixel_version_ordering() {
     // Test that Pixel devices are ordered by version correctly
-    let mut pixel_devices = vec![
+    let mut pixel_devices = [
         ("pixel_7", "Pixel 7 (Google)"),
         ("pixel_8", "Pixel 8 (Google)"),
         ("pixel_9", "Pixel 9 (Google)"),

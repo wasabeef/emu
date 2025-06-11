@@ -287,6 +287,7 @@ use crate::{
     utils::command::CommandRunner,
 };
 use anyhow::{bail, Context, Result};
+use std::path::Path;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -313,6 +314,8 @@ lazy_static! {
     static ref API_LEVEL_REGEX: Regex = Regex::new(r"API level (\d+)").unwrap();
     static ref ANDROID_VERSION_REGEX: Regex = Regex::new(r"android-(\d+)").unwrap();
     static ref AVD_DISPLAYNAME_REGEX: Regex = Regex::new(r"avd\.ini\.displayname=(.+)").unwrap();
+    static ref NUMBER_PATTERN_REGEX: Regex = Regex::new(r"(\d{2,3})").unwrap();
+    static ref API_OR_ANDROID_REGEX: Regex = Regex::new(r"(?:API level |android-)(\d+)").unwrap();
 }
 /// Android Virtual Device (AVD) manager implementation.
 ///
@@ -402,7 +405,7 @@ impl AndroidManager {
     /// # Returns
     /// - `Ok(PathBuf)` - Full path to the tool executable
     /// - `Err` - If tool is not found in any expected location
-    fn find_tool(android_home: &PathBuf, tool: &str) -> Result<PathBuf> {
+    fn find_tool(android_home: &Path, tool: &str) -> Result<PathBuf> {
         let paths = [
             android_home
                 .join(android_paths::CMDLINE_TOOLS_LATEST_BIN)
@@ -593,7 +596,7 @@ impl AndroidManager {
                     let tag_abi = format!("{};{}", parts[2], parts[3]);
                     api_level_info
                         .entry(api_level.to_string())
-                        .or_insert_with(HashSet::new)
+                        .or_default()
                         .insert(tag_abi);
 
                     // Use simple version mapping to avoid recursion
@@ -1255,7 +1258,6 @@ impl AndroidManager {
                                 // Extract version number if present
                                 if let Some(version_match) = line.split("Android").nth(1) {
                                     let version = version_match
-                                        .trim()
                                         .split_whitespace()
                                         .next()
                                         .unwrap_or("")
@@ -1705,67 +1707,89 @@ impl AndroidManager {
 impl DeviceManager for AndroidManager {
     type Device = AndroidDevice;
 
-    fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
-        async move {
-            let avd_output = self
-                .command_runner
-                .run(&self.avdmanager_path, &["list", "avd"])
-                .await
-                .context("Failed to list Android AVDs")?;
+    async fn list_devices(&self) -> Result<Vec<Self::Device>> {
+        let avd_output = self
+            .command_runner
+            .run(&self.avdmanager_path, &["list", "avd"])
+            .await
+            .context("Failed to list Android AVDs")?;
 
-            // log::debug!("AVD list output:\n{}", avd_output);
+        // log::debug!("AVD list output:\n{}", avd_output);
 
-            // Get running AVD names mapped to their emulator IDs
-            let running_avds = self.get_running_avd_names().await?;
+        // Get running AVD names mapped to their emulator IDs
+        let running_avds = self.get_running_avd_names().await?;
 
-            let mut devices = Vec::new();
-            let mut current_device_info: Option<(String, String, String, String, String)> = None; // Name, Path, Target, Tag/ABI, Device
+        let mut devices = Vec::new();
+        let mut current_device_info: Option<(String, String, String, String, String)> = None; // Name, Path, Target, Tag/ABI, Device
 
-            let mut current_target_full = String::new();
+        let mut current_target_full = String::new();
 
-            for line in avd_output.lines() {
-                let trimmed_line = line.trim();
+        for line in avd_output.lines() {
+            let trimmed_line = line.trim();
 
-                // Capture multi-line target information
-                if current_device_info.is_some() && line.starts_with("          Based on:") {
-                    current_target_full.push(' ');
-                    current_target_full.push_str(trimmed_line);
-                }
+            // Capture multi-line target information
+            if current_device_info.is_some() && line.starts_with("          Based on:") {
+                current_target_full.push(' ');
+                current_target_full.push_str(trimmed_line);
+            }
 
-                if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
-                    if let Some((name, _path, mut target, _abi, device)) =
-                        current_device_info.take()
-                    {
-                        // Append any additional target info
-                        if !current_target_full.is_empty() {
-                            target.push_str(&current_target_full);
-                            current_target_full.clear();
+            if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
+                if let Some((name, _path, mut target, _abi, device)) =
+                    current_device_info.take()
+                {
+                    // Append any additional target info
+                    if !current_target_full.is_empty() {
+                        target.push_str(&current_target_full);
+                        current_target_full.clear();
+                    }
+
+                    let is_running = running_avds.contains_key(&name);
+
+                    // Extract API level - simplified approach that tries multiple methods
+                    let api_level = {
+                        let mut api = 0u32;
+
+                        // Method 1: Try to read from config.ini in standard location
+                        if let Ok(home) = std::env::var("HOME") {
+                            let config_path = PathBuf::from(home)
+                                .join(".android")
+                                .join("avd")
+                                .join(format!("{}.avd", &name))
+                                .join("config.ini");
+
+                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
+                                // Try regex first (with or without trailing slash)
+                                if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content)
+                                {
+                                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
+                                        api = parsed_api;
+                                    }
+                                }
+                                // Fallback to target line
+                                else if let Some(caps) =
+                                    TARGET_CONFIG_REGEX.captures(&config_content)
+                                {
+                                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
+                                        api = parsed_api;
+                                    }
+                                }
+                            }
                         }
 
-                        let is_running = running_avds.contains_key(&name);
-
-                        // Extract API level - simplified approach that tries multiple methods
-                        let api_level = {
-                            let mut api = 0u32;
-
-                            // Method 1: Try to read from config.ini in standard location
-                            if let Ok(home) = std::env::var("HOME") {
-                                let config_path = PathBuf::from(home)
-                                    .join(".android")
-                                    .join("avd")
-                                    .join(format!("{}.avd", &name))
-                                    .join("config.ini");
-
-                                if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                    // Try regex first (with or without trailing slash)
-                                    if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content)
+                        // Method 2: If still no API found, try get_avd_path method
+                        if api == 0 {
+                            if let Ok(Some(avd_path)) = self.get_avd_path(&name).await {
+                                let config_path = avd_path.join("config.ini");
+                                if let Ok(config_content) =
+                                    fs::read_to_string(&config_path).await
+                                {
+                                    if let Some(caps) =
+                                        IMAGE_SYSDIR_REGEX.captures(&config_content)
                                     {
                                         if let Ok(parsed_api) = caps[1].parse::<u32>() {
                                             api = parsed_api;
                                         }
-                                    }
-                                    // Fallback to target line
-                                    else if let Some(caps) =
+                                    } else if let Some(caps) =
                                         TARGET_CONFIG_REGEX.captures(&config_content)
                                     {
                                         if let Ok(parsed_api) = caps[1].parse::<u32>() {
@@ -1774,687 +1798,645 @@ impl DeviceManager for AndroidManager {
                                     }
                                 }
                             }
-
-                            // Method 2: If still no API found, try get_avd_path method
-                            if api == 0 {
-                                if let Ok(Some(avd_path)) = self.get_avd_path(&name).await {
-                                    let config_path = avd_path.join("config.ini");
-                                    if let Ok(config_content) =
-                                        fs::read_to_string(&config_path).await
-                                    {
-                                        if let Some(caps) =
-                                            IMAGE_SYSDIR_REGEX.captures(&config_content)
-                                        {
-                                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                                api = parsed_api;
-                                            }
-                                        } else if let Some(caps) =
-                                            TARGET_CONFIG_REGEX.captures(&config_content)
-                                        {
-                                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                                api = parsed_api;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Method 3: Fallback to parsing from avdmanager target string
-                            if api == 0 {
-                                if let Some(caps) = BASED_ON_REGEX.captures(&target) {
-                                    let version = &caps[1];
-                                    api = Self::parse_android_version_to_api_level(version);
-                                } else if let Some(caps) = API_LEVEL_REGEX.captures(&target) {
-                                    api = caps[1].parse().unwrap_or(0);
-                                } else if let Some(caps) = ANDROID_VERSION_REGEX.captures(&target) {
-                                    api = caps[1].parse().unwrap_or(0);
-                                }
-                            }
-
-                            api
-                        };
-
-                        // Get device display name from config.ini or fallback to device mapping
-                        let device_type_str = {
-                            let mut display_name = String::new();
-
-                            // Try to read displayname from config.ini
-                            if let Ok(home) = std::env::var("HOME") {
-                                let config_path = PathBuf::from(home)
-                                    .join(".android")
-                                    .join("avd")
-                                    .join(format!("{}.avd", &name))
-                                    .join("config.ini");
-
-                                if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                    if let Some(caps) =
-                                        AVD_DISPLAYNAME_REGEX.captures(&config_content)
-                                    {
-                                        display_name = caps[1].trim().to_string();
-                                    }
-                                }
-                            }
-
-                            // Fallback to device mapping if no displayname found
-                            if display_name.is_empty() && !device.is_empty() {
-                                let mapped_name = self.get_device_display_name(&device);
-                                display_name = mapped_name;
-                            }
-
-                            // Final fallback
-                            if display_name.is_empty() {
-                                display_name = "Unknown".to_string();
-                            }
-
-                            display_name
-                        };
-
-                        devices.push(AndroidDevice {
-                            name: name.to_string(),
-                            device_type: device_type_str,
-                            api_level,
-                            is_running,
-                            status: if is_running {
-                                DeviceStatus::Running
-                            } else {
-                                DeviceStatus::Stopped
-                            },
-                            ..Default::default()
-                        });
-                    }
-                    continue;
-                }
-
-                if let Some(caps) = AVD_NAME_REGEX.captures(trimmed_line) {
-                    if let Some((name, _path, mut target, _abi, device)) =
-                        current_device_info.take()
-                    {
-                        // Push previous device if any
-                        // Append any additional target info
-                        if !current_target_full.is_empty() {
-                            target.push_str(&current_target_full);
-                            current_target_full.clear();
                         }
 
-                        let is_running = running_avds.contains_key(&name);
-
-                        let api_level = {
-                            // First try: extract from "Based on: Android X.Y"
+                        // Method 3: Fallback to parsing from avdmanager target string
+                        if api == 0 {
                             if let Some(caps) = BASED_ON_REGEX.captures(&target) {
                                 let version = &caps[1];
-                                Self::parse_android_version_to_api_level(version)
+                                api = Self::parse_android_version_to_api_level(version);
+                            } else if let Some(caps) = API_LEVEL_REGEX.captures(&target) {
+                                api = caps[1].parse().unwrap_or(0);
+                            } else if let Some(caps) = ANDROID_VERSION_REGEX.captures(&target) {
+                                api = caps[1].parse().unwrap_or(0);
                             }
-                            // Second try: extract from "API level XX"
-                            else if let Some(caps) =
-                                Regex::new(r"API level (\d+)").unwrap().captures(&target)
-                            {
-                                caps[1].parse().unwrap_or(0)
-                            }
-                            // Third try: extract from "android-XX"
-                            else if let Some(caps) =
-                                Regex::new(r"android-(\d+)").unwrap().captures(&target)
-                            {
-                                caps[1].parse().unwrap_or(0)
-                            }
-                            // Fourth try: extract from any number pattern
-                            else if let Some(caps) =
-                                Regex::new(r"(\d{2,3})").unwrap().captures(&target)
-                            {
-                                let potential_api = caps[1].parse().unwrap_or(0);
-                                // Validate that it's a reasonable API level (21-35)
-                                if potential_api >= 21 && potential_api <= 40 {
-                                    potential_api
-                                } else {
-                                    0
+                        }
+
+                        api
+                    };
+
+                    // Get device display name from config.ini or fallback to device mapping
+                    let device_type_str = {
+                        let mut display_name = String::new();
+
+                        // Try to read displayname from config.ini
+                        if let Ok(home) = std::env::var("HOME") {
+                            let config_path = PathBuf::from(home)
+                                .join(".android")
+                                .join("avd")
+                                .join(format!("{}.avd", &name))
+                                .join("config.ini");
+
+                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
+                                if let Some(caps) =
+                                    AVD_DISPLAYNAME_REGEX.captures(&config_content)
+                                {
+                                    display_name = caps[1].trim().to_string();
                                 }
+                            }
+                        }
+
+                        // Fallback to device mapping if no displayname found
+                        if display_name.is_empty() && !device.is_empty() {
+                            let mapped_name = self.get_device_display_name(&device);
+                            display_name = mapped_name;
+                        }
+
+                        // Final fallback
+                        if display_name.is_empty() {
+                            display_name = "Unknown".to_string();
+                        }
+
+                        display_name
+                    };
+
+                    devices.push(AndroidDevice {
+                        name: name.to_string(),
+                        device_type: device_type_str,
+                        api_level,
+                        is_running,
+                        status: if is_running {
+                            DeviceStatus::Running
+                        } else {
+                            DeviceStatus::Stopped
+                        },
+                        ..Default::default()
+                    });
+                }
+                continue;
+            }
+
+            if let Some(caps) = AVD_NAME_REGEX.captures(trimmed_line) {
+                if let Some((name, _path, mut target, _abi, device)) =
+                    current_device_info.take()
+                {
+                    // Push previous device if any
+                    // Append any additional target info
+                    if !current_target_full.is_empty() {
+                        target.push_str(&current_target_full);
+                        current_target_full.clear();
+                    }
+
+                    let is_running = running_avds.contains_key(&name);
+
+                    let api_level = {
+                        // First try: extract from "Based on: Android X.Y"
+                        if let Some(caps) = BASED_ON_REGEX.captures(&target) {
+                            let version = &caps[1];
+                            Self::parse_android_version_to_api_level(version)
+                        }
+                        // Second try: extract from "API level XX"
+                        else if let Some(caps) =
+                            API_LEVEL_REGEX.captures(&target)
+                        {
+                            caps[1].parse().unwrap_or(0)
+                        }
+                        // Third try: extract from "android-XX"
+                        else if let Some(caps) =
+                            ANDROID_VERSION_REGEX.captures(&target)
+                        {
+                            caps[1].parse().unwrap_or(0)
+                        }
+                        // Fourth try: extract from any number pattern
+                        else if let Some(caps) =
+                            NUMBER_PATTERN_REGEX.captures(&target)
+                        {
+                            let potential_api = caps[1].parse().unwrap_or(0);
+                            // Validate that it's a reasonable API level (21-35)
+                            if (21..=40).contains(&potential_api) {
+                                potential_api
                             } else {
                                 0
                             }
-                        };
+                        } else {
+                            0
+                        }
+                    };
 
-                        // Get device display name from config.ini or fallback to device mapping
-                        let device_type_str = {
-                            let mut display_name = String::new();
+                    // Get device display name from config.ini or fallback to device mapping
+                    let device_type_str = {
+                        let mut display_name = String::new();
 
-                            // Try to read displayname from config.ini
-                            if let Ok(home) = std::env::var("HOME") {
-                                let config_path = PathBuf::from(home)
-                                    .join(".android")
-                                    .join("avd")
-                                    .join(format!("{}.avd", &name))
-                                    .join("config.ini");
+                        // Try to read displayname from config.ini
+                        if let Ok(home) = std::env::var("HOME") {
+                            let config_path = PathBuf::from(home)
+                                .join(".android")
+                                .join("avd")
+                                .join(format!("{}.avd", &name))
+                                .join("config.ini");
 
-                                if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                    if let Some(caps) =
-                                        AVD_DISPLAYNAME_REGEX.captures(&config_content)
-                                    {
-                                        display_name = caps[1].trim().to_string();
-                                    }
-                                }
-                            }
-
-                            // Fallback to device mapping if no displayname found
-                            if display_name.is_empty() && !device.is_empty() {
-                                let mapped_name = self.get_device_display_name(&device);
-                                display_name = mapped_name;
-                            }
-
-                            // Final fallback
-                            if display_name.is_empty() {
-                                display_name = "Unknown".to_string();
-                            }
-
-                            display_name
-                        };
-
-                        devices.push(AndroidDevice {
-                            name: name.to_string(),
-                            device_type: device_type_str,
-                            api_level,
-                            is_running,
-                            status: if is_running {
-                                DeviceStatus::Running
-                            } else {
-                                DeviceStatus::Stopped
-                            },
-                            ..Default::default()
-                        });
-                    }
-                    current_device_info = Some((
-                        caps[1].to_string(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                    ));
-                } else if let Some(ref mut info) = current_device_info {
-                    if let Some(caps) = PATH_REGEX.captures(trimmed_line) {
-                        info.1 = caps[1].to_string();
-                    } else if let Some(caps) = TARGET_REGEX.captures(trimmed_line) {
-                        info.2 = caps[1].to_string();
-                    } else if let Some(caps) = ABI_REGEX.captures(trimmed_line) {
-                        info.3 = caps[1].to_string();
-                    } else if let Some(caps) = DEVICE_REGEX.captures(trimmed_line) {
-                        info.4 = caps[1].to_string();
-                    }
-                }
-            }
-            if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
-                // Push the last device
-                // Append any additional target info
-                if !current_target_full.is_empty() {
-                    target.push_str(&current_target_full);
-                    current_target_full.clear();
-                }
-
-                let is_running = running_avds.contains_key(&name);
-
-                // Use the same API level detection logic as the other paths
-                let api_level = {
-                    let mut api = 0u32;
-
-                    // Method 1: Try to read from config.ini in standard location
-                    if let Ok(home) = std::env::var("HOME") {
-                        let config_path = PathBuf::from(home)
-                            .join(".android")
-                            .join("avd")
-                            .join(format!("{}.avd", &name))
-                            .join("config.ini");
-
-                        if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                            // Try regex first (with or without trailing slash)
-                            if let Some(caps) =
-                                Regex::new(r"image\.sysdir\.1=system-images/android-(\d+)/?")
-                                    .unwrap()
-                                    .captures(&config_content)
-                            {
-                                if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                    api = parsed_api;
-                                }
-                            }
-                            // Fallback to target line
-                            else if let Some(caps) = Regex::new(r"target=android-(\d+)")
-                                .unwrap()
-                                .captures(&config_content)
-                            {
-                                if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                    api = parsed_api;
+                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
+                                if let Some(caps) =
+                                    AVD_DISPLAYNAME_REGEX.captures(&config_content)
+                                {
+                                    display_name = caps[1].trim().to_string();
                                 }
                             }
                         }
-                    }
 
-                    // Fallback to avdmanager target string parsing
-                    if api == 0 {
-                        if let Some(caps) = BASED_ON_REGEX.captures(&target) {
-                            let version = &caps[1];
-                            api = Self::parse_android_version_to_api_level(version);
-                        } else if let Some(caps) = Regex::new(r"(?:API level |android-)(\d+)")
-                            .unwrap()
-                            .captures(&target)
+                        // Fallback to device mapping if no displayname found
+                        if display_name.is_empty() && !device.is_empty() {
+                            let mapped_name = self.get_device_display_name(&device);
+                            display_name = mapped_name;
+                        }
+
+                        // Final fallback
+                        if display_name.is_empty() {
+                            display_name = "Unknown".to_string();
+                        }
+
+                        display_name
+                    };
+
+                    devices.push(AndroidDevice {
+                        name: name.to_string(),
+                        device_type: device_type_str,
+                        api_level,
+                        is_running,
+                        status: if is_running {
+                            DeviceStatus::Running
+                        } else {
+                            DeviceStatus::Stopped
+                        },
+                        ..Default::default()
+                    });
+                }
+                current_device_info = Some((
+                    caps[1].to_string(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                ));
+            } else if let Some(ref mut info) = current_device_info {
+                if let Some(caps) = PATH_REGEX.captures(trimmed_line) {
+                    info.1 = caps[1].to_string();
+                } else if let Some(caps) = TARGET_REGEX.captures(trimmed_line) {
+                    info.2 = caps[1].to_string();
+                } else if let Some(caps) = ABI_REGEX.captures(trimmed_line) {
+                    info.3 = caps[1].to_string();
+                } else if let Some(caps) = DEVICE_REGEX.captures(trimmed_line) {
+                    info.4 = caps[1].to_string();
+                }
+            }
+        }
+        if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
+            // Push the last device
+            // Append any additional target info
+            if !current_target_full.is_empty() {
+                target.push_str(&current_target_full);
+                current_target_full.clear();
+            }
+
+            let is_running = running_avds.contains_key(&name);
+
+            // Use the same API level detection logic as the other paths
+            let api_level = {
+                let mut api = 0u32;
+
+                // Method 1: Try to read from config.ini in standard location
+                if let Ok(home) = std::env::var("HOME") {
+                    let config_path = PathBuf::from(home)
+                        .join(".android")
+                        .join("avd")
+                        .join(format!("{}.avd", &name))
+                        .join("config.ini");
+
+                    if let Ok(config_content) = fs::read_to_string(&config_path).await {
+                        // Try regex first (with or without trailing slash)
+                        if let Some(caps) =
+                            IMAGE_SYSDIR_REGEX.captures(&config_content)
                         {
-                            api = caps[1].parse().unwrap_or(0);
+                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
+                                api = parsed_api;
+                            }
+                        }
+                        // Fallback to target line
+                        else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content)
+                        {
+                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
+                                api = parsed_api;
+                            }
                         }
                     }
+                }
 
-                    api
-                };
+                // Fallback to avdmanager target string parsing
+                if api == 0 {
+                    if let Some(caps) = BASED_ON_REGEX.captures(&target) {
+                        let version = &caps[1];
+                        api = Self::parse_android_version_to_api_level(version);
+                    } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(&target)
+                    {
+                        api = caps[1].parse().unwrap_or(0);
+                    }
+                }
 
-                let device_type_str = if !device.is_empty() {
-                    device
-                } else {
-                    "Unknown".to_string()
-                };
+                api
+            };
 
-                // log::info!("Device '{}' - running: {}, API: {}", name, is_running, api_level);
-
-                devices.push(AndroidDevice {
-                    name: name.to_string(),
-                    device_type: device_type_str,
-                    api_level,
-                    is_running,
-                    status: if is_running {
-                        DeviceStatus::Running
-                    } else {
-                        DeviceStatus::Stopped
-                    },
-                    ..Default::default()
-                });
-            }
-
-            // log::info!("Total AVDs listed: {}", devices.len());
-
-            Ok(devices)
-        }
-    }
-
-    fn start_device(
-        &self,
-        identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            // Start emulator with reduced console output
-            let args = vec![
-                "-avd",
-                identifier,
-                "-no-audio",         // Disable audio for less output
-                "-no-snapshot-save", // Don't save snapshot on exit
-                "-no-boot-anim",     // Skip boot animation
-                "-netfast",          // Faster network emulation
-            ];
-
-            self.command_runner
-                .spawn(&self.emulator_path, &args)
-                .await?;
-            Ok(())
-        }
-    }
-
-    fn stop_device(
-        &self,
-        identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            // log::info!("Attempting to stop Android emulator: {}", identifier);
-
-            // Get running AVDs to find the emulator ID for the given AVD name
-            let running_avds = self.get_running_avd_names().await?;
-
-            if let Some(emulator_id) = running_avds.get(identifier) {
-                // log::info!("Found emulator {} for AVD {}, stopping it", emulator_id, identifier);
-                self.command_runner
-                    .run("adb", &["-s", emulator_id, "emu", "kill"])
-                    .await
-                    .context(format!("Failed to stop emulator {}", emulator_id))?;
+            let device_type_str = if !device.is_empty() {
+                device
             } else {
-                // log::warn!("AVD '{}' is not currently running", identifier);
-            }
+                "Unknown".to_string()
+            };
 
-            Ok(())
+            // log::info!("Device '{}' - running: {}, API: {}", name, is_running, api_level);
+
+            devices.push(AndroidDevice {
+                name: name.to_string(),
+                device_type: device_type_str,
+                api_level,
+                is_running,
+                status: if is_running {
+                    DeviceStatus::Running
+                } else {
+                    DeviceStatus::Stopped
+                },
+                ..Default::default()
+            });
         }
+
+        // log::info!("Total AVDs listed: {}", devices.len());
+
+        Ok(devices)
     }
 
-    fn create_device(
+    async fn start_device(
+        &self,
+        identifier: &str,
+    ) -> Result<()> {
+        // Start emulator with reduced console output
+        let args = vec![
+            "-avd",
+            identifier,
+            "-no-audio",         // Disable audio for less output
+            "-no-snapshot-save", // Don't save snapshot on exit
+            "-no-boot-anim",     // Skip boot animation
+            "-netfast",          // Faster network emulation
+        ];
+
+        self.command_runner
+            .spawn(&self.emulator_path, &args)
+            .await?;
+        Ok(())
+    }
+
+    async fn stop_device(
+        &self,
+        identifier: &str,
+    ) -> Result<()> {
+        // log::info!("Attempting to stop Android emulator: {}", identifier);
+
+        // Get running AVDs to find the emulator ID for the given AVD name
+        let running_avds = self.get_running_avd_names().await?;
+
+        if let Some(emulator_id) = running_avds.get(identifier) {
+            // log::info!("Found emulator {} for AVD {}, stopping it", emulator_id, identifier);
+            self.command_runner
+                .run("adb", &["-s", emulator_id, "emu", "kill"])
+                .await
+                .context(format!("Failed to stop emulator {}", emulator_id))?;
+        } else {
+            // log::warn!("AVD '{}' is not currently running", identifier);
+        }
+
+        Ok(())
+    }
+
+    async fn create_device(
         &self,
         config: &DeviceConfig,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            // AVD names must follow strict rules: only a-z A-Z 0-9 . _ - are allowed
-            // But preserve the original name for display purposes in config.ini
-            let safe_name = config
-                .name
-                .chars()
-                .filter_map(|c| match c {
-                    // Keep only allowed characters, replace spaces and others with underscores
-                    c if c.is_ascii_alphanumeric() || c == '.' || c == '-' => Some(c),
-                    ' ' | '_' => Some('_'), // Convert spaces to underscores
-                    _ => None,              // Remove all other characters
-                })
-                .collect::<String>()
-                .trim_matches('_') // Remove leading/trailing underscores
-                .to_string();
+    ) -> Result<()> {
+        // AVD names must follow strict rules: only a-z A-Z 0-9 . _ - are allowed
+        // But preserve the original name for display purposes in config.ini
+        let safe_name = config
+            .name
+            .chars()
+            .filter_map(|c| match c {
+                // Keep only allowed characters, replace spaces and others with underscores
+                c if c.is_ascii_alphanumeric() || c == '.' || c == '-' => Some(c),
+                ' ' | '_' => Some('_'), // Convert spaces to underscores
+                _ => None,              // Remove all other characters
+            })
+            .collect::<String>()
+            .trim_matches('_') // Remove leading/trailing underscores
+            .to_string();
 
-            if safe_name.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "Device name '{}' contains only invalid characters and cannot be used for AVD creation.",
-                    config.name
-                ));
-            }
+        if safe_name.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Device name '{}' contains only invalid characters and cannot be used for AVD creation.",
+                config.name
+            ));
+        }
 
-            // Check if device with this name already exists
-            let existing_devices = self.list_devices().await?;
-            if existing_devices.iter().any(|d| d.name == safe_name) {
-                return Err(anyhow::anyhow!(
-                    "Device with name '{}' already exists. Please choose a different name or delete the existing device first.",
-                    safe_name
-                ));
-            }
+        // Check if device with this name already exists
+        let existing_devices = self.list_devices().await?;
+        if existing_devices.iter().any(|d| d.name == safe_name) {
+            return Err(anyhow::anyhow!(
+                "Device with name '{}' already exists. Please choose a different name or delete the existing device first.",
+                safe_name
+            ));
+        }
 
-            // Try to find available system image for this API level
-            let (tag, abi) = if let Some((found_tag, found_abi)) = self
-                .get_first_available_system_image(&config.version)
-                .await?
-            {
-                (found_tag, found_abi)
-            } else {
-                // If no system image found, try default values
-                let default_tag = config
-                    .additional_options
-                    .get("tag")
-                    .map_or("google_apis_playstore", |s| s.as_str());
-                let default_abi = config
-                    .additional_options
-                    .get("abi")
-                    .map_or("arm64-v8a", |s| s.as_str());
-                (default_tag.to_string(), default_abi.to_string())
-            };
+        // Try to find available system image for this API level
+        let (tag, abi) = if let Some((found_tag, found_abi)) = self
+            .get_first_available_system_image(&config.version)
+            .await?
+        {
+            (found_tag, found_abi)
+        } else {
+            // If no system image found, try default values
+            let default_tag = config
+                .additional_options
+                .get("tag")
+                .map_or("google_apis_playstore", |s| s.as_str());
+            let default_abi = config
+                .additional_options
+                .get("abi")
+                .map_or("arm64-v8a", |s| s.as_str());
+            (default_tag.to_string(), default_abi.to_string())
+        };
 
-            let package_path = format!(
-                "system-images;android-{};{};{}",
-                config.version, // API level
-                tag,
-                abi
+        let package_path = format!(
+            "system-images;android-{};{};{}",
+            config.version, // API level
+            tag,
+            abi
+        );
+
+        // Check if system image is available
+        let image_available = self
+            .check_system_image_available(&config.version, &tag, &abi)
+            .await
+            .unwrap_or(false);
+
+        if !image_available {
+            let available_images = self.list_available_system_images().await?;
+            return Err(anyhow::anyhow!(
+                "System image '{}' not found. Install it with: sdkmanager \"{}\"\nAvailable images: {}",
+                package_path, package_path, available_images.join(", ")
+            ));
+        }
+
+        // **IMPROVED APPROACH**: Use proper device and skin parameters
+        let mut args = vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
+
+        // Add device parameter if valid - use ID for better compatibility
+        let device_param = if !config.device_type.is_empty()
+            && config.device_type.to_lowercase() != "custom"
+        {
+            let available_devices = self.list_available_devices().await?;
+            Self::find_matching_device_id(&available_devices, &config.device_type)
+        } else {
+            None
+        };
+
+        // デバイスパラメータが見つからない場合はデフォルトを使用
+        if let Some(ref device_id) = device_param {
+            args.push("--device");
+            args.push(device_id);
+        } else {
+            // デバイスパラメータを省略 - avdmanager がデフォルトデバイスを使用
+            log::warn!(
+                "Device type '{}' not found, using default device",
+                config.device_type
             );
+        }
 
-            // Check if system image is available
-            let image_available = self
-                .check_system_image_available(&config.version, &tag, &abi)
+        // スキンを動的に取得して指定（エラー時はフォールバック戦略を使用）
+        let skin_name = if let Some(ref device_id) = device_param {
+            self.get_appropriate_skin(device_id, &config.device_type)
                 .await
-                .unwrap_or(false);
+        } else {
+            self.get_appropriate_skin(&config.device_type, &config.device_type)
+                .await
+        };
 
-            if !image_available {
-                let available_images = self.list_available_system_images().await?;
-                return Err(anyhow::anyhow!(
-                    "System image '{}' not found. Install it with: sdkmanager \"{}\"\nAvailable images: {}",
-                    package_path, package_path, available_images.join(", ")
-                ));
-            }
+        if let Some(ref skin) = skin_name {
+            args.push("--skin");
+            args.push(skin);
+        }
 
-            // **IMPROVED APPROACH**: Use proper device and skin parameters
-            let mut args = vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
+        let result = self.command_runner.run(&self.avdmanager_path, &args).await;
 
-            // Add device parameter if valid - use ID for better compatibility
-            let device_param = if !config.device_type.is_empty()
-                && config.device_type.to_lowercase() != "custom"
-            {
-                let available_devices = self.list_available_devices().await?;
-                Self::find_matching_device_id(&available_devices, &config.device_type)
-            } else {
-                None
-            };
-
-            // デバイスパラメータが見つからない場合はデフォルトを使用
-            if let Some(ref device_id) = device_param {
-                args.push("--device");
-                args.push(device_id);
-            } else {
-                // デバイスパラメータを省略 - avdmanager がデフォルトデバイスを使用
+        // スキンエラーの場合はスキンなしで再試行
+        let result = if result.is_err() && skin_name.is_some() {
+            let error_str = result.as_ref().unwrap_err().to_string();
+            if error_str.to_lowercase().contains("skin") {
                 log::warn!(
-                    "Device type '{}' not found, using default device",
-                    config.device_type
+                    "Skin '{}' failed, retrying without skin",
+                    skin_name.as_ref().unwrap()
                 );
-            }
-
-            // スキンを動的に取得して指定（エラー時はフォールバック戦略を使用）
-            let skin_name = if let Some(ref device_id) = device_param {
-                self.get_appropriate_skin(device_id, &config.device_type)
-                    .await
-            } else {
-                self.get_appropriate_skin(&config.device_type, &config.device_type)
-                    .await
-            };
-
-            if let Some(ref skin) = skin_name {
-                args.push("--skin");
-                args.push(skin);
-            }
-
-            let result = self.command_runner.run(&self.avdmanager_path, &args).await;
-
-            // スキンエラーの場合はスキンなしで再試行
-            let result = if result.is_err() && skin_name.is_some() {
-                let error_str = result.as_ref().unwrap_err().to_string();
-                if error_str.to_lowercase().contains("skin") {
-                    log::warn!(
-                        "Skin '{}' failed, retrying without skin",
-                        skin_name.as_ref().unwrap()
-                    );
-                    // スキンパラメータを除去して再試行
-                    let mut fallback_args =
-                        vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
-                    if let Some(ref device_id) = device_param {
-                        fallback_args.push("--device");
-                        fallback_args.push(device_id);
-                    }
-                    self.command_runner
-                        .run(&self.avdmanager_path, &fallback_args)
-                        .await
-                } else {
-                    result
+                // スキンパラメータを除去して再試行
+                let mut fallback_args =
+                    vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
+                if let Some(ref device_id) = device_param {
+                    fallback_args.push("--device");
+                    fallback_args.push(device_id);
                 }
+                self.command_runner
+                    .run(&self.avdmanager_path, &fallback_args)
+                    .await
             } else {
                 result
-            };
-
-            match result {
-                Ok(_output) => {
-                    // **OPTIMIZED**: Only update config if absolutely necessary
-                    // The avdmanager should have created a good base configuration with --device and --skin
-                    // We only need to fine-tune specific settings
-                    if let Err(e) = self
-                        .fine_tune_avd_config(&safe_name, config, &tag, &abi)
-                        .await
-                    {
-                        // Log warning but don't fail the entire operation
-                        eprintln!("Warning: Failed to fine-tune AVD configuration: {}", e);
-                    }
-
-                    Ok(())
-                }
-                Err(e) => {
-                    // Provide comprehensive error diagnostics
-                    let error_str = e.to_string();
-
-                    // Create ultra-compact diagnostic info for UI
-                    let mut diagnostic_info = Vec::new();
-                    // 短縮された名前（最大20文字）
-                    let short_name = if safe_name.len() > 20 {
-                        format!("{}...", &safe_name[..17])
-                    } else {
-                        safe_name.clone()
-                    };
-                    diagnostic_info.push(format!("AVD: {}", short_name));
-                    diagnostic_info.push(format!("API: {}", config.version));
-
-                    // 重要な情報を先頭に、簡潔なエラーメッセージを作成
-                    if error_str.contains("system image")
-                        || error_str.contains("package path")
-                        || error_str.contains("not installed")
-                    {
-                        Err(anyhow::anyhow!(
-                            "System image not installed for API {}\nRun: sdkmanager \"{}\"",
-                            config.version,
-                            package_path
-                        ))
-                    } else if error_str.contains("license") || error_str.contains("accept") {
-                        Err(anyhow::anyhow!(
-                            "Android SDK licenses not accepted\nRun: sdkmanager --licenses"
-                        ))
-                    } else if error_str.contains("already exists") {
-                        Err(anyhow::anyhow!(
-                            "AVD '{}' already exists\nDelete existing or choose different name",
-                            config.name
-                        ))
-                    } else if error_str.contains("device") && error_str.contains("not found") {
-                        Err(anyhow::anyhow!(
-                            "Device type '{}' not found\nCheck available types in device list",
-                            config.device_type
-                        ))
-                    } else {
-                        // 汎用エラー - 最も重要な情報のみ
-                        let key_error = if error_str.contains("Error:") {
-                            error_str
-                                .split("Error:")
-                                .nth(1)
-                                .unwrap_or(&error_str)
-                                .trim()
-                        } else if error_str.contains("failed") {
-                            error_str
-                                .split("failed")
-                                .nth(0)
-                                .unwrap_or(&error_str)
-                                .trim()
-                        } else {
-                            &error_str
-                        };
-
-                        let short_error = if key_error.len() > 60 {
-                            format!("{}...", &key_error[..57])
-                        } else {
-                            key_error.to_string()
-                        };
-
-                        Err(anyhow::anyhow!(
-                            "AVD creation failed: {}\nAVD: {} | API: {}",
-                            short_error,
-                            short_name,
-                            config.version
-                        ))
-                    }
-                }
             }
-        }
-    }
+        } else {
+            result
+        };
 
-    fn delete_device(
-        &self,
-        identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            // Check if device is running and stop it first
-            let running_avds = self.get_running_avd_names().await.unwrap_or_default();
-            if running_avds.contains_key(identifier) {
-                log::info!(
-                    "Device '{}' is running, stopping before deletion",
-                    identifier
-                );
-                if let Err(e) = self.stop_device(identifier).await {
-                    log::warn!(
-                        "Failed to stop device '{}' before deletion: {}",
-                        identifier,
-                        e
-                    );
-                    // Continue with deletion even if stop fails
+        match result {
+            Ok(_output) => {
+                // **OPTIMIZED**: Only update config if absolutely necessary
+                // The avdmanager should have created a good base configuration with --device and --skin
+                // We only need to fine-tune specific settings
+                if let Err(e) = self
+                    .fine_tune_avd_config(&safe_name, config, &tag, &abi)
+                    .await
+                {
+                    // Log warning but don't fail the entire operation
+                    eprintln!("Warning: Failed to fine-tune AVD configuration: {}", e);
                 }
 
-                // Wait a bit for the device to fully stop
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                Ok(())
             }
+            Err(e) => {
+                // Provide comprehensive error diagnostics
+                let error_str = e.to_string();
 
-            // Delete the AVD
-            self.command_runner
-                .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
-                .await
-                .context(format!("Failed to delete Android AVD '{}'", identifier))?;
-            Ok(())
-        }
-    }
-
-    fn wipe_device(
-        &self,
-        identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            // For Android, wipe means clearing user data without starting the device
-            // First, stop the device if it's running
-            let running_avds = self.get_running_avd_names().await?;
-            if running_avds.contains_key(identifier) {
-                log::info!("Device '{}' is running, stopping before wipe", identifier);
-                self.stop_device(identifier).await?;
-                // Wait a bit for the emulator to shut down
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            }
-
-            // Directly delete user data files from AVD directory instead of starting emulator
-            if let Ok(home_dir) = std::env::var("HOME") {
-                let avd_path = std::path::PathBuf::from(home_dir)
-                    .join(".android")
-                    .join("avd")
-                    .join(format!("{}.avd", identifier));
-
-                if avd_path.exists() {
-                    // Delete user data files that get recreated on next boot
-                    let files_to_delete = [
-                        "userdata.img",
-                        "userdata-qemu.img",
-                        "cache.img",
-                        "cache.img.qcow2",
-                        "userdata.img.qcow2",
-                        "sdcard.img",
-                        "sdcard.img.qcow2",
-                        "multiinstance.lock",
-                    ];
-
-                    for file_name in &files_to_delete {
-                        let file_path = avd_path.join(file_name);
-                        if file_path.exists() {
-                            if let Err(e) = tokio::fs::remove_file(&file_path).await {
-                                log::warn!("Failed to remove {}: {}", file_path.display(), e);
-                            } else {
-                                log::debug!("Removed user data file: {}", file_path.display());
-                            }
-                        }
-                    }
-
-                    // Also clear snapshots directory if it exists
-                    let snapshots_dir = avd_path.join("snapshots");
-                    if snapshots_dir.exists() {
-                        if let Err(e) = tokio::fs::remove_dir_all(&snapshots_dir).await {
-                            log::warn!("Failed to remove snapshots directory: {}", e);
-                        } else {
-                            log::debug!("Removed snapshots directory");
-                        }
-                    }
-
-                    log::info!("Successfully wiped user data for device '{}'", identifier);
+                // Create ultra-compact diagnostic info for UI
+                let mut diagnostic_info = Vec::new();
+                // 短縮された名前（最大20文字）
+                let short_name = if safe_name.len() > 20 {
+                    format!("{}...", &safe_name[..17])
                 } else {
-                    return Err(anyhow::anyhow!(
-                        "AVD directory not found: {}",
-                        avd_path.display()
-                    ));
-                }
-            } else {
-                return Err(anyhow::anyhow!("HOME environment variable not set"));
-            }
+                    safe_name.clone()
+                };
+                diagnostic_info.push(format!("AVD: {}", short_name));
+                diagnostic_info.push(format!("API: {}", config.version));
 
-            Ok(())
+                // 重要な情報を先頭に、簡潔なエラーメッセージを作成
+                if error_str.contains("system image")
+                    || error_str.contains("package path")
+                    || error_str.contains("not installed")
+                {
+                    Err(anyhow::anyhow!(
+                        "System image not installed for API {}\nRun: sdkmanager \"{}\"",
+                        config.version,
+                        package_path
+                    ))
+                } else if error_str.contains("license") || error_str.contains("accept") {
+                    Err(anyhow::anyhow!(
+                        "Android SDK licenses not accepted\nRun: sdkmanager --licenses"
+                    ))
+                } else if error_str.contains("already exists") {
+                    Err(anyhow::anyhow!(
+                        "AVD '{}' already exists\nDelete existing or choose different name",
+                        config.name
+                    ))
+                } else if error_str.contains("device") && error_str.contains("not found") {
+                    Err(anyhow::anyhow!(
+                        "Device type '{}' not found\nCheck available types in device list",
+                        config.device_type
+                    ))
+                } else {
+                    // 汎用エラー - 最も重要な情報のみ
+                    let key_error = if error_str.contains("Error:") {
+                        error_str
+                            .split("Error:")
+                            .nth(1)
+                            .unwrap_or(&error_str)
+                            .trim()
+                    } else if error_str.contains("failed") {
+                        error_str
+                            .split("failed")
+                            .nth(0)
+                            .unwrap_or(&error_str)
+                            .trim()
+                    } else {
+                        &error_str
+                    };
+
+                    let short_error = if key_error.len() > 60 {
+                        format!("{}...", &key_error[..57])
+                    } else {
+                        key_error.to_string()
+                    };
+
+                    Err(anyhow::anyhow!(
+                        "AVD creation failed: {}\nAVD: {} | API: {}",
+                        short_error,
+                        short_name,
+                        config.version
+                    ))
+                }
+            }
         }
     }
 
-    fn is_available(&self) -> impl std::future::Future<Output = bool> + Send {
-        async {
-            // Availability is determined by `new()` succeeding (tools found).
-            true
+    async fn delete_device(
+        &self,
+        identifier: &str,
+    ) -> Result<()> {
+        // Check if device is running and stop it first
+        let running_avds = self.get_running_avd_names().await.unwrap_or_default();
+        if running_avds.contains_key(identifier) {
+            log::info!(
+                "Device '{}' is running, stopping before deletion",
+                identifier
+            );
+            if let Err(e) = self.stop_device(identifier).await {
+                log::warn!(
+                    "Failed to stop device '{}' before deletion: {}",
+                    identifier,
+                    e
+                );
+                // Continue with deletion even if stop fails
+            }
+
+            // Wait a bit for the device to fully stop
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
+
+        // Delete the AVD
+        self.command_runner
+            .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
+            .await
+            .context(format!("Failed to delete Android AVD '{}'", identifier))?;
+        Ok(())
+    }
+
+    async fn wipe_device(
+        &self,
+        identifier: &str,
+    ) -> Result<()> {
+        // For Android, wipe means clearing user data without starting the device
+        // First, stop the device if it's running
+        let running_avds = self.get_running_avd_names().await?;
+        if running_avds.contains_key(identifier) {
+            log::info!("Device '{}' is running, stopping before wipe", identifier);
+            self.stop_device(identifier).await?;
+            // Wait a bit for the emulator to shut down
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+
+        // Directly delete user data files from AVD directory instead of starting emulator
+        if let Ok(home_dir) = std::env::var("HOME") {
+            let avd_path = std::path::PathBuf::from(home_dir)
+                .join(".android")
+                .join("avd")
+                .join(format!("{}.avd", identifier));
+
+            if avd_path.exists() {
+                // Delete user data files that get recreated on next boot
+                let files_to_delete = [
+                    "userdata.img",
+                    "userdata-qemu.img",
+                    "cache.img",
+                    "cache.img.qcow2",
+                    "userdata.img.qcow2",
+                    "sdcard.img",
+                    "sdcard.img.qcow2",
+                    "multiinstance.lock",
+                ];
+
+                for file_name in &files_to_delete {
+                    let file_path = avd_path.join(file_name);
+                    if file_path.exists() {
+                        if let Err(e) = tokio::fs::remove_file(&file_path).await {
+                            log::warn!("Failed to remove {}: {}", file_path.display(), e);
+                        } else {
+                            log::debug!("Removed user data file: {}", file_path.display());
+                        }
+                    }
+                }
+
+                // Also clear snapshots directory if it exists
+                let snapshots_dir = avd_path.join("snapshots");
+                if snapshots_dir.exists() {
+                    if let Err(e) = tokio::fs::remove_dir_all(&snapshots_dir).await {
+                        log::warn!("Failed to remove snapshots directory: {}", e);
+                    } else {
+                        log::debug!("Removed snapshots directory");
+                    }
+                }
+
+                log::info!("Successfully wiped user data for device '{}'", identifier);
+            } else {
+                return Err(anyhow::anyhow!(
+                    "AVD directory not found: {}",
+                    avd_path.display()
+                ));
+            }
+        } else {
+            return Err(anyhow::anyhow!("HOME environment variable not set"));
+        }
+
+        Ok(())
+    }
+
+    async fn is_available(&self) -> bool {
+        // Availability is determined by `new()` succeeding (tools found).
+        true
     }
 }

@@ -267,7 +267,7 @@ impl IosManager {
         // Verify simctl is available
         let runner = CommandRunner::new();
         if let Err(e) = std::process::Command::new("xcrun")
-            .args(&["simctl", "help"])
+            .args(["simctl", "help"])
             .output()
         {
             bail!(
@@ -423,26 +423,19 @@ impl IosManager {
 
         // Special case handling
         let display = cleaned
-            .replace("iPhone SE", "iPhone SE") // Preserve SE naming
-            .replace("iPad Pro", "iPad Pro") // Preserve Pro naming
-            .replace("iPad Air", "iPad Air") // Preserve Air naming
-            .replace("iPad mini", "iPad mini") // Preserve mini naming
-            .replace(" Plus", " Plus") // Preserve Plus naming
-            .replace(" Max", " Max") // Preserve Max naming
             .replace(" inch", "\""); // 12.9 inch -> 12.9"
 
         // Capitalize properly
         display
             .split_whitespace()
             .map(|word| {
-                if word == "inch" || word == "se" || word == "mini" {
-                    word.to_string()
-                } else if word.starts_with("i")
-                    && (word.starts_with("iPhone")
-                        || word.starts_with("iPad")
-                        || word.starts_with("iPod"))
+                if word == "inch" || word == "se" || word == "mini" 
+                    || (word.starts_with("i")
+                        && (word.starts_with("iPhone")
+                            || word.starts_with("iPad")
+                            || word.starts_with("iPod")))
                 {
-                    word.to_string() // Already properly capitalized
+                    word.to_string() // Preserve these special cases as-is
                 } else {
                     // Capitalize first letter
                     let mut chars = word.chars();
@@ -515,66 +508,62 @@ impl IosManager {
 impl DeviceManager for IosManager {
     type Device = IosDevice;
 
-    fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
-        async move {
-            let output = self
-                .command_runner
-                .run("xcrun", &["simctl", "list", "devices", "--json"])
-                .await
-                .context("Failed to list iOS devices")?;
-            let json: Value =
-                serde_json::from_str(&output).context("Failed to parse simctl JSON output")?;
-            let mut devices = Vec::new();
-            if let Some(devices_obj) = json.get("devices") {
-                if let Some(devices_map) = devices_obj.as_object() {
-                    for (runtime, device_list_json) in devices_map {
-                        if let Some(device_array_json) = device_list_json.as_array() {
-                            for device_json_val in device_array_json {
-                                if let Some(parsed_device) =
-                                    self.parse_device_from_json(device_json_val, runtime)?
-                                {
-                                    devices.push(parsed_device);
-                                }
+    async fn list_devices(&self) -> Result<Vec<Self::Device>> {
+        let output = self
+            .command_runner
+            .run("xcrun", &["simctl", "list", "devices", "--json"])
+            .await
+            .context("Failed to list iOS devices")?;
+        let json: Value =
+            serde_json::from_str(&output).context("Failed to parse simctl JSON output")?;
+        let mut devices = Vec::new();
+        if let Some(devices_obj) = json.get("devices") {
+            if let Some(devices_map) = devices_obj.as_object() {
+                for (runtime, device_list_json) in devices_map {
+                    if let Some(device_array_json) = device_list_json.as_array() {
+                        for device_json_val in device_array_json {
+                            if let Some(parsed_device) =
+                                self.parse_device_from_json(device_json_val, runtime)?
+                            {
+                                devices.push(parsed_device);
                             }
                         }
                     }
                 }
             }
-            Ok(devices)
         }
+        Ok(devices)
     }
 
-    fn start_device(
+    async fn start_device(
         &self,
         identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            log::info!("Attempting to start iOS device: {}", identifier);
+    ) -> Result<()> {
+        log::info!("Attempting to start iOS device: {}", identifier);
 
-            // Check if device is already booted
-            let status_output = self
-                .command_runner
-                .run("xcrun", &["simctl", "list", "devices", "-j"])
-                .await
-                .context("Failed to get device status")?;
+        // Check if device is already booted
+        let status_output = self
+            .command_runner
+            .run("xcrun", &["simctl", "list", "devices", "-j"])
+            .await
+            .context("Failed to get device status")?;
 
-            let json: Value =
-                serde_json::from_str(&status_output).context("Failed to parse device status")?;
+        let json: Value =
+            serde_json::from_str(&status_output).context("Failed to parse device status")?;
 
-            let mut is_already_booted = false;
-            if let Some(devices) = json.get("devices").and_then(|v| v.as_object()) {
-                for (_, device_list) in devices {
-                    if let Some(devices_array) = device_list.as_array() {
-                        for device in devices_array {
-                            if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
-                                if udid == identifier {
-                                    if let Some(state) =
-                                        device.get("state").and_then(|v| v.as_str())
-                                    {
-                                        if state == "Booted" {
-                                            is_already_booted = true;
-                                            break;
-                                        }
+        let mut is_already_booted = false;
+        if let Some(devices) = json.get("devices").and_then(|v| v.as_object()) {
+            for (_, device_list) in devices {
+                if let Some(devices_array) = device_list.as_array() {
+                    for device in devices_array {
+                        if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
+                            if udid == identifier {
+                                if let Some(state) =
+                                    device.get("state").and_then(|v| v.as_str())
+                                {
+                                    if state == "Booted" {
+                                        is_already_booted = true;
+                                        break;
                                     }
                                 }
                             }
@@ -582,148 +571,138 @@ impl DeviceManager for IosManager {
                     }
                 }
             }
-
-            if is_already_booted {
-                log::info!("Device {} is already booted", identifier);
-            } else {
-                // Boot the device
-                let boot_result = self
-                    .command_runner
-                    .run("xcrun", &["simctl", "boot", identifier])
-                    .await;
-
-                match boot_result {
-                    Ok(_) => log::info!("Successfully booted iOS device {}", identifier),
-                    Err(e) => {
-                        let error_msg = e.to_string();
-                        if error_msg.contains("Unable to boot device in current state: Booted") {
-                            log::info!(
-                                "Device {} was already in the process of booting",
-                                identifier
-                            );
-                        } else {
-                            return Err(e)
-                                .context(format!("Failed to boot iOS device {}", identifier));
-                        }
-                    }
-                }
-            }
-
-            // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
-            if let Err(e) = self
-                .command_runner
-                .spawn("open", &["-a", "Simulator"])
-                .await
-            {
-                log::warn!("Failed to open Simulator app: {}. Device might be booting in headless mode or Simulator app needs to be opened manually.", e);
-            }
-            Ok(())
         }
-    }
 
-    fn stop_device(
-        &self,
-        identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            log::info!("Attempting to stop iOS device: {}", identifier);
-
-            let shutdown_result = self
+        if is_already_booted {
+            log::info!("Device {} is already booted", identifier);
+        } else {
+            // Boot the device
+            let boot_result = self
                 .command_runner
-                .run("xcrun", &["simctl", "shutdown", identifier])
+                .run("xcrun", &["simctl", "boot", identifier])
                 .await;
 
-            match shutdown_result {
-                Ok(_) => {
-                    log::info!("Successfully shut down iOS device {}", identifier);
-                    Ok(())
-                }
+            match boot_result {
+                Ok(_) => log::info!("Successfully booted iOS device {}", identifier),
                 Err(e) => {
                     let error_msg = e.to_string();
-                    if error_msg.contains("Unable to shutdown device in current state: Shutdown") {
-                        log::info!("Device {} was already shut down", identifier);
-                        Ok(())
+                    if error_msg.contains("Unable to boot device in current state: Booted") {
+                        log::info!(
+                            "Device {} was already in the process of booting",
+                            identifier
+                        );
                     } else {
-                        Err(e).context(format!("Failed to shutdown iOS device {}", identifier))
+                        return Err(e)
+                            .context(format!("Failed to boot iOS device {}", identifier));
                     }
+                }
+            }
+        }
+
+        // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
+        if let Err(e) = self
+            .command_runner
+            .spawn("open", &["-a", "Simulator"])
+            .await
+        {
+            log::warn!("Failed to open Simulator app: {}. Device might be booting in headless mode or Simulator app needs to be opened manually.", e);
+        }
+        Ok(())
+    }
+
+    async fn stop_device(
+        &self,
+        identifier: &str,
+    ) -> Result<()> {
+        log::info!("Attempting to stop iOS device: {}", identifier);
+
+        let shutdown_result = self
+            .command_runner
+            .run("xcrun", &["simctl", "shutdown", identifier])
+            .await;
+
+        match shutdown_result {
+            Ok(_) => {
+                log::info!("Successfully shut down iOS device {}", identifier);
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("Unable to shutdown device in current state: Shutdown") {
+                    log::info!("Device {} was already shut down", identifier);
+                    Ok(())
+                } else {
+                    Err(e).context(format!("Failed to shutdown iOS device {}", identifier))
                 }
             }
         }
     }
 
-    fn create_device(
+    async fn create_device(
         &self,
         config: &DeviceConfig,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            log::info!(
-                "Attempting to create iOS device: {} of type {} with runtime {}",
-                config.name,
-                config.device_type,
-                config.version
-            );
-            // For iOS, config.version is the runtime identifier (e.g., com.apple.CoreSimulator.SimRuntime.iOS-17-0)
-            // config.device_type is the device type identifier (e.g., com.apple.CoreSimulator.SimDeviceType.iPhone-15)
-            let output = self
-                .command_runner
-                .run(
-                    "xcrun",
-                    &[
-                        "simctl",
-                        "create",
-                        &config.name,
-                        &config.device_type,
-                        &config.version,
-                    ],
-                )
-                .await
-                .context(format!(
-                    "Failed to create iOS device '{}' with type '{}' and runtime '{}'",
-                    config.name, config.device_type, config.version
-                ))?;
-            log::info!("Successfully created iOS device. UDID: {}", output.trim());
-            Ok(())
-        }
+    ) -> Result<()> {
+        log::info!(
+            "Attempting to create iOS device: {} of type {} with runtime {}",
+            config.name,
+            config.device_type,
+            config.version
+        );
+        // For iOS, config.version is the runtime identifier (e.g., com.apple.CoreSimulator.SimRuntime.iOS-17-0)
+        // config.device_type is the device type identifier (e.g., com.apple.CoreSimulator.SimDeviceType.iPhone-15)
+        let output = self
+            .command_runner
+            .run(
+                "xcrun",
+                &[
+                    "simctl",
+                    "create",
+                    &config.name,
+                    &config.device_type,
+                    &config.version,
+                ],
+            )
+            .await
+            .context(format!(
+                "Failed to create iOS device '{}' with type '{}' and runtime '{}'",
+                config.name, config.device_type, config.version
+            ))?;
+        log::info!("Successfully created iOS device. UDID: {}", output.trim());
+        Ok(())
     }
 
-    fn delete_device(
+    async fn delete_device(
         &self,
         identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            log::info!("Attempting to delete iOS device: {}", identifier);
+    ) -> Result<()> {
+        log::info!("Attempting to delete iOS device: {}", identifier);
 
-            // First try to shutdown the device if it's running
-            let _ = self
-                .command_runner
-                .run("xcrun", &["simctl", "shutdown", identifier])
-                .await; // Ignore errors as device might already be shut down
+        // First try to shutdown the device if it's running
+        let _ = self
+            .command_runner
+            .run("xcrun", &["simctl", "shutdown", identifier])
+            .await; // Ignore errors as device might already be shut down
 
-            // Now delete the device
-            self.command_runner
-                .run("xcrun", &["simctl", "delete", identifier])
-                .await
-                .context(format!("Failed to delete iOS device {}. Make sure the device exists and is not in use.", identifier))?;
+        // Now delete the device
+        self.command_runner
+            .run("xcrun", &["simctl", "delete", identifier])
+            .await
+            .context(format!("Failed to delete iOS device {}. Make sure the device exists and is not in use.", identifier))?;
 
-            log::info!("Successfully deleted iOS device {}", identifier);
-            Ok(())
-        }
+        log::info!("Successfully deleted iOS device {}", identifier);
+        Ok(())
     }
 
-    fn wipe_device(
+    async fn wipe_device(
         &self,
         identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
-            log::info!("Attempting to wipe iOS device: {}", identifier);
-            // For iOS, we use the erase command which wipes all content and settings
-            self.erase_device(identifier).await
-        }
+    ) -> Result<()> {
+        log::info!("Attempting to wipe iOS device: {}", identifier);
+        // For iOS, we use the erase command which wipes all content and settings
+        self.erase_device(identifier).await
     }
 
-    fn is_available(&self) -> impl std::future::Future<Output = bool> + Send {
-        async { which::which("xcrun").is_ok() }
-    }
+    async fn is_available(&self) -> bool { which::which("xcrun").is_ok() }
 }
 
 // Stub implementation for non-macOS platforms
