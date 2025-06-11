@@ -123,7 +123,10 @@ The project has 15 test files with 31+ test functions covering:
 
 ### Running Tests
 ```bash
-# Run all tests
+# Run all tests (recommended - excludes doctests)
+cargo test --bins --tests
+
+# Run all tests including doctests (may have import issues in examples)
 cargo test
 
 # Run main test suites

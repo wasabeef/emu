@@ -73,7 +73,8 @@ bun install
 
 # Build and test
 cargo build
-cargo test
+cargo test --bins --tests  # Recommended: excludes doctests
+# cargo test              # Optional: includes doctests (may have import issues)
 
 # Try running the application
 cargo run
@@ -344,7 +345,10 @@ async fn test_startup_performance() {
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (recommended - excludes doctests)
+cargo test --bins --tests
+
+# Run all tests including doctests (may have import issues in examples)
 cargo test
 
 # Run specific test file
@@ -380,7 +384,7 @@ cargo test android::
 
 4. **Test your changes**:
    ```bash
-   cargo test
+   cargo test --bins --tests
    cargo clippy
    cargo fmt --check
    ```

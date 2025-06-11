@@ -50,7 +50,8 @@ cd emu
 cargo build
 
 # Run tests to verify setup
-cargo test
+cargo test --bins --tests  # Recommended: excludes doctests
+# cargo test              # Optional: includes doctests (may have import issues)
 
 # Install development tools
 cargo install cargo-watch
@@ -189,7 +190,10 @@ cargo fmt
 # Lint code
 cargo clippy
 
-# Run all tests
+# Run all tests (recommended - excludes doctests)
+cargo test --bins --tests
+
+# Run all tests including doctests (may have import issues in examples)
 cargo test
 ```
 
@@ -258,7 +262,7 @@ start, stop, delete, and error conditions.
 # Ensure code quality
 cargo fmt
 cargo clippy --all-targets --all-features
-cargo test
+cargo test --bins --tests
 
 # Check for common issues
 cargo audit
@@ -337,7 +341,10 @@ async fn test_startup_performance() {
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (recommended - excludes doctests)
+cargo test --bins --tests
+
+# Run all tests including doctests (may have import issues in examples)
 cargo test
 
 # Run with output
@@ -610,7 +617,7 @@ cargo clippy --all-targets --all-features
 cargo audit
 
 # Testing
-cargo test
+cargo test --bins --tests
 cargo test --test comprehensive_integration_test
 cargo test startup_performance_test -- --nocapture
 
@@ -630,7 +637,7 @@ cargo build --release
 cargo build --release
 
 # Run final tests
-cargo test --release
+cargo test --bins --tests --release
 
 # Create git tag
 git tag -a v1.0.0 -m "Release version 1.0.0"

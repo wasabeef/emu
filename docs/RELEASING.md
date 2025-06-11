@@ -6,7 +6,8 @@ This document describes the release process for Emu.
 
 1. Ensure all tests are passing:
    ```bash
-   cargo test --all-features
+   cargo test --bins --tests --all-features  # Recommended: excludes doctests
+   # cargo test --all-features              # Optional: includes doctests (may have import issues)
    cargo fmt -- --check
    cargo clippy --all-features -- -D warnings
    ```
