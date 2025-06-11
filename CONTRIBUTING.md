@@ -41,7 +41,7 @@ We welcome various types of contributions:
 
 ### Prerequisites
 
-- **Rust**: Version 1.70 or later
+- **asdf**: Version manager for tool versions
 - **Git**: For version control
 - **Android SDK**: For Android development testing
 - **Xcode** (macOS): For iOS development testing
@@ -56,10 +56,23 @@ cd emu
 # Add upstream remote
 git remote add upstream https://github.com/wasabeef/emu.git
 
-# Install dependencies and build
-cargo build
+# Install asdf (if not already installed)
+# macOS
+brew install asdf
+# Linux - see https://asdf-vm.com/guide/getting-started.html
 
-# Run tests to ensure everything works
+# Add asdf plugins
+asdf plugin add rust
+asdf plugin add bun
+
+# Install the tool versions specified in .tool-versions
+asdf install
+
+# Install development dependencies (including lefthook)
+bun install
+
+# Build and test
+cargo build
 cargo test
 
 # Try running the application
