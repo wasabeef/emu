@@ -111,6 +111,24 @@ impl App {
                                     }
                                     return Ok(());
                                 }
+                                KeyCode::Char('q') => {
+                                    // Plain 'q' also quits in Normal mode
+                                    // Cancel log task if running
+                                    if let Some(handle) = state.log_task_handle.take() {
+                                        handle.abort();
+                                    }
+                                    return Ok(());
+                                }
+                                KeyCode::Char('c')
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                                {
+                                    // Ctrl+C also quits
+                                    // Cancel log task if running
+                                    if let Some(handle) = state.log_task_handle.take() {
+                                        handle.abort();
+                                    }
+                                    return Ok(());
+                                }
                                 KeyCode::Esc => {
                                     // Dismiss all notifications
                                     state.dismiss_all_notifications();
@@ -248,7 +266,7 @@ impl App {
                                     state.add_info_notification("Logs cleared".to_string());
                                 }
                                 // Removed all log area specific controls
-                                KeyCode::Char('c') => {
+                                KeyCode::Char('n') => {
                                     let active_panel = state.active_panel;
                                     state.mode = Mode::CreateDevice;
                                     // Initialize form based on active panel

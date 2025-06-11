@@ -58,13 +58,13 @@ emu --debug
 | `↑`/`↓` | Navigate devices |
 | `j`/`k` | Navigate devices (vim-style) |
 | `Enter` | Start/Stop device |
-| `c` | Create device |
+| `n` | Create new device |
 | `d` | Delete device |
 | `w` | Wipe device |
 | `r` | Refresh |
 | `f` | Cycle log filter |
 | `Page Up`/`Page Down` | Scroll device lists |
-| `Ctrl+q` | Quit |
+| `q` or `Ctrl+c` | Quit |
 
 
 ## Contributing

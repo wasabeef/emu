@@ -104,6 +104,8 @@ impl AppEvent {
     /// * `d` - Delete device
     /// * `w` - Wipe device
     /// * `h`, `?` - Show help
+    /// * `q` - Quit (Normal mode only)
+    /// * `Ctrl+c` - Quit
     pub fn from_key(key: KeyEvent) -> Option<Self> {
         match (key.code, key.modifiers) {
             // Application control

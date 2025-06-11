@@ -57,7 +57,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
 - **Device details panel**: Shows device specifications, status, RAM/Storage in MB, full paths
 - **Modal workflows**: Guided device creation with field validation
-- **Keyboard navigation**: Vim-like keybindings (jk for up/down) with circular navigation and page scrolling
+- **Keyboard navigation**: Vim-like keybindings (jk for up/down, q to quit) with circular navigation and page scrolling
 - **Real-time feedback**: Status notifications, operation progress, log streaming
 
 ### Performance Optimizations

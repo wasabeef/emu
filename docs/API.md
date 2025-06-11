@@ -4,12 +4,48 @@ This document provides comprehensive documentation for Emu's internal APIs, trai
 
 ## Table of Contents
 
+- [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Core Traits](#core-traits)
 - [Device Management API](#device-management-api)
 - [Application State API](#application-state-api)
 - [Configuration API](#configuration-api)
 - [Error Types](#error-types)
 - [Platform-Specific APIs](#platform-specific-apis)
+
+## Keyboard Shortcuts
+
+### Global Commands
+- `q` or `Ctrl+c` - Quit the application
+- `Tab` / `Shift+Tab` - Switch between panels
+- `h/l` or `←/→` - Switch between Android and iOS panels
+
+### Navigation
+- `↑/↓` or `j/k` - Move up/down in device list
+- `Page Up/Page Down` - Jump to top/bottom of list
+- `Home/End` - Move to first/last item
+
+### Device Operations
+- `Enter` or `Space` - Start/Stop selected device
+- `n` - Create new device
+- `d` - Delete selected device
+- `w` - Wipe selected device
+- `r` - Refresh device lists
+
+### Log Panel
+- `f` - Cycle through log filters (All → Error → Warning → Info → Debug)
+- `Shift+L` - Clear logs
+- `Shift+F` - Toggle fullscreen log view
+
+### Device Creation Dialog
+- `Tab` - Next field
+- `Shift+Tab` - Previous field
+- `↑/↓` - Navigate dropdown options
+- `Enter` - Submit form
+- `Esc` - Cancel
+
+### Confirmation Dialogs
+- `y` - Confirm action
+- `n` or `Esc` - Cancel action
 
 ## Core Traits
 

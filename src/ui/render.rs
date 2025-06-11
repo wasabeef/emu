@@ -114,13 +114,13 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
 
     // Global status bar (now only shows app-level commands)
     let status_text = match state.mode {
-        crate::app::Mode::Normal => "[Ctrl+q]uit",
+        crate::app::Mode::Normal => "[q/Ctrl+c]:Quit",
         crate::app::Mode::CreateDevice => {
             "[Tab]next field [Shift+Tab]prev field [Enter]submit [Esc]cancel"
         }
-        crate::app::Mode::ConfirmDelete => "[Ctrl+q]uit",
-        crate::app::Mode::ConfirmWipe => "[Ctrl+q]uit",
-        _ => "[Ctrl+q]uit",
+        crate::app::Mode::ConfirmDelete => "[q/Ctrl+c]:Quit",
+        crate::app::Mode::ConfirmWipe => "[q/Ctrl+c]:Quit",
+        _ => "[q/Ctrl+c]:Quit",
     };
 
     // Status bar without borders, smaller text
@@ -1124,7 +1124,7 @@ fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _them
             } else if let Some(ref operation) = state.device_operation_status {
                 &format!("⏳ {}", operation)
             } else {
-                "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe"
+                "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [n]ew  ❌ [d]elete  🧹 [w]ipe"
             }
         }
         _ => "",

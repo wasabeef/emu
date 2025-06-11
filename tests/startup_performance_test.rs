@@ -22,10 +22,7 @@ async fn test_startup_performance() {
         }
     }
 
-    println!(
-        "📊 Total startup time: {:?}",
-        app_init_duration
-    );
+    println!("📊 Total startup time: {:?}", app_init_duration);
 
     // Performance thresholds
     let total_time = app_init_duration;
@@ -173,4 +170,3 @@ async fn test_startup_without_device_loading() {
         );
     }
 }
-

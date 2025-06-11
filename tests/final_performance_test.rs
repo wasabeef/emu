@@ -127,6 +127,5 @@ fn startup_components_isolation_test() {
         );
     }
 
-
     println!("✅ All component creation times within acceptable limits");
 }
