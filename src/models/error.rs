@@ -126,7 +126,7 @@ impl DeviceError {
             Self::SdkNotFound { sdk } => {
                 format!("{} SDK not found. Check environment variables", sdk)
             }
-            Self::InvalidConfig { message } => format!("Configuration error: {}", message),
+            Self::InvalidConfig { message } => format!("Configuration error: {message}"),
             Self::Io(_) => "File access error occurred".to_string(),
             Self::Parse(_) => "Data parsing failed".to_string(),
             Self::Regex(_) => "Pattern matching error occurred".to_string(),

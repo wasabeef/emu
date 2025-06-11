@@ -518,22 +518,20 @@ impl AndroidManager {
             // Parse "system-images;android-XX;tag;abi" format
             let parts: Vec<&str> = image.split(';').collect();
             if parts.len() >= 4 {
-                if let Some(android_part) = parts.get(1) {
-                    if let Some(api_level) = android_part.strip_prefix("android-") {
-                        // Track available tags for this API level
-                        let tag_abi = format!("{};{}", parts[2], parts[3]);
-                        api_level_info
-                            .entry(api_level.to_string())
-                            .or_insert_with(HashSet::new)
-                            .insert(tag_abi);
+                if let Some(api_level) = parts.get(1).and_then(|p| p.strip_prefix("android-")) {
+                    // Track available tags for this API level
+                    let tag_abi = format!("{};{}", parts[2], parts[3]);
+                    api_level_info
+                        .entry(api_level.to_string())
+                        .or_insert_with(HashSet::new)
+                        .insert(tag_abi);
 
-                        // Use simple version mapping to avoid recursion
-                        let api_num: u32 = api_level.parse().unwrap_or(0);
-                        let android_version = self.get_android_version_name(api_num);
+                    // Use simple version mapping to avoid recursion
+                    let api_num: u32 = api_level.parse().unwrap_or(0);
+                    let android_version = self.get_android_version_name(api_num);
 
-                        let display = format!("API {} - Android {}", api_level, android_version);
-                        targets.insert(api_level.to_string(), display);
-                    }
+                    let display = format!("API {api_level} - Android {android_version}");
+                    targets.insert(api_level.to_string(), display);
                 }
             }
         }
@@ -718,7 +716,7 @@ impl AndroidManager {
         tag: &str,
         abi: &str,
     ) -> Result<bool> {
-        let package_path = format!("system-images;android-{};{};{}", api_level, tag, abi);
+        let package_path = format!("system-images;android-{api_level};{tag};{abi}");
 
         let installed_images = self.list_available_system_images().await?;
         let is_installed = installed_images.contains(&package_path);
@@ -788,7 +786,7 @@ impl AndroidManager {
             let parts: Vec<&str> = image.split(';').collect();
             if parts.len() >= 4 {
                 if let Some(android_part) = parts.get(1) {
-                    if android_part == &format!("android-{}", api_level) {
+                    if android_part == &format!("android-{api_level}") {
                         // Return first available tag and abi
                         return Ok(Some((parts[2].to_string(), parts[3].to_string())));
                     }
@@ -1503,7 +1501,7 @@ impl AndroidManager {
             .await
             .unwrap_or(false);
 
-        diagnosis.push(format!("Required system image: {}", package_path));
+        diagnosis.push(format!("Required system image: {package_path}"));
         if image_available {
             diagnosis.push("✅ Required system image is available".to_string());
         } else {
@@ -1607,7 +1605,7 @@ impl AndroidManager {
         let mut tags = HashSet::new();
 
         for image in images {
-            if image.contains(&format!("android-{}", api_level)) {
+            if image.contains(&format!("android-{api_level}")) {
                 let parts: Vec<&str> = image.split(';').collect();
                 if parts.len() >= 3 {
                     tags.insert(parts[2].to_string());

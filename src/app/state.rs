@@ -12,6 +12,15 @@ pub enum Panel {
     Ios,
 }
 
+impl Panel {
+    pub fn toggle(self) -> Self {
+        match self {
+            Self::Android => Self::Ios,
+            Self::Ios => Self::Android,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FocusedPanel {
     DeviceList,
@@ -93,10 +102,6 @@ impl Default for DeviceCache {
 }
 
 impl DeviceCache {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn is_stale(&self) -> bool {
         self.last_updated.elapsed() > std::time::Duration::from_secs(300) // 5分でキャッシュ無効
     }

@@ -63,13 +63,13 @@ impl App {
         mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
         let mut last_auto_refresh_check = std::time::Instant::now();
-        let auto_refresh_check_interval = std::time::Duration::from_millis(1000); // Check every 1 second instead of every loop
+        const AUTO_REFRESH_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
+        const NOTIFICATION_CHECK_INTERVAL: Duration = Duration::from_millis(500);
         let mut last_notification_check = std::time::Instant::now();
-        let notification_check_interval = std::time::Duration::from_millis(500); // Check notifications every 500ms
 
         loop {
             // Check for auto-refresh less frequently (skip if initial loading)
-            if last_auto_refresh_check.elapsed() >= auto_refresh_check_interval {
+            if last_auto_refresh_check.elapsed() >= AUTO_REFRESH_CHECK_INTERVAL {
                 let state = self.state.lock().await;
                 let should_refresh = state.should_auto_refresh();
                 let has_devices =
@@ -84,7 +84,7 @@ impl App {
             }
 
             // Dismiss expired notifications less frequently
-            if last_notification_check.elapsed() >= notification_check_interval {
+            if last_notification_check.elapsed() >= NOTIFICATION_CHECK_INTERVAL {
                 let mut state = self.state.lock().await;
                 state.dismiss_expired_notifications();
                 drop(state);
@@ -139,10 +139,7 @@ impl App {
                                 }
                                 KeyCode::Tab => {
                                     // Tab: Switch focus between panels (android -> ios -> android)
-                                    let new_panel = match state.active_panel {
-                                        Panel::Android => Panel::Ios,
-                                        Panel::Ios => Panel::Android,
-                                    };
+                                    let new_panel = state.active_panel.toggle();
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
@@ -152,10 +149,7 @@ impl App {
                                 }
                                 KeyCode::BackTab => {
                                     // Shift+Tab: Switch focus in reverse order (android -> ios -> android)
-                                    let new_panel = match state.active_panel {
-                                        Panel::Android => Panel::Ios,
-                                        Panel::Ios => Panel::Android,
-                                    };
+                                    let new_panel = state.active_panel.toggle();
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
@@ -168,10 +162,7 @@ impl App {
                                 | KeyCode::Left
                                 | KeyCode::Right => {
                                     // Switch panels
-                                    let new_panel = match state.active_panel {
-                                        Panel::Android => Panel::Ios,
-                                        Panel::Ios => Panel::Android,
-                                    };
+                                    let new_panel = state.active_panel.toggle();
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
@@ -187,15 +178,16 @@ impl App {
                                             Panel::Android => state
                                                 .android_devices
                                                 .get(state.selected_android)
-                                                .map(|d| d.name.clone()),
+                                                .map(|d| &d.name),
                                             Panel::Ios => state
                                                 .ios_devices
                                                 .get(state.selected_ios)
-                                                .map(|d| d.udid.clone()),
+                                                .map(|d| &d.udid),
                                         };
 
                                         if let Some(ref cached) = state.cached_device_details {
-                                            Some(cached.identifier.clone()) != current_device
+                                            current_device.map(String::as_str)
+                                                != Some(&cached.identifier)
                                         } else {
                                             true
                                         }
@@ -215,15 +207,16 @@ impl App {
                                             Panel::Android => state
                                                 .android_devices
                                                 .get(state.selected_android)
-                                                .map(|d| d.name.clone()),
+                                                .map(|d| &d.name),
                                             Panel::Ios => state
                                                 .ios_devices
                                                 .get(state.selected_ios)
-                                                .map(|d| d.udid.clone()),
+                                                .map(|d| &d.udid),
                                         };
 
                                         if let Some(ref cached) = state.cached_device_details {
-                                            Some(cached.identifier.clone()) != current_device
+                                            current_device.map(String::as_str)
+                                                != Some(&cached.identifier)
                                         } else {
                                             true
                                         }

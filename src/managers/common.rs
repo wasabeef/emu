@@ -149,6 +149,7 @@ pub trait DeviceManager {
 ///     .with_ram("4096".to_string())
 ///     .with_storage("8192".to_string());
 /// ```
+
 #[derive(Debug, Clone)]
 pub struct DeviceConfig {
     /// Human-readable device name
@@ -352,17 +353,14 @@ pub fn sanitize_device_name(name: &str) -> String {
 /// assert_eq!(sanitize_device_name_for_command("'Test'"), "Test");
 /// ```
 pub fn sanitize_device_name_for_command(name: &str) -> String {
-    let sanitized = name
+    let sanitized: String = name
         .chars()
-        .filter_map(|c| {
-            // Remove quotes, spaces, and other problematic characters
-            match c {
-                '"' | '\'' | ' ' | '\t' | '\n' | '\r' => None, // Remove completely
-                c if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' => Some(c),
-                _ => Some('_'), // Replace other characters with underscore
-            }
+        .filter_map(|c| match c {
+            '"' | '\'' | ' ' | '\t' | '\n' | '\r' => None,
+            c if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') => Some(c),
+            _ => Some('_'),
         })
-        .collect::<String>();
+        .collect();
 
     // Ensure the name doesn't start or end with special characters
     sanitized
