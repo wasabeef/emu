@@ -3,7 +3,7 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/wasabeef/emu/ci.yml?branch=main)](https://github.com/wasabeef/emu/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE-MIT)
 
-A TUI for managing Android emulators and iOS simulators, inspired by lazygit.
+A TUI for managing Android emulators and iOS simulators.
 
 https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
 
