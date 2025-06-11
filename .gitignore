@@ -33,6 +33,9 @@ Thumbs.db
 # Lefthook
 .lefthook-local/
 
+# nodde
+node_modules/
+
 # Test coverage
 tarpaulin-report.html
 cobertura.xml
