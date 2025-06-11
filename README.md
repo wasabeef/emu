@@ -74,6 +74,12 @@ xcrun simctl list devices
 
 ## 🚀 Installation
 
+### Homebrew (macOS/Linux)
+```bash
+brew tap wasabeef/tap
+brew install emu
+```
+
 ### From Crates.io
 ```bash
 cargo install emu
