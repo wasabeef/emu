@@ -1,13 +1,11 @@
 use emu::app::App;
-use emu::config::Config;
 use std::time::Instant;
 
 #[tokio::test]
 async fn test_ui_responsiveness_validation() {
     println!("=== UI RESPONSIVENESS VALIDATION TEST ===");
 
-    let config = Config::default();
-    let app = App::new(config).await.expect("Failed to create app");
+    let app = App::new().await.expect("Failed to create app");
 
     // Test that app creation is fast enough for immediate UI display
     let start = Instant::now();
@@ -30,8 +28,7 @@ async fn test_ui_responsiveness_validation() {
 async fn test_rapid_operations_simulation() {
     println!("=== RAPID OPERATIONS SIMULATION TEST ===");
 
-    let config = Config::default();
-    let _app = App::new(config).await.expect("Failed to create app");
+    let _app = App::new().await.expect("Failed to create app");
 
     // Simulate rapid user interactions
     let operations = [
