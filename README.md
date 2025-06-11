@@ -19,8 +19,7 @@ A TUI for managing Android emulators and iOS simulators, inspired by lazygit.
 ## Installation
 
 ```bash
-brew tap wasabeef/tap
-brew install emu
+brew install wasabeef/emu-tap/emu
 ```
 
 ### Build from source

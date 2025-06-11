@@ -1,5 +1,4 @@
 use emu::app::App;
-use emu::config::Config;
 use emu::managers::common::DeviceManager;
 use std::time::Instant;
 
@@ -7,17 +6,11 @@ use std::time::Instant;
 async fn test_startup_performance() {
     println!("=== EMU STARTUP PERFORMANCE TEST ===");
 
-    // Test 1: Config creation
+    // Test App initialization
     let start = Instant::now();
-    let config = Config::default();
-    let config_duration = start.elapsed();
-    println!("1. Config creation: {:?}", config_duration);
-
-    // Test 2: App initialization
-    let start = Instant::now();
-    let app_result = App::new(config).await;
+    let app_result = App::new().await;
     let app_init_duration = start.elapsed();
-    println!("2. App initialization: {:?}", app_init_duration);
+    println!("App initialization: {:?}", app_init_duration);
 
     match app_result {
         Ok(_app) => {
@@ -31,11 +24,11 @@ async fn test_startup_performance() {
 
     println!(
         "📊 Total startup time: {:?}",
-        config_duration + app_init_duration
+        app_init_duration
     );
 
     // Performance thresholds
-    let total_time = config_duration + app_init_duration;
+    let total_time = app_init_duration;
     if total_time > std::time::Duration::from_millis(500) {
         println!(
             "⚠️  SLOW STARTUP WARNING: {} > 500ms threshold",
@@ -53,7 +46,7 @@ async fn test_startup_performance() {
 async fn test_app_components_performance() {
     println!("=== EMU COMPONENT PERFORMANCE TEST ===");
 
-    let _config = Config::default();
+    // Component performance test
 
     // Test individual component initialization times
     let start = Instant::now();
@@ -124,11 +117,9 @@ async fn test_app_components_performance() {
 async fn test_background_cache_performance() {
     println!("=== BACKGROUND CACHE PERFORMANCE TEST ===");
 
-    let config = Config::default();
-
     // Create app and measure cache loading
     let start = Instant::now();
-    let app_result = App::new(config).await;
+    let app_result = App::new().await;
     let total_duration = start.elapsed();
 
     match app_result {
@@ -183,19 +174,3 @@ async fn test_startup_without_device_loading() {
     }
 }
 
-#[tokio::test]
-async fn test_config_performance() {
-    println!("=== CONFIG PERFORMANCE TEST ===");
-
-    let start = Instant::now();
-    let _config = Config::default();
-    let duration = start.elapsed();
-
-    println!("Config::default(): {:?}", duration);
-
-    if duration > std::time::Duration::from_millis(10) {
-        println!("⚠️  Config creation slow: {} > 10ms", duration.as_millis());
-    } else {
-        println!("✅ Config creation fast: {} <= 10ms", duration.as_millis());
-    }
-}

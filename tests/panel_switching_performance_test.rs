@@ -1,14 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use emu::app::App;
-use emu::config::Config;
 use std::time::Instant;
 
 #[tokio::test]
 async fn test_panel_switching_responsiveness() {
     println!("=== PANEL SWITCHING RESPONSIVENESS TEST ===");
 
-    let config = Config::default();
-    let _app = App::new(config).await.expect("Failed to create app");
+    let _app = App::new().await.expect("Failed to create app");
 
     // Simulate rapid panel switching
     let switch_events = vec![
@@ -71,8 +69,7 @@ async fn test_panel_switching_responsiveness() {
 async fn test_state_consistency_during_rapid_switching() {
     println!("=== STATE CONSISTENCY DURING RAPID SWITCHING TEST ===");
 
-    let config = Config::default();
-    let app = App::new(config).await.expect("Failed to create app");
+    let app = App::new().await.expect("Failed to create app");
 
     // Test that rapid switching doesn't break state
     // This is a structural test to ensure the app remains consistent
@@ -129,8 +126,7 @@ fn test_panel_switching_algorithm_performance() {
 async fn test_memory_efficiency_during_switching() {
     println!("=== MEMORY EFFICIENCY DURING SWITCHING TEST ===");
 
-    let config = Config::default();
-    let app = App::new(config).await.expect("Failed to create app");
+    let app = App::new().await.expect("Failed to create app");
 
     // Memory usage should remain stable during switching
     // This test ensures no memory leaks occur during rapid switching

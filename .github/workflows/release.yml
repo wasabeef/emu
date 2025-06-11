@@ -131,6 +131,9 @@ jobs:
           VERSION=${{ github.ref_name }}
           VERSION_NUM=${VERSION#v}
           
+          echo "Version: $VERSION"
+          echo "Version number: $VERSION_NUM"
+          
           # Download and calculate SHA256
           echo "Calculating SHA256 for each platform..."
           
@@ -138,31 +141,48 @@ jobs:
           MACOS_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Darwin-x86_64.tar.gz"
           LINUX_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Linux-x86_64.tar.gz"
           
-          MACOS_ARM64_SHA=$(curl -sL "$MACOS_ARM64_URL" | shasum -a 256 | cut -d' ' -f1)
-          MACOS_X86_SHA=$(curl -sL "$MACOS_X86_URL" | shasum -a 256 | cut -d' ' -f1)
-          LINUX_X86_SHA=$(curl -sL "$LINUX_X86_URL" | shasum -a 256 | cut -d' ' -f1)
+          echo "URLs:"
+          echo "  macOS ARM64: $MACOS_ARM64_URL"
+          echo "  macOS x86_64: $MACOS_X86_URL"
+          echo "  Linux x86_64: $LINUX_X86_URL"
           
-          # Generate formula
-          cat > ../emu-tap/Formula/emu.rb << EOF
-          class Emu < Formula
+          # Download files and calculate SHA256
+          curl -sL "$MACOS_ARM64_URL" -o emu-macos-arm64.tar.gz
+          curl -sL "$MACOS_X86_URL" -o emu-macos-x86.tar.gz
+          curl -sL "$LINUX_X86_URL" -o emu-linux-x86.tar.gz
+          
+          MACOS_ARM64_SHA=$(shasum -a 256 emu-macos-arm64.tar.gz | cut -d' ' -f1)
+          MACOS_X86_SHA=$(shasum -a 256 emu-macos-x86.tar.gz | cut -d' ' -f1)
+          LINUX_X86_SHA=$(shasum -a 256 emu-linux-x86.tar.gz | cut -d' ' -f1)
+          
+          # Clean up downloaded files
+          rm -f emu-*.tar.gz
+          
+          echo "SHA256 values:"
+          echo "  macOS ARM64: $MACOS_ARM64_SHA"
+          echo "  macOS x86_64: $MACOS_X86_SHA"
+          echo "  Linux x86_64: $LINUX_X86_SHA"
+          
+          # Generate formula using printf to avoid heredoc issues
+          printf 'class Emu < Formula
             desc "TUI for managing Android emulators and iOS simulators"
             homepage "https://github.com/wasabeef/emu"
-            version "${VERSION_NUM}"
+            version "%s"
             license "MIT"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "${MACOS_ARM64_URL}"
-                sha256 "${MACOS_ARM64_SHA}"
+                url "%s"
+                sha256 "%s"
               else
-                url "${MACOS_X86_URL}"
-                sha256 "${MACOS_X86_SHA}"
+                url "%s"
+                sha256 "%s"
               end
             end
 
             on_linux do
-              url "${LINUX_X86_URL}"
-              sha256 "${LINUX_X86_SHA}"
+              url "%s"
+              sha256 "%s"
             end
 
             def install
@@ -172,14 +192,27 @@ jobs:
             test do
               assert_match version.to_s, shell_output("#{bin}/emu --version")
             end
-          end
-          EOF
+          end\n' \
+          "$VERSION_NUM" \
+          "$MACOS_ARM64_URL" "$MACOS_ARM64_SHA" \
+          "$MACOS_X86_URL" "$MACOS_X86_SHA" \
+          "$LINUX_X86_URL" "$LINUX_X86_SHA" \
+          > ../emu-tap/Formula/emu.rb
+          
+          echo "Generated formula:"
+          cat ../emu-tap/Formula/emu.rb
 
       - name: Commit and push formula update
         run: |
           cd emu-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add timestamp to force update even if content is the same
+          echo "" >> Formula/emu.rb
+          echo "# Updated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> Formula/emu.rb
+          
           git add Formula/emu.rb
           git commit -m "emu ${{ github.ref_name }}"
           git push
+          echo "Formula updated successfully"
