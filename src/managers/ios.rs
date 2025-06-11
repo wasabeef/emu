@@ -193,13 +193,17 @@
 //! - The `which` crate is used to verify `xcrun` availability at runtime
 
 use crate::managers::common::{DeviceConfig, DeviceManager};
+use anyhow::{bail, Result};
+#[cfg(target_os = "macos")]
+use anyhow::Context;
+#[cfg(target_os = "macos")]
 use crate::models::device_info::DynamicDeviceConfig;
-use crate::models::{DeviceStatus, IosDevice};
+use crate::models::IosDevice;
+#[cfg(target_os = "macos")]
+use crate::models::DeviceStatus;
 
 #[cfg(target_os = "macos")]
 use crate::utils::command::CommandRunner;
-#[cfg(target_os = "macos")]
-use anyhow::{bail, Context, Result};
 #[cfg(target_os = "macos")]
 use log;
 #[cfg(target_os = "macos")]
@@ -707,12 +711,21 @@ impl DeviceManager for IosManager {
 
 // Stub implementation for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
+#[derive(Clone)]
 pub struct IosManager;
 
 #[cfg(not(target_os = "macos"))]
 impl IosManager {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self) // Allow creation, but is_available will be false
+    }
+    
+    pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+    
+    pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
+        bail!("iOS simulator management is only available on macOS")
     }
 }
 
