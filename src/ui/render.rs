@@ -172,13 +172,13 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
     // Calculate visible range
     let available_height = area.height.saturating_sub(2) as usize; // Subtract borders
     let total_devices = state.android_devices.len();
-    
+
     // Calculate scroll offset to keep selected item visible
     let scroll_offset = state.get_android_scroll_offset(available_height);
-    
+
     // Update the state's scroll offset
     state.android_scroll_offset = scroll_offset;
-    
+
     // Get visible devices
     let visible_devices: Vec<_> = state
         .android_devices
@@ -263,13 +263,13 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
     // Calculate visible range
     let available_height = area.height.saturating_sub(2) as usize; // Subtract borders
     let total_devices = state.ios_devices.len();
-    
+
     // Calculate scroll offset to keep selected item visible
     let scroll_offset = state.get_ios_scroll_offset(available_height);
-    
+
     // Update the state's scroll offset
     state.ios_scroll_offset = scroll_offset;
-    
+
     // Get visible devices
     let visible_devices: Vec<_> = state
         .ios_devices

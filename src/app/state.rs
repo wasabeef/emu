@@ -580,10 +580,10 @@ impl AppState {
         if self.android_devices.len() <= available_height || available_height == 0 {
             return 0;
         }
-        
+
         let selected = self.selected_android;
         let current_offset = self.android_scroll_offset;
-        
+
         if selected < current_offset {
             selected
         } else if selected >= current_offset + available_height {
@@ -597,10 +597,10 @@ impl AppState {
         if self.ios_devices.len() <= available_height || available_height == 0 {
             return 0;
         }
-        
+
         let selected = self.selected_ios;
         let current_offset = self.ios_scroll_offset;
-        
+
         if selected < current_offset {
             selected
         } else if selected >= current_offset + available_height {
