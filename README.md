@@ -76,4 +76,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-MIT - see [LICENSE-MIT](LICENSE-MIT)
+MIT - see [LICENSE](LICENSE)
