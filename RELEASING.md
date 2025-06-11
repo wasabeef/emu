@@ -17,10 +17,9 @@ This document describes the release process for Emu.
    version = "0.1.0"  # Update this
    ```
 
-3. Update `CHANGELOG.md`:
-   - Move items from `[Unreleased]` to a new version section
-   - Add release date
-   - Ensure all changes are documented
+3. Update `CHANGELOG.md` (optional - automated release notes are generated):
+   - The release process will automatically generate release notes using git-cliff
+   - Manual updates are only needed for major releases or special announcements
 
 4. Commit the version bump:
    ```bash
@@ -37,8 +36,9 @@ This document describes the release process for Emu.
    ```
 
 2. The GitHub Actions workflow will automatically:
+   - Generate release notes from commit history using git-cliff
    - Build binaries for all platforms
-   - Create a GitHub release
+   - Create a GitHub release with auto-generated release notes
    - Upload the binaries
 
 3. Update the Homebrew formula:
@@ -69,3 +69,21 @@ We follow [Semantic Versioning](https://semver.org/):
 - MAJOR version for incompatible API changes
 - MINOR version for backwards-compatible functionality
 - PATCH version for backwards-compatible bug fixes
+
+## Commit Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for automatic changelog generation:
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation changes
+- `perf:` Performance improvements
+- `refactor:` Code refactoring
+- `test:` Test additions/changes
+- `chore:` Maintenance tasks
+
+Example:
+```bash
+git commit -m "feat: add iOS simulator log streaming"
+git commit -m "fix: prevent crash on small terminal sizes"
+git commit -m "docs: update installation instructions"
+```

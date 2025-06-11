@@ -3,14 +3,42 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*' # Trigger on existing tags
 
 permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: release_notes
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: .github/cliff.toml
+          args: --latest --strip header
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          name: Release ${{ github.ref }}
+          body: ${{ steps.release_notes.outputs.content }}
+          draft: false
+          prerelease: false
+
   release:
     name: Release - ${{ matrix.platform.release_for }}
+    needs: create-release
     strategy:
       matrix:
         platform:
@@ -79,7 +107,7 @@ jobs:
           tag: ${{ github.ref }}
 
   homebrew:
-    needs: release
+    needs: [create-release, release]
     runs-on: ubuntu-latest
     steps:
       - name: Update Homebrew formula
