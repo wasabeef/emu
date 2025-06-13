@@ -720,6 +720,7 @@ impl IosManager {
 }
 
 #[cfg(not(target_os = "macos"))]
+#[allow(clippy::manual_async_fn)]
 impl DeviceManager for IosManager {
     type Device = IosDevice; // This will use the potentially simplified IosDevice from models.rs for non-macOS
 
