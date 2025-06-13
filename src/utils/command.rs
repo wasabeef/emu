@@ -15,10 +15,16 @@ use tokio::process::Command;
 /// It handles output capture, error propagation, and optional debug logging.
 ///
 /// # Examples
-/// ```rust
+/// ```no_run
+/// # use emu::utils::command::CommandRunner;
+/// # use anyhow::Result;
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let runner = CommandRunner::new();
 /// let output = runner.run("adb", &["devices"]).await?;
 /// println!("Connected devices: {}", output);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct CommandRunner {
@@ -63,10 +69,16 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If command fails or cannot be executed
     ///
     /// # Examples
-    /// ```rust
+    /// ```no_run
+    /// # use emu::utils::command::CommandRunner;
+    /// # use anyhow::Result;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
     /// let runner = CommandRunner::new();
     /// let devices = runner.run("adb", &["devices"]).await?;
     /// let avds = runner.run("avdmanager", &["list", "avd"]).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Error Handling
@@ -142,10 +154,16 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If the command cannot be spawned
     ///
     /// # Examples
-    /// ```rust
+    /// ```no_run
+    /// # use emu::utils::command::CommandRunner;
+    /// # use anyhow::Result;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
     /// let runner = CommandRunner::new();
     /// let pid = runner.spawn("open", &["-a", "Simulator"]).await?;
     /// println!("Launched Simulator with PID: {}", pid);
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Note
@@ -185,9 +203,15 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If the command fails or cannot be executed
     ///
     /// # Examples
-    /// ```rust
+    /// ```no_run
+    /// # use emu::utils::command::CommandRunner;
+    /// # use anyhow::Result;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
     /// let runner = CommandRunner::new();
     /// let output = runner.run_with_input("sdkmanager", &["--licenses"], "y\ny\ny\n").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn run_with_input<S, I, A>(&self, program: S, args: I, input: &str) -> Result<String>
     where

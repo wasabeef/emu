@@ -902,7 +902,9 @@ impl AppState {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
+    /// # use emu::app::state::AppState;
+    /// # let mut state = AppState::new();
     /// // Move down 5 positions with wrapping
     /// state.move_by_steps(5);
     ///

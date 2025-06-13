@@ -22,9 +22,13 @@ use std::str::FromStr;
 /// * `Err(anyhow::Error)` - If logger is already initialized or setup fails
 ///
 /// # Examples
-/// ```rust
+/// ```no_run
+/// # use emu::utils::logger::setup_logger;
+/// # use anyhow::Result;
+/// # fn main() -> Result<()> {
 /// setup_logger("info")?;  // Set to info level
-/// setup_logger("debug")?; // Enable debug output
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Environment Variables
@@ -57,7 +61,7 @@ pub fn setup_logger(level: &str) -> Result<()> {
 /// when the log level is set to debug or trace.
 ///
 /// # Examples
-/// ```rust
+/// ```ignore
 /// debug!("Processing device: {}", device_name);
 /// debug!("Command executed: {} {}", cmd, args.join(" "));
 /// ```
@@ -74,7 +78,7 @@ macro_rules! debug {
 /// informational messages that are useful for understanding application flow.
 ///
 /// # Examples
-/// ```rust
+/// ```ignore
 /// info!("Starting device manager");
 /// info!("Device '{}' started successfully", device_name);
 /// ```
@@ -91,7 +95,7 @@ macro_rules! info {
 /// about potentially problematic situations that don't prevent operation.
 ///
 /// # Examples
-/// ```rust
+/// ```ignore
 /// warn!("Device '{}' not responding, retrying...", device_name);
 /// warn!("Using fallback configuration due to missing file");
 /// ```
@@ -108,7 +112,7 @@ macro_rules! warn {
 /// about error conditions that prevent normal operation.
 ///
 /// # Examples
-/// ```rust
+/// ```ignore
 /// error!("Failed to start device '{}': {}", device_name, error);
 /// error!("SDK not found at path: {}", sdk_path);
 /// ```

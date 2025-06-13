@@ -2875,7 +2875,7 @@ impl AndroidManager {
     /// Parses SDK package information from sdkmanager output.
     ///
     /// The format is:
-    /// ```
+    /// ```text
     /// package-name
     ///     Description:        description text
     ///     Version:            version number
