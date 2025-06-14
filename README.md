@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
 - **Real-time Logs**: System log streaming with intelligent fallback methods
 
 ### ⚡ Performance & UX
-- **Instant Startup**: < 150ms (typical: ~104ms) with background device loading
+- **Instant Startup**: < 150ms (typical: ~110ms) with background device loading
 - **High-Performance Rendering**: 
   - 125 FPS baseline for ultra-smooth operation
   - Optimized for 60+ FPS environments
@@ -54,6 +54,7 @@ https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
   - Debounced operations for UI responsiveness
   - Background task coordination
   - Memory-efficient log rotation (1000 entries max)
+  - API level detection with multiple fallback strategies
 
 ### 🛡️ Reliability
 - **Comprehensive Testing**: 15+ test files with 30+ test functions

@@ -1156,8 +1156,8 @@ impl AppState {
                             device.api_level,
                             self.get_android_version_name(device.api_level)
                         ),
-                        ram_size: None,     // Will be filled by manager
-                        storage_size: None, // Will be filled by manager
+                        ram_size: Some(format!("{} MB", device.ram_size)),
+                        storage_size: Some(format!("{} MB", device.storage_size)),
                         resolution: None,   // Will be filled by manager
                         dpi: None,          // Will be filled by manager
                         device_path: None,  // Will be filled by manager
@@ -1213,8 +1213,9 @@ impl AppState {
 
     /// Maps Android API level to Android version name.
     /// Returns a human-readable version string like "14" for API 34.
-    fn get_android_version_name(&self, api_level: u32) -> String {
+    pub fn get_android_version_name(&self, api_level: u32) -> String {
         match api_level {
+            36 => "16".to_string(),
             35 => "15".to_string(),
             34 => "14".to_string(),
             33 => "13".to_string(),

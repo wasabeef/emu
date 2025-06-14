@@ -10,6 +10,7 @@
 //! - **Name Normalization**: AVD names with spaces are handled via underscore conversion for compatibility
 //! - **Multi-Method Detection**: API levels use config.ini parsing with multiple fallback strategies
 //! - **Smart Prioritization**: Devices sorted by category, version, and manufacturer dynamically
+//! - **Physical Device Support**: Currently disabled for performance reasons (see list_devices method)
 //!
 //! # Android SDK Tools Integration
 //!
@@ -278,7 +279,7 @@
 //!
 
 use crate::{
-    constants::{adb_commands, android_paths, android_version_to_api_level, commands, env_vars},
+    constants::{adb_commands, android_paths, commands, defaults, env_vars},
     managers::common::{DeviceConfig, DeviceManager},
     models::device_info::DeviceCategory,
     models::{AndroidDevice, ApiLevel, DeviceStatus, SdkPackage},
@@ -304,9 +305,11 @@ lazy_static! {
     static ref TARGET_REGEX: Regex = Regex::new(r"Target:\s*(.+)").unwrap();
     static ref ABI_REGEX: Regex = Regex::new(r"Tag/ABI:\s*(.+)").unwrap();
     static ref DEVICE_REGEX: Regex = Regex::new(r"Device:\s*(.+)").unwrap();
+    // Updated to handle both "Android 15.0" and "Android API 36" formats
     static ref BASED_ON_REGEX: Regex = Regex::new(r"Based on:\s*Android\s*([\d.]+)").unwrap();
+    static ref BASED_ON_API_REGEX: Regex = Regex::new(r"Based on:\s*Android\s*API\s*(\d+)").unwrap();
 
-    // Config parsing regexes
+    // Config parsing regexes for API level detection fallbacks
     static ref IMAGE_SYSDIR_REGEX: Regex = Regex::new(r"image\.sysdir\.1=system-images/android-(\d+)/?").unwrap();
     static ref TARGET_CONFIG_REGEX: Regex = Regex::new(r"target=android-(\d+)").unwrap();
     static ref API_LEVEL_REGEX: Regex = Regex::new(r"API level (\d+)").unwrap();
@@ -1015,6 +1018,101 @@ impl AndroidManager {
     }
 }
 
+/// Converts Android version to API level.
+/// This is a local implementation to avoid the deprecated one in constants.
+///
+/// # Note
+/// This mapping is hardcoded but necessary for parsing "Based on: Android 15.0" format
+/// from avdmanager output. The SDK doesn't provide a direct way to query this mapping.
+fn android_version_to_api_level(version: u32) -> u32 {
+    match version {
+        16 => 36, // Android 16 (VanillaIceCream)
+        15 => 35, // Android 15
+        14 => 34, // Android 14
+        13 => 33, // Android 13
+        12 => 32, // Android 12L
+        11 => 30, // Android 11
+        10 => 29, // Android 10
+        9 => 28,  // Android 9 (Pie)
+        8 => 26,  // Android 8.0 (Oreo)
+        7 => 24,  // Android 7.0 (Nougat)
+        6 => 23,  // Android 6.0 (Marshmallow)
+        5 => 21,  // Android 5.0 (Lollipop)
+        4 => 16,  // Android 4.1 (Jelly Bean)
+        // For future versions, assume API level = version + 20
+        // This is a reasonable heuristic based on recent patterns
+        v if v > 16 => v + 20,
+        _ => version, // Fallback to version number for very old versions
+    }
+}
+
+/// Maps device IDs to their display names.
+/// This function provides a mapping for known device types to their user-friendly names.
+fn get_device_display_name_static(device_id: &str) -> Option<String> {
+    match device_id {
+        // Pixel phones
+        "pixel" => Some("Pixel".to_string()),
+        "pixel_xl" => Some("Pixel XL".to_string()),
+        "pixel_2" => Some("Pixel 2".to_string()),
+        "pixel_2_xl" => Some("Pixel 2 XL".to_string()),
+        "pixel_3" => Some("Pixel 3".to_string()),
+        "pixel_3_xl" => Some("Pixel 3 XL".to_string()),
+        "pixel_3a" => Some("Pixel 3a".to_string()),
+        "pixel_3a_xl" => Some("Pixel 3a XL".to_string()),
+        "pixel_4" => Some("Pixel 4".to_string()),
+        "pixel_4_xl" => Some("Pixel 4 XL".to_string()),
+        "pixel_4a" => Some("Pixel 4a".to_string()),
+        "pixel_5" => Some("Pixel 5".to_string()),
+        "pixel_6" => Some("Pixel 6".to_string()),
+        "pixel_6_pro" => Some("Pixel 6 Pro".to_string()),
+        "pixel_6a" => Some("Pixel 6a".to_string()),
+        "pixel_7" => Some("Pixel 7".to_string()),
+        "pixel_7_pro" => Some("Pixel 7 Pro".to_string()),
+        "pixel_7a" => Some("Pixel 7a".to_string()),
+        "pixel_8" => Some("Pixel 8".to_string()),
+        "pixel_8_pro" => Some("Pixel 8 Pro".to_string()),
+        "pixel_8a" => Some("Pixel 8a".to_string()),
+        "pixel_9" => Some("Pixel 9".to_string()),
+        "pixel_9_pro" => Some("Pixel 9 Pro".to_string()),
+        "pixel_9_pro_fold" => Some("Pixel 9 Pro Fold".to_string()),
+        "pixel_fold" => Some("Pixel Fold".to_string()),
+        "pixel_tablet" => Some("Pixel Tablet".to_string()),
+        // Pixel C
+        "pixel_c" => Some("Pixel C".to_string()),
+        // Nexus devices
+        "Nexus 4" => Some("Nexus 4".to_string()),
+        "Nexus 5" => Some("Nexus 5".to_string()),
+        "Nexus 5X" => Some("Nexus 5X".to_string()),
+        "Nexus 6" => Some("Nexus 6".to_string()),
+        "Nexus 6P" => Some("Nexus 6P".to_string()),
+        "Nexus 7" => Some("Nexus 7".to_string()),
+        "Nexus 7 2013" => Some("Nexus 7 (2013)".to_string()),
+        "Nexus 9" => Some("Nexus 9".to_string()),
+        "Nexus 10" => Some("Nexus 10".to_string()),
+        // Android TV
+        "tv_1080p" => Some("Android TV (1080p)".to_string()),
+        "tv_720p" => Some("Android TV (720p)".to_string()),
+        "tv_4k" => Some("Android TV (4K)".to_string()),
+        // Wear OS
+        "wear_round" => Some("Android Wear Round".to_string()),
+        "wear_square" => Some("Android Wear Square".to_string()),
+        "wear_round_chin" => Some("Android Wear Round Chin".to_string()),
+        // Automotive
+        "automotive_1024p_landscape" => Some("Automotive (1024p landscape)".to_string()),
+        "automotive_1080p_landscape" => Some("Automotive (1080p landscape)".to_string()),
+        // Tablets
+        "small_tablet" => Some("Small Tablet".to_string()),
+        "medium_tablet" => Some("Medium Tablet".to_string()),
+        "large_tablet" => Some("Large Tablet".to_string()),
+        // Generic phones
+        "small_phone" => Some("Small Phone".to_string()),
+        "medium_phone" => Some("Medium Phone".to_string()),
+        "large_phone" => Some("Large Phone".to_string()),
+        // Default - return None to use the original ID
+        _ => None,
+    }
+}
+
 /// Extracts percentage from a line of text.
 /// Looks for patterns like "50%" or "[50%]" or "50 %".
 fn extract_percentage(line: &str) -> Option<u8> {
@@ -1041,6 +1139,14 @@ fn extract_percentage(line: &str) -> Option<u8> {
 }
 
 impl AndroidManager {
+    /// Gets the display name for a device ID.
+    /// First tries to get from avdmanager list device, then falls back to static mapping.
+    fn get_device_display_name(&self, device_id: &str) -> Option<String> {
+        // For now, use static mapping. In the future, we could cache
+        // the output of `avdmanager list device` for dynamic lookup.
+        get_device_display_name_static(device_id)
+    }
+
     /// Lists all Android Virtual Devices (AVDs).
     ///
     /// # Returns
@@ -1071,7 +1177,8 @@ impl AndroidManager {
                             if let Some(paren_idx) = d.find(" (") {
                                 d[paren_idx + 2..d.len() - 1].to_string()
                             } else {
-                                d.clone()
+                                // If no parentheses, try to get display name from device ID
+                                self.get_device_display_name(d).unwrap_or_else(|| d.clone())
                             }
                         })
                         .unwrap_or_else(|| "Unknown".to_string());
@@ -1095,14 +1202,27 @@ impl AndroidManager {
                     // Always use the AVD ID (safe name) for operations
                     device_name = current_avd.get("Name").unwrap_or(&device_name).clone();
 
+                    // Get RAM and storage from config.ini if available
+                    let (ram_size, storage_size) = if let Some(path) = current_avd.get("Path") {
+                        self.get_avd_memory_config(path).await.unwrap_or((
+                            defaults::DEFAULT_RAM_SIZE.to_string(),
+                            defaults::DEFAULT_STORAGE_SIZE.to_string(),
+                        ))
+                    } else {
+                        (
+                            defaults::DEFAULT_RAM_SIZE.to_string(),
+                            defaults::DEFAULT_STORAGE_SIZE.to_string(),
+                        )
+                    };
+
                     devices.push(AndroidDevice {
                         name: device_name,
                         device_type,
                         api_level,
                         status,
                         is_running,
-                        ram_size: "2048".to_string(), // Default, will be updated from config
-                        storage_size: "8192".to_string(), // Default, will be updated from config
+                        ram_size,
+                        storage_size,
                         is_physical: false,
                     });
                 }
@@ -1122,7 +1242,8 @@ impl AndroidManager {
                     if let Some(paren_idx) = d.find(" (") {
                         d[paren_idx + 2..d.len() - 1].to_string()
                     } else {
-                        d.clone()
+                        // If no parentheses, try to get display name from device ID
+                        self.get_device_display_name(d).unwrap_or_else(|| d.clone())
                     }
                 })
                 .unwrap_or_else(|| "Unknown".to_string());
@@ -1143,14 +1264,27 @@ impl AndroidManager {
 
             device_name = current_avd.get("Name").unwrap_or(&device_name).clone();
 
+            // Get RAM and storage from config.ini if available
+            let (ram_size, storage_size) = if let Some(path) = current_avd.get("Path") {
+                self.get_avd_memory_config(path).await.unwrap_or((
+                    defaults::DEFAULT_RAM_SIZE.to_string(),
+                    defaults::DEFAULT_STORAGE_SIZE.to_string(),
+                ))
+            } else {
+                (
+                    defaults::DEFAULT_RAM_SIZE.to_string(),
+                    defaults::DEFAULT_STORAGE_SIZE.to_string(),
+                )
+            };
+
             devices.push(AndroidDevice {
                 name: device_name,
                 device_type,
                 api_level,
                 status,
                 is_running,
-                ram_size: "2048".to_string(),
-                storage_size: "8192".to_string(),
+                ram_size,
+                storage_size,
                 is_physical: false,
             });
         }
@@ -1173,6 +1307,13 @@ impl AndroidManager {
     fn extract_api_level_from_avd(&self, avd_info: &HashMap<String, String>) -> Option<u32> {
         // Try to extract from "Based on" field first
         if let Some(based_on) = avd_info.get("Based on") {
+            // First try "Android API 36" pattern
+            if let Some(captures) = BASED_ON_API_REGEX.captures(based_on) {
+                if let Some(api) = captures.get(1) {
+                    return api.as_str().parse().ok();
+                }
+            }
+            // Then try "Android 15.0" pattern
             if let Some(captures) = BASED_ON_REGEX.captures(based_on) {
                 if let Some(version) = captures.get(1) {
                     // Convert Android version to API level
@@ -1211,6 +1352,25 @@ impl AndroidManager {
                     }
                 }
             }
+
+            // Try to read from config.ini as fallback
+            let config_path = Path::new(path).join("config.ini");
+            if let Ok(content) = std::fs::read_to_string(&config_path) {
+                for line in content.lines() {
+                    // Check image.sysdir.1 line
+                    if let Some(captures) = IMAGE_SYSDIR_REGEX.captures(line) {
+                        if let Some(api) = captures.get(1) {
+                            return api.as_str().parse().ok();
+                        }
+                    }
+                    // Check target line
+                    if let Some(captures) = TARGET_CONFIG_REGEX.captures(line) {
+                        if let Some(api) = captures.get(1) {
+                            return api.as_str().parse().ok();
+                        }
+                    }
+                }
+            }
         }
 
         None
@@ -1236,6 +1396,35 @@ impl AndroidManager {
             }
         }
         None
+    }
+
+    /// Gets RAM and storage configuration from AVD config.ini file.
+    async fn get_avd_memory_config(&self, avd_path: &str) -> Option<(String, String)> {
+        let config_path = Path::new(avd_path).join("config.ini");
+
+        if let Ok(content) = fs::read_to_string(&config_path).await {
+            let mut ram_mb = defaults::DEFAULT_RAM_SIZE.parse::<u32>().unwrap_or(2048);
+            let mut storage_mb = defaults::DEFAULT_STORAGE_SIZE
+                .parse::<u32>()
+                .unwrap_or(8192);
+
+            for line in content.lines() {
+                if line.starts_with("hw.ramSize=") {
+                    if let Some(value) = line.split('=').nth(1) {
+                        ram_mb = value.parse().unwrap_or(ram_mb);
+                    }
+                } else if line.contains("disk.dataPartition.size=") {
+                    if let Some(value) = line.split('=').nth(1) {
+                        let size_str = value.trim_end_matches('M');
+                        storage_mb = size_str.parse().unwrap_or(storage_mb);
+                    }
+                }
+            }
+
+            Some((ram_mb.to_string(), storage_mb.to_string()))
+        } else {
+            None
+        }
     }
     /// SDK Manager functionality for installing API levels and system images.
     /// Lists all available packages from the SDK manager.
@@ -1754,6 +1943,8 @@ impl AndroidManager {
             let abi = captures.get(3)?.as_str();
 
             // Create a short descriptive version name
+            // Note: This mapping is hardcoded but necessary since the SDK doesn't
+            // provide version names in the system image package names
             let version_name = match level {
                 35 => "Android 15".to_string(),
                 34 => "Android 14".to_string(),
@@ -2204,8 +2395,10 @@ impl AndroidManager {
 
         let config_path = avd_path.join("config.ini");
 
-        let mut ram_mb = 2048;
-        let mut storage_mb = 8192;
+        let mut ram_mb = defaults::DEFAULT_RAM_SIZE.parse::<u32>().unwrap_or(2048);
+        let mut storage_mb = defaults::DEFAULT_STORAGE_SIZE
+            .parse::<u32>()
+            .unwrap_or(8192);
         let mut api_level = 0;
         let mut device_type = "Unknown".to_string();
 
@@ -2213,16 +2406,19 @@ impl AndroidManager {
             for line in content.lines() {
                 if line.starts_with("hw.ramSize=") {
                     if let Some(value) = line.split('=').nth(1) {
-                        ram_mb = value.parse().unwrap_or(2048);
+                        ram_mb = value.parse().unwrap_or(ram_mb);
                     }
                 } else if line.contains("disk.dataPartition.size=") {
                     if let Some(value) = line.split('=').nth(1) {
                         let size_str = value.trim_end_matches('M');
-                        storage_mb = size_str.parse().unwrap_or(8192);
+                        storage_mb = size_str.parse().unwrap_or(storage_mb);
                     }
                 } else if line.starts_with("hw.device.name=") {
                     if let Some(value) = line.split('=').nth(1) {
-                        device_type = value.to_string();
+                        // Use display name if available, otherwise use the raw device ID
+                        device_type = self
+                            .get_device_display_name(value)
+                            .unwrap_or_else(|| value.to_string());
                     }
                 } else if let Some(captures) = IMAGE_SYSDIR_REGEX.captures(line) {
                     if let Some(api) = captures.get(1) {
@@ -2261,18 +2457,8 @@ impl DeviceManager for AndroidManager {
 
     fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
         async {
-            // Get both AVDs and physical devices
-            let mut all_devices = Vec::new();
-
-            // Get AVDs
-            let avds = self.list_avds().await?;
-            all_devices.extend(avds);
-
-            // Get physical devices
-            let physical_devices = self.list_physical_devices().await?;
-            all_devices.extend(physical_devices);
-
-            Ok(all_devices)
+            // Only list AVDs for now - physical device support disabled for performance
+            self.list_avds().await
         }
     }
 

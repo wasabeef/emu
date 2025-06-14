@@ -10,6 +10,7 @@
 //! - **Smart Prioritization**: Devices sorted by model type and version automatically
 //! - **Graceful Error Handling**: Handles already-booted and already-shutdown states
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
+//! - **Physical Device Support**: Currently disabled for performance reasons (see list_devices method)
 
 //! # xcrun simctl Command Reference
 //!
@@ -413,11 +414,15 @@ impl IosManager {
 
     /// Lists all connected physical iOS devices.
     ///
-    /// Uses `xcrun devicectl` (Xcode 15+) or `instruments` (older Xcode) to discover
-    /// connected physical iOS devices.
+    /// Uses `xcrun xcdevice list` to discover connected physical iOS devices.
+    /// Falls back to `instruments -s devices` for older Xcode versions.
     ///
     /// # Returns
     /// Vector of IosDevice structs representing physical devices
+    ///
+    /// # Note
+    /// This method is functional but not currently used in list_devices()
+    /// due to performance considerations
     pub async fn list_physical_devices(&self) -> Result<Vec<IosDevice>> {
         let mut devices = Vec::new();
 
@@ -796,18 +801,8 @@ impl DeviceManager for IosManager {
 
     fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
         async {
-            // Get both simulators and physical devices
-            let mut all_devices = Vec::new();
-
-            // Get simulators
-            let simulators = self.list_simulators().await?;
-            all_devices.extend(simulators);
-
-            // Get physical devices
-            let physical_devices = self.list_physical_devices().await?;
-            all_devices.extend(physical_devices);
-
-            Ok(all_devices)
+            // Only list simulators for now - physical device support disabled for performance
+            self.list_simulators().await
         }
     }
 

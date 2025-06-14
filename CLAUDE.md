@@ -64,7 +64,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - **Real-time feedback**: Status notifications, operation progress, log streaming
 
 ### Performance Optimizations
-- **Fast startup**: UI renders immediately (~50ms), device data loads in background (~104ms average total)
+- **Fast startup**: UI renders immediately (~50ms), device data loads in background (~110ms average total)
 - **High-performance input handling**: 
   - Designed for 60+ FPS operation as baseline
   - 125 FPS consistent rendering (8ms frame time)
@@ -76,6 +76,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
   - Background task debouncing (50ms delay) prevents UI stuttering
   - Batched navigation processing for smooth scrolling
 - **Smart caching**: Device metadata and details cached with context-aware invalidation
+- **Cache invalidation**: Automatic cache clearing on API installation
 - **Optimized log streaming**: 
   - Small buffer sizes (256 bytes) for low latency
   - Device-specific stream validation to prevent cross-device logs
@@ -132,10 +133,11 @@ The project has 15 test files with 31+ test functions covering:
 - **Navigation Tests**: Field navigation, circular navigation (`device_creation_navigation_test.rs`)
 
 #### Performance Benchmarks
-- **Startup Time**: < 150ms (typical: ~104ms)
-- **Panel Switching**: < 100ms
+- **Startup Time**: < 150ms (typical: ~110ms)
+- **Panel Switching**: < 100ms (typically < 1ms)
 - **Device Navigation**: < 50ms
 - **Log Streaming**: Real-time with < 10ms latency
+- **API Level Detection**: Multiple fallback strategies ensure reliability
 
 ### Running Tests
 ```bash
@@ -158,12 +160,11 @@ cargo test startup_performance_test -- --nocapture
 ## Current Implementation Status
 
 ### Recent Improvements (Latest)
-- ✅ **API Installation**: Background installation with 5% progress increments
-- ✅ **System Image Display**: Shows image type (Google Play/APIs/AOSP) in selection
-- ✅ **Log Streaming**: Fixed device-specific streaming with validation
-- ✅ **Performance**: Reduced event polling to 10ms, instant key response
-- ✅ **Device Details**: Immediate updates on navigation
-- ✅ **UI Polish**: Status messages moved to bottom, made more prominent
+- ✅ **API Level Detection**: Fixed "Android API 36" format parsing with new regex patterns
+- ✅ **Cache Invalidation**: Fixed API installation cache not updating without restart
+- ✅ **Performance**: Removed physical device support temporarily for better performance
+- ✅ **Panel Switching**: Optimized to cancel unnecessary background updates
+- ✅ **Code Quality**: Fixed all clippy warnings and failing doctests
 
 ### Completed Features
 - ✅ Complete Android AVD lifecycle management
@@ -177,11 +178,14 @@ cargo test startup_performance_test -- --nocapture
 - ✅ Device details with MB units, system images, and full paths
 - ✅ Comprehensive test suite (15+ files, 30+ tests)
 - ✅ Operation status tracking and notifications
+- ✅ API level detection with multiple fallback strategies
+- ✅ Smart caching with invalidation on API installation
 
 ### Known Issues & Limitations
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved with multiple fallbacks)
 - **iOS device details**: Limited device information display compared to Android
 - **Platform differences**: Some features are Android-only (API installation) or iOS-only (simulator logs)
+- **Physical devices**: Support disabled for performance reasons (planned for future release with better implementation)
 
 ### Architecture Strengths
 - Clean separation of concerns with trait-based abstractions
