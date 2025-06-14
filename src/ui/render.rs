@@ -313,8 +313,15 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
                 ICON_STOPPED
             };
 
-            // Build text with single allocation
-            let text = format!("{} {} (API {})", status_char, device.name, device.api_level);
+            // Build text with single allocation, add physical device indicator
+            let text = if device.is_physical {
+                format!(
+                    "{} {} (API {}) 📱",
+                    status_char, device.name, device.api_level
+                )
+            } else {
+                format!("{} {} (API {})", status_char, device.name, device.api_level)
+            };
 
             let style = if selected {
                 selected_style
@@ -423,7 +430,9 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             } else {
                 ICON_STOPPED
             };
-            let text = if device.is_available {
+            let text = if device.is_physical {
+                format!("{} {} 📱", status_char, device.name)
+            } else if device.is_available {
                 format!("{} {}", status_char, device.name)
             } else {
                 format!("{} {} (unavailable)", status_char, device.name)

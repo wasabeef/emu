@@ -280,16 +280,14 @@
 use crate::{
     constants::{adb_commands, android_paths, android_version_to_api_level, commands, env_vars},
     managers::common::{DeviceConfig, DeviceManager},
-    models::device_info::{
-        ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
-    },
+    models::device_info::DeviceCategory,
     models::{AndroidDevice, ApiLevel, DeviceStatus, SdkPackage},
     utils::command::CommandRunner,
 };
 use anyhow::{bail, Context, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs;
@@ -562,1482 +560,94 @@ impl AndroidManager {
         Ok(avd_map)
     }
 
-    fn parse_android_version_to_api_level(version: &str) -> u32 {
-        // Extract major version number from strings like "15.0", "14.0", etc.
-        let major_version = version
-            .split('.')
-            .next()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(0);
-
-        android_version_to_api_level(major_version)
-    }
-
-    /// List available Android targets (API levels) based on installed system images
-    pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
-        // Get actually installed system images
-        let installed_images = self.list_available_system_images().await?;
-
-        // Also track available tags/ABIs for each API level
-        let mut api_level_info: std::collections::HashMap<
-            String,
-            std::collections::HashSet<String>,
-        > = std::collections::HashMap::new();
-
-        let mut targets = std::collections::HashMap::new();
-
-        // Extract API levels and their available tags/ABIs from installed system images
-        for image in installed_images {
-            // Parse "system-images;android-XX;tag;abi" format
-            let parts: Vec<&str> = image.split(';').collect();
-            if parts.len() >= 4 {
-                if let Some(api_level) = parts.get(1).and_then(|p| p.strip_prefix("android-")) {
-                    // Track available tags for this API level
-                    let tag_abi = format!("{};{}", parts[2], parts[3]);
-                    api_level_info
-                        .entry(api_level.to_string())
-                        .or_default()
-                        .insert(tag_abi);
-
-                    // Use simple version mapping to avoid recursion
-                    let api_num: u32 = api_level.parse().unwrap_or(0);
-                    let android_version = self.get_android_version_name(api_num);
-
-                    let display = format!("API {api_level} - Android {android_version}");
-                    targets.insert(api_level.to_string(), display);
-                }
-            }
-        }
-
-        // Convert to sorted vector
-        let mut result: Vec<(String, String)> = targets.into_iter().collect();
-
-        // Sort by API level (descending)
-        result.sort_by(|a, b| {
-            let api_a: u32 = a.0.parse().unwrap_or(0);
-            let api_b: u32 = b.0.parse().unwrap_or(0);
-            api_b.cmp(&api_a)
-        });
-
-        Ok(result)
-    }
-
-    /// Lists all available Android device definitions from the SDK.
+    /// Lists all connected physical Android devices.
     ///
-    /// Parses output from `avdmanager list device` to discover all device types
-    /// that can be used to create AVDs. Returns devices sorted by priority
-    /// (phones first, then tablets, etc.) and version.
+    /// Uses `adb devices` to discover connected physical devices and retrieves
+    /// their properties including device model, Android version, and API level.
     ///
     /// # Returns
-    /// Vector of tuples containing:
-    /// - Device ID (e.g., "pixel_7")
-    /// - Display name (e.g., "Pixel 7")
-    ///
-    /// # Device Priority
-    /// Devices are sorted using dynamic priority calculation based on:
-    /// 1. Category (phone > tablet > tv > wear > automotive)
-    /// 2. Version number (newer versions first)
-    /// 3. Manufacturer (Google/Pixel prioritized)
-    pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
-        let output = self
-            .command_runner
-            .run(&self.avdmanager_path, &["list", "device"])
-            .await
-            .context("Failed to list Android devices")?;
-
+    /// Vector of AndroidDevice structs representing physical devices
+    pub async fn list_physical_devices(&self) -> Result<Vec<AndroidDevice>> {
         let mut devices = Vec::new();
-        let mut current_id = String::new();
-        let mut current_name = String::new();
-        let mut current_oem = String::new();
 
-        for line in output.lines() {
-            if let Some(caps) = ID_REGEX.captures(line) {
-                current_id = caps[1].to_string();
-            } else if let Some(caps) = NAME_REGEX.captures(line) {
-                current_name = caps[1].to_string();
-            } else if let Some(caps) = OEM_REGEX.captures(line) {
-                current_oem = caps[1].to_string();
-            } else if line.contains("-----") && !current_id.is_empty() {
-                // Create display string
-                let display = if !current_oem.is_empty() && current_oem != "Generic" {
-                    format!("{} ({})", current_name, current_oem)
-                } else {
-                    current_name.clone()
-                };
-
-                devices.push((current_id.clone(), display));
-
-                // Reset for next device
-                current_id.clear();
-                current_name.clear();
-                current_oem.clear();
-            }
-        }
-
-        // Don't forget the last device if exists
-        if !current_id.is_empty() {
-            let display = if !current_oem.is_empty() && current_oem != "Generic" {
-                format!("{} ({})", current_name, current_oem)
-            } else {
-                current_name.clone()
-            };
-            devices.push((current_id, display));
-        }
-
-        // If no devices found, log warning but don't add hardcoded fallbacks
-        if devices.is_empty() {
-            log::warn!(
-                "No Android device definitions found. Please check your Android SDK installation."
-            );
-        }
-
-        // Sort devices by priority (Pixel devices first, then by version)
-        devices.sort_by(|a, b| {
-            let priority_a = DynamicDeviceConfig::calculate_android_device_priority(&a.0, &a.1);
-            let priority_b = DynamicDeviceConfig::calculate_android_device_priority(&b.0, &b.1);
-            priority_a.cmp(&priority_b)
-        });
-
-        Ok(devices)
-    }
-
-    /// デバイスカテゴリを動的に判定
-    pub fn get_device_category(&self, device_id: &str, device_display: &str) -> String {
-        let combined = format!(
-            "{} {}",
-            device_id.to_lowercase(),
-            device_display.to_lowercase()
-        );
-
-        // Phone - 最も一般的なデバイス
-        if combined.contains("phone") || 
-           combined.contains("pixel") && !combined.contains("fold") && !combined.contains("tablet") ||
-           combined.contains("galaxy") && !combined.contains("fold") && !combined.contains("tablet") ||
-           combined.contains("oneplus") ||
-           combined.contains("iphone") ||
-           // 画面サイズでの判定（スマートフォン範囲）
-           (combined.contains("5") && combined.contains("inch")) ||
-           (combined.contains("6") && combined.contains("inch")) ||
-           (combined.contains("pro") && !combined.contains("tablet") && !combined.contains("fold"))
-        {
-            return "phone".to_string();
-        }
-
-        // Tablet - タブレットデバイス
-        if combined.contains("tablet")
-            || combined.contains("pad")
-            || (combined.contains("10") && combined.contains("inch"))
-            || (combined.contains("11") && combined.contains("inch"))
-            || (combined.contains("12") && combined.contains("inch"))
-            || (combined.contains("13") && combined.contains("inch"))
-        {
-            return "tablet".to_string();
-        }
-
-        // Wear - ウェアラブルデバイス
-        if combined.contains("wear")
-            || combined.contains("watch")
-            || combined.contains("round") && !combined.contains("tablet")
-            || combined.contains("square") && !combined.contains("tablet")
-        {
-            return "wear".to_string();
-        }
-
-        // TV - テレビデバイス
-        if combined.contains("tv")
-            || combined.contains("1080p")
-            || combined.contains("4k")
-            || combined.contains("720p")
-        {
-            return "tv".to_string();
-        }
-
-        // Automotive - 自動車デバイス
-        if combined.contains("auto") || combined.contains("car") || combined.contains("automotive")
-        {
-            return "automotive".to_string();
-        }
-
-        // Desktop - デスクトップ/大画面デバイス
-        if combined.contains("desktop")
-            || combined.contains("foldable") && combined.contains("large")
-            || (combined.contains("15") && combined.contains("inch"))
-            || (combined.contains("17") && combined.contains("inch"))
-        {
-            return "desktop".to_string();
-        }
-
-        // デフォルトはphone（最も一般的）
-        "phone".to_string()
-    }
-
-    /// カテゴリでフィルターされたデバイス一覧を取得
-    pub async fn list_devices_by_category(
-        &self,
-        category: Option<&str>,
-    ) -> Result<Vec<(String, String)>> {
-        let all_devices = self.list_available_devices().await?;
-
-        if let Some(filter_category) = category {
-            if filter_category == "all" {
-                return Ok(all_devices);
-            }
-
-            let filtered_devices: Vec<(String, String)> = all_devices
-                .into_iter()
-                .filter(|(id, display)| {
-                    let device_category = self.get_device_category(id, display);
-                    device_category == filter_category
-                })
-                .collect();
-
-            Ok(filtered_devices)
-        } else {
-            Ok(all_devices)
-        }
-    }
-
-    /// Check if a system image is available for the given API level, tag, and ABI
-    pub async fn check_system_image_available(
-        &self,
-        api_level: &str,
-        tag: &str,
-        abi: &str,
-    ) -> Result<bool> {
-        let package_path = format!("system-images;android-{api_level};{tag};{abi}");
-
-        let installed_images = self.list_available_system_images().await?;
-        let is_installed = installed_images.contains(&package_path);
-
-        Ok(is_installed)
-    }
-
-    /// Get a list of available system images
-    pub async fn list_available_system_images(&self) -> Result<Vec<String>> {
-        let mut images = Vec::new();
-
-        if let Ok(sdkmanager_path) = Self::find_tool(&self._android_home, "sdkmanager") {
-            let output = self
-                .command_runner
-                .run(
-                    &sdkmanager_path,
-                    &["--list", "--verbose", "--include_obsolete"],
-                )
-                .await?;
-
-            let mut in_installed_section = false;
-
-            for line in output.lines() {
-                let trimmed = line.trim();
-
-                // Track when we're in the installed packages section
-                if trimmed.starts_with("Installed packages:") {
-                    in_installed_section = true;
-                    continue;
-                }
-
-                // Track when we exit the installed section
-                if in_installed_section
-                    && (trimmed.starts_with("Available Packages:")
-                        || trimmed.starts_with("Available Updates:"))
-                {
-                    in_installed_section = false;
-                    continue;
-                }
-
-                // Only process lines in the installed section
-                if in_installed_section && trimmed.starts_with("system-images;") {
-                    // Parse the line to extract just the package path
-                    if let Some(space_pos) = trimmed.find(' ') {
-                        let package_path = &trimmed[..space_pos];
-                        images.push(package_path.to_string());
-                    } else {
-                        // If no space found, the whole line might be the package path
-                        images.push(trimmed.to_string());
-                    }
-                }
-            }
-        }
-
-        Ok(images)
-    }
-
-    /// Get the first available system image for a given API level
-    pub async fn get_first_available_system_image(
-        &self,
-        api_level: &str,
-    ) -> Result<Option<(String, String)>> {
-        let installed_images = self.list_available_system_images().await?;
-
-        // Find system images for this API level
-        for image in installed_images {
-            let parts: Vec<&str> = image.split(';').collect();
-            if parts.len() >= 4 {
-                if let Some(android_part) = parts.get(1) {
-                    if android_part == &format!("android-{api_level}") {
-                        // Return first available tag and abi
-                        return Ok(Some((parts[2].to_string(), parts[3].to_string())));
-                    }
-                }
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Get the AVD directory path for a given AVD name
-    async fn get_avd_path(&self, avd_name: &str) -> Result<Option<PathBuf>> {
-        let avd_output = self
+        // Get list of all connected devices
+        let adb_output = self
             .command_runner
-            .run(&self.avdmanager_path, &["list", "avd"])
-            .await
-            .context("Failed to list Android AVDs")?;
-
-        let mut current_name = String::new();
-
-        for line in avd_output.lines() {
-            let trimmed = line.trim();
-            if let Some(caps) = AVD_NAME_REGEX.captures(trimmed) {
-                current_name = caps[1].to_string();
-            } else if let Some(caps) = PATH_REGEX.captures(trimmed) {
-                if current_name == avd_name {
-                    return Ok(Some(PathBuf::from(caps[1].to_string())));
-                }
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Get display name for a device type using dynamic parsing
-    fn get_device_display_name(&self, device_type: &str) -> String {
-        // Dynamic display name generation without hardcoded patterns
-        let display_name = device_type
-            .replace("_", " ")
-            .split_whitespace()
-            .map(|word| {
-                let mut chars = word.chars();
-                match chars.next() {
-                    None => String::new(),
-                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                }
-            })
-            .collect::<Vec<String>>()
-            .join(" ");
-
-        if display_name.is_empty() {
-            "Generic Device".to_string()
-        } else {
-            display_name
-        }
-    }
-
-    /// Fine-tune AVD configuration after creation with avdmanager
-    async fn fine_tune_avd_config(
-        &self,
-        avd_name: &str,
-        config: &DeviceConfig,
-        _tag: &str,
-        _abi: &str,
-    ) -> Result<()> {
-        if let Some(avd_path) = self.get_avd_path(avd_name).await? {
-            let config_path = avd_path.join("config.ini");
-
-            // Read existing config created by avdmanager
-            let mut config_content = fs::read_to_string(&config_path)
-                .await
-                .context("Failed to read existing AVD configuration")?;
-
-            // Use the user's original name instead of generating from device type
-            let device_display_name = &config.name;
-
-            // Only override specific settings if needed
-            let ram_mb = if let Some(ram) = &config.ram_size {
-                ram.parse::<u32>().unwrap_or(0)
-            } else {
-                0
-            };
-
-            let storage_mb = if let Some(storage) = &config.storage_size {
-                storage.parse::<u32>().unwrap_or(0)
-            } else {
-                0
-            };
-
-            // Create AvdId format: Pixel_9_Pro_Fold
-            let avd_id = device_display_name.replace(" ", "_");
-
-            // Add or update avd.ini.displayname (with spaces)
-            if !device_display_name.is_empty() {
-                if config_content.contains("avd.ini.displayname=") {
-                    // Update existing line
-                    if let Some(start) = config_content.find("avd.ini.displayname=") {
-                        if let Some(end) = config_content[start..].find('\n') {
-                            let line_end = start + end;
-                            config_content.replace_range(
-                                start..line_end,
-                                &format!("avd.ini.displayname={}", device_display_name),
-                            );
-                        }
-                    }
-                } else {
-                    // Add new line after encoding line
-                    if let Some(encoding_pos) = config_content.find("avd.ini.encoding=UTF-8\n") {
-                        let insert_pos = encoding_pos + "avd.ini.encoding=UTF-8\n".len();
-                        config_content.insert_str(
-                            insert_pos,
-                            &format!("avd.ini.displayname={}\n", device_display_name),
-                        );
-                    } else {
-                        // Add at the beginning
-                        config_content = format!(
-                            "avd.ini.displayname={}\navd.ini.encoding=UTF-8\n{}",
-                            device_display_name, config_content
-                        );
-                    }
-                }
-            }
-
-            // Add or update AvdId (with underscores)
-            if !avd_id.is_empty() {
-                if config_content.contains("AvdId=") {
-                    // Update existing line
-                    if let Some(start) = config_content.find("AvdId=") {
-                        if let Some(end) = config_content[start..].find('\n') {
-                            let line_end = start + end;
-                            config_content
-                                .replace_range(start..line_end, &format!("AvdId={}", avd_id));
-                        }
-                    }
-                } else {
-                    // Add new line after displayname
-                    if let Some(displayname_pos) = config_content.find("avd.ini.displayname=") {
-                        if let Some(line_end) = config_content[displayname_pos..].find('\n') {
-                            let insert_pos = displayname_pos + line_end + 1;
-                            config_content.insert_str(insert_pos, &format!("AvdId={}\n", avd_id));
-                        }
-                    }
-                }
-            }
-
-            // Update RAM size if specified
-            if ram_mb > 0 {
-                if let Some(start) = config_content.find("hw.ramSize=") {
-                    if let Some(end) = config_content[start..].find('\n') {
-                        let line_end = start + end;
-                        config_content
-                            .replace_range(start..line_end, &format!("hw.ramSize={}", ram_mb));
-                    }
-                }
-            }
-
-            // Update storage size if specified
-            if storage_mb > 0 {
-                if let Some(start) = config_content.find("disk.dataPartition.size=") {
-                    if let Some(end) = config_content[start..].find('\n') {
-                        let line_end = start + end;
-                        config_content.replace_range(
-                            start..line_end,
-                            &format!("disk.dataPartition.size={}G", storage_mb / 1024),
-                        );
-                    }
-                }
-            }
-
-            // Ensure image.sysdir.1 has trailing slash for consistency
-            if config_content.contains("image.sysdir.1=")
-                && !config_content.contains("image.sysdir.1=system-images/android-")
-            {
-                // This should not happen, but add safety check
-            } else if let Some(start) = config_content.find("image.sysdir.1=") {
-                if let Some(end) = config_content[start..].find('\n') {
-                    let line = &config_content[start..start + end];
-                    if !line.ends_with('/') {
-                        let line_end = start + end;
-                        config_content.replace_range(start..line_end, &format!("{}/", line));
-                    }
-                }
-            }
-
-            // Write the updated configuration
-            fs::write(&config_path, config_content)
-                .await
-                .context("Failed to write updated AVD configuration")?;
-        }
-        Ok(())
-    }
-
-    /// Get detailed information for a specific AVD
-    pub async fn get_device_details(
-        &self,
-        avd_name: &str,
-    ) -> Result<crate::app::state::DeviceDetails> {
-        // Get basic device info from list
-        let devices = self.list_devices().await?;
-        let device = devices
-            .iter()
-            .find(|d| d.name == avd_name)
-            .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", avd_name))?;
-
-        // Read AVD configuration for detailed info
-        let mut details = crate::app::state::DeviceDetails {
-            name: device.name.clone(),
-            status: if device.is_running {
-                "Running".to_string()
-            } else {
-                "Stopped".to_string()
-            },
-            platform: crate::app::Panel::Android,
-            device_type: device.device_type.clone(),
-            api_level_or_version: {
-                // Try dynamic lookup first for better accuracy
-                let version_name = if let Some(dynamic_version) = self
-                    .get_dynamic_android_version_name(device.api_level)
-                    .await
-                {
-                    dynamic_version
-                } else {
-                    // Fall back to hardcoded values
-                    self.get_android_version_name(device.api_level)
-                };
-                format!("API {} (Android {})", device.api_level, version_name)
-            },
-            ram_size: None,
-            storage_size: None,
-            resolution: None,
-            dpi: None,
-            device_path: None,
-            system_image: None,
-            identifier: device.name.clone(),
-        };
-
-        // Read config.ini for additional details
-        if let Ok(home_dir) = std::env::var("HOME") {
-            let config_path = std::path::PathBuf::from(home_dir)
-                .join(".android")
-                .join("avd")
-                .join(format!("{}.avd", avd_name))
-                .join("config.ini");
-
-            if config_path.exists() {
-                if let Ok(config_content) = tokio::fs::read_to_string(&config_path).await {
-                    // Parse configuration values
-                    for line in config_content.lines() {
-                        if let Some((key, value)) = line.split_once('=') {
-                            match key.trim() {
-                                "hw.ramSize" => {
-                                    if let Ok(ram_mb) = value.trim().parse::<u64>() {
-                                        details.ram_size = Some(format!("{} MB", ram_mb));
-                                    }
-                                }
-                                "disk.dataPartition.size" => {
-                                    // Parse storage size (e.g., "8192M", "4G")
-                                    let value = value.trim();
-                                    if let Some(size_str) = value.strip_suffix('M') {
-                                        if let Ok(size_mb) = size_str.parse::<u64>() {
-                                            details.storage_size = Some(format!("{} MB", size_mb));
-                                        }
-                                    } else if let Some(size_str) = value.strip_suffix('G') {
-                                        if let Ok(size_gb) = size_str.parse::<u64>() {
-                                            details.storage_size =
-                                                Some(format!("{} MB", size_gb * 1024));
-                                        }
-                                    }
-                                }
-                                "hw.lcd.width" => {
-                                    if let Ok(width) = value.trim().parse::<u32>() {
-                                        // Need to also get height to form resolution
-                                        details.resolution = Some(format!("{}x?", width));
-                                    }
-                                }
-                                "hw.lcd.height" => {
-                                    if let Ok(height) = value.trim().parse::<u32>() {
-                                        // Combine with width if available
-                                        if let Some(ref res) = details.resolution {
-                                            if res.contains("x?") {
-                                                let width = res.replace("x?", "");
-                                                details.resolution =
-                                                    Some(format!("{}x{}", width, height));
-                                            }
-                                        } else {
-                                            details.resolution = Some(format!("?x{}", height));
-                                        }
-                                    }
-                                }
-                                "hw.lcd.density" => {
-                                    details.dpi = Some(format!("{} DPI", value.trim()));
-                                }
-                                "image.sysdir.1" => {
-                                    details.system_image = Some(value.trim().to_string());
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-
-                // Set device path
-                details.device_path =
-                    Some(config_path.parent().unwrap().to_string_lossy().to_string());
-            }
-        }
-
-        // Clean up resolution if we only got partial info
-        if let Some(ref res) = details.resolution {
-            if res.contains("?") {
-                details.resolution = None;
-            }
-        }
-
-        Ok(details)
-    }
-
-    /// Get Android version name from API level (with dynamic lookup fallback)
-    fn get_android_version_name(&self, api_level: u32) -> String {
-        // First try to get from cached/hardcoded values for performance
-        let hardcoded = match api_level {
-            36 => "16".to_string(),
-            35 => "15".to_string(),
-            34 => "14".to_string(),
-            33 => "13".to_string(),
-            32 => "12L".to_string(),
-            31 => "12".to_string(),
-            30 => "11".to_string(),
-            29 => "10".to_string(),
-            28 => "9".to_string(),
-            27 => "8.1".to_string(),
-            26 => "8.0".to_string(),
-            25 => "7.1".to_string(),
-            24 => "7.0".to_string(),
-            23 => "6.0".to_string(),
-            22 => "5.1".to_string(),
-            21 => "5.0".to_string(),
-            _ => "".to_string(),
-        };
-
-        if !hardcoded.is_empty() {
-            return hardcoded;
-        }
-
-        // For unknown API levels, we could implement dynamic lookup via sdkmanager
-        // but for now return a generic format
-        format!("API {}", api_level)
-    }
-
-    /// Get Android version name from SDK dynamically
-    async fn get_dynamic_android_version_name(&self, api_level: u32) -> Option<String> {
-        // Try to get from available targets list
-        if let Ok(targets) = self.list_available_targets().await {
-            for (level_str, display) in targets {
-                if let Ok(level) = level_str.parse::<u32>() {
-                    if level == api_level {
-                        // Extract version from display string like "API 34 - Android 14"
-                        if let Some(dash_pos) = display.find(" - Android ") {
-                            return Some(display[dash_pos + 11..].to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Try to parse from sdkmanager output
-        if let Ok(sdkmanager_path) = Self::find_tool(&self._android_home, "sdkmanager") {
-            if let Ok(output) = self.command_runner.run(&sdkmanager_path, &["--list"]).await {
-                // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
-                let pattern = format!(
-                    r"platforms;android-{}\s*\|\s*\d+\s*\|\s*Android SDK Platform",
-                    api_level
-                );
-                if let Ok(regex) = Regex::new(&pattern) {
-                    if regex.is_match(&output) {
-                        // Try to extract more detailed version info from subsequent lines
-                        for line in output.lines() {
-                            if line.contains(&format!("android-{}", api_level))
-                                && line.contains("Android")
-                            {
-                                // Extract version number if present
-                                if let Some(version_match) = line.split("Android").nth(1) {
-                                    let version = version_match
-                                        .split_whitespace()
-                                        .next()
-                                        .unwrap_or("")
-                                        .trim_matches(|c: char| !c.is_numeric() && c != '.');
-                                    if !version.is_empty() {
-                                        return Some(version.to_string());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Get appropriate skin name for device type using dynamic lookup
-    async fn get_appropriate_skin(&self, device_id: &str, device_display: &str) -> Option<String> {
-        if device_id.is_empty() {
-            return None;
-        }
-
-        // まず、デバイスIDをそのままスキン名として試す（最も一般的）
-        let primary_skin = device_id.to_string();
-
-        // 利用可能なスキンをSDKから動的に取得
-        let available_skins = self
-            .get_available_skins_from_sdk(device_id)
+            .run(commands::ADB, &[adb_commands::DEVICES])
             .await
             .unwrap_or_default();
 
-        // 1. デバイスIDと完全一致するスキンがある場合
-        if available_skins.iter().any(|skin| skin == &primary_skin) {
-            return Some(primary_skin);
-        }
+        log::debug!("ADB devices output:\n{}", adb_output);
 
-        // 2. デバイス表示名から候補を生成してチェック
-        let display_based_skin = device_display
-            .split('(')
-            .next() // 括弧以前の部分のみ
-            .unwrap_or(device_display)
-            .trim()
-            .replace(' ', "_")
-            .to_lowercase();
-
-        if available_skins
-            .iter()
-            .any(|skin| skin == &display_based_skin)
-        {
-            return Some(display_based_skin);
-        }
-
-        // 3. 部分一致でスキンを探す
-        let device_lower = device_id.to_lowercase();
-        for skin in &available_skins {
-            let skin_lower = skin.to_lowercase();
-            // デバイスIDの主要部分がスキン名に含まれている、またはその逆
-            if (device_lower.len() > 3 && skin_lower.contains(&device_lower))
-                || (skin_lower.len() > 3 && device_lower.contains(&skin_lower))
+        for line in adb_output.lines() {
+            if line.contains("device")
+                && !line.contains("emulator-")
+                && !line.contains("List of devices")
             {
-                return Some(skin.clone());
-            }
-        }
+                if let Some(device_id) = line.split_whitespace().next() {
+                    log::debug!("Found physical device: {}", device_id);
 
-        // 4. すべて失敗した場合はデバイスIDをそのまま返す（フォールバック戦略で処理）
-        Some(primary_skin)
-    }
-
-    /// SDKからデバイスの利用可能なスキンを動的に取得
-    async fn get_available_skins_from_sdk(&self, _device_id: &str) -> Result<Vec<String>> {
-        let mut skins = Vec::new();
-
-        // Android SDKのスキンディレクトリを動的にスキャン
-        if let Ok(android_home) = std::env::var(env_vars::ANDROID_HOME) {
-            let android_path = std::path::PathBuf::from(&android_home);
-
-            // 1. 標準スキンディレクトリ
-            let standard_skins = android_path.join("skins");
-            if standard_skins.exists() {
-                self.scan_skin_directory(&standard_skins, &mut skins).await;
-            }
-
-            // 2. プラットフォーム別スキンディレクトリを動的にスキャン
-            let platforms_dir = android_path.join("platforms");
-            if platforms_dir.exists() {
-                if let Ok(mut platform_entries) = fs::read_dir(&platforms_dir).await {
-                    while let Some(platform_entry) =
-                        platform_entries.next_entry().await.ok().flatten()
-                    {
-                        if let Ok(file_type) = platform_entry.file_type().await {
-                            if file_type.is_dir() {
-                                let platform_skins = platform_entry.path().join("skins");
-                                if platform_skins.exists() {
-                                    self.scan_skin_directory(&platform_skins, &mut skins).await;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. システムイメージ別スキンディレクトリを動的にスキャン
-            let system_images_dir = android_path.join("system-images");
-            if system_images_dir.exists() {
-                self.scan_system_images_for_skins(&system_images_dir, &mut skins)
-                    .await;
-            }
-        }
-
-        // 4. avdmanager から利用可能なデバイスIDを取得（これらもスキン候補）
-        if let Ok(available_devices) = self.list_available_devices().await {
-            for (id, _display) in available_devices {
-                skins.push(id);
-            }
-        }
-
-        // 重複を除去してソート
-        skins.sort();
-        skins.dedup();
-
-        Ok(skins)
-    }
-
-    /// スキンディレクトリをスキャンしてスキン名を収集
-    async fn scan_skin_directory(&self, skin_dir: &std::path::Path, skins: &mut Vec<String>) {
-        if let Ok(mut entries) = fs::read_dir(skin_dir).await {
-            while let Some(entry) = entries.next_entry().await.ok().flatten() {
-                if let Ok(file_type) = entry.file_type().await {
-                    if file_type.is_dir() {
-                        if let Some(skin_name) = entry.file_name().to_str() {
-                            skins.push(skin_name.to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// システムイメージディレクトリを再帰的にスキャンしてスキンを探す
-    async fn scan_system_images_for_skins(
-        &self,
-        system_images_dir: &std::path::Path,
-        skins: &mut Vec<String>,
-    ) {
-        if let Ok(mut api_entries) = fs::read_dir(system_images_dir).await {
-            while let Some(api_entry) = api_entries.next_entry().await.ok().flatten() {
-                if let Ok(file_type) = api_entry.file_type().await {
-                    if file_type.is_dir() {
-                        let api_dir = api_entry.path();
-                        if let Ok(mut tag_entries) = fs::read_dir(&api_dir).await {
-                            while let Some(tag_entry) =
-                                tag_entries.next_entry().await.ok().flatten()
-                            {
-                                if let Ok(file_type) = tag_entry.file_type().await {
-                                    if file_type.is_dir() {
-                                        let tag_dir = tag_entry.path();
-                                        if let Ok(mut abi_entries) = fs::read_dir(&tag_dir).await {
-                                            while let Some(abi_entry) =
-                                                abi_entries.next_entry().await.ok().flatten()
-                                            {
-                                                if let Ok(file_type) = abi_entry.file_type().await {
-                                                    if file_type.is_dir() {
-                                                        let skins_dir =
-                                                            abi_entry.path().join("skins");
-                                                        if skins_dir.exists() {
-                                                            self.scan_skin_directory(
-                                                                &skins_dir, skins,
-                                                            )
-                                                            .await;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl DynamicDeviceProvider for AndroidManager {
-    async fn get_available_devices(&self) -> Result<Vec<DeviceInfo>> {
-        let devices = self.list_available_devices().await?;
-
-        let mut device_infos = Vec::new();
-        for (id, display_name) in devices {
-            // Use basic categorization to avoid deep async nesting
-            let category = DeviceCategory::Unknown; // Will be determined later if needed
-
-            // Extract OEM from display name for now (to avoid async issues)
-            let oem = if display_name.contains('(') && display_name.contains(')') {
-                let start = display_name.find('(').unwrap() + 1;
-                let end = display_name.find(')').unwrap();
-                Some(display_name[start..end].to_string())
-            } else {
-                None
-            };
-
-            device_infos.push(DeviceInfo {
-                id,
-                display_name,
-                oem,
-                category,
-            });
-        }
-
-        Ok(device_infos)
-    }
-
-    async fn get_available_api_levels(&self) -> Result<Vec<ApiLevelInfo>> {
-        let targets = self.list_available_targets().await?;
-
-        let mut api_infos = Vec::new();
-        for (api_level_str, display) in targets {
-            if let Ok(level) = api_level_str.parse::<u32>() {
-                // Extract version name from display (e.g., "API 34 - Android 14" -> "Android 14")
-                let version_name = if let Some(dash_pos) = display.find(" - ") {
-                    display[dash_pos + 3..].to_string()
-                } else {
-                    self.get_dynamic_android_version_name(level)
+                    // Get device properties
+                    let model = self
+                        .command_runner
+                        .run(
+                            commands::ADB,
+                            &["-s", device_id, "shell", "getprop", "ro.product.model"],
+                        )
                         .await
-                        .unwrap_or_else(|| format!("API {}", level))
-                };
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
 
-                // Get available tags for this API level
-                let available_tags = self
-                    .get_available_tags_for_api_level(level)
-                    .await
-                    .unwrap_or_default();
+                    let manufacturer = self
+                        .command_runner
+                        .run(
+                            commands::ADB,
+                            &[
+                                "-s",
+                                device_id,
+                                "shell",
+                                "getprop",
+                                "ro.product.manufacturer",
+                            ],
+                        )
+                        .await
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
 
-                api_infos.push(ApiLevelInfo {
-                    level,
-                    version_name,
-                    available_tags,
-                });
-            }
-        }
+                    let api_level_str = self
+                        .command_runner
+                        .run(
+                            commands::ADB,
+                            &["-s", device_id, "shell", "getprop", "ro.build.version.sdk"],
+                        )
+                        .await
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
 
-        // Sort by API level (newest first)
-        api_infos.sort_by(|a, b| b.level.cmp(&a.level));
+                    let api_level = api_level_str.parse::<u32>().unwrap_or(0);
 
-        Ok(api_infos)
-    }
-
-    async fn get_available_skins(&self, device_id: &str) -> Result<Vec<String>> {
-        // 動的にスキンを取得
-        self.get_available_skins_from_sdk(device_id).await
-    }
-
-    async fn get_device_priority(&self, device_id: &str) -> Result<u32> {
-        // Use basic priority calculation to avoid async issues
-        Ok(DynamicDeviceConfig::calculate_android_device_priority(
-            device_id, "",
-        ))
-    }
-}
-
-impl AndroidManager {
-    /// Diagnose AVD creation issues and provide specific solutions
-    pub async fn diagnose_avd_creation_issues(&self, config: &DeviceConfig) -> Result<String> {
-        let mut diagnosis = Vec::new();
-
-        // Check 1: Android SDK availability
-        diagnosis.push("=== Android SDK Diagnosis ===".to_string());
-
-        // Check 2: Available system images
-        let available_images = self.list_available_system_images().await?;
-        diagnosis.push(format!(
-            "Available system images: {}",
-            available_images.len()
-        ));
-        if available_images.is_empty() {
-            diagnosis.push("❌ No system images found! Install with: sdkmanager \"system-images;android-XX;google_apis_playstore;arm64-v8a\"".to_string());
-        } else {
-            diagnosis.push("✅ System images available".to_string());
-            diagnosis.push(format!(
-                "First 3: {}",
-                available_images
-                    .iter()
-                    .take(3)
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
-
-        // Check 3: Available device types
-        let available_devices = self.list_available_devices().await?;
-        diagnosis.push(format!(
-            "Available device types: {}",
-            available_devices.len()
-        ));
-        if available_devices.is_empty() {
-            diagnosis.push("❌ No device types found! Check Android SDK installation".to_string());
-        } else {
-            diagnosis.push("✅ Device types available".to_string());
-            diagnosis.push(format!(
-                "First 3: {}",
-                available_devices
-                    .iter()
-                    .take(3)
-                    .map(|(id, display)| format!("{} ({})", display, id))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
-
-        // Check 4: Specific system image for this config
-        let (tag, abi) = if let Some((found_tag, found_abi)) = self
-            .get_first_available_system_image(&config.version)
-            .await?
-        {
-            (found_tag, found_abi)
-        } else {
-            ("google_apis_playstore".to_string(), "arm64-v8a".to_string())
-        };
-
-        let package_path = format!("system-images;android-{};{};{}", config.version, tag, abi);
-        let image_available = self
-            .check_system_image_available(&config.version, &tag, &abi)
-            .await
-            .unwrap_or(false);
-
-        diagnosis.push(format!("Required system image: {package_path}"));
-        if image_available {
-            diagnosis.push("✅ Required system image is available".to_string());
-        } else {
-            diagnosis.push("❌ Required system image NOT available".to_string());
-            diagnosis.push(format!("Install with: sdkmanager \"{}\"", package_path));
-        }
-
-        // Check 5: Device type availability
-        let device_id = Self::find_matching_device_id(&available_devices, &config.device_type);
-        diagnosis.push(format!(
-            "Required device type: {} ({})",
-            config.device_type,
-            device_id.as_deref().unwrap_or("NOT FOUND")
-        ));
-        if device_id.is_some() {
-            diagnosis.push("✅ Required device type is available".to_string());
-        } else {
-            diagnosis.push("❌ Required device type NOT found".to_string());
-            diagnosis.push("Suggestion: Use one of the available device types above".to_string());
-        }
-
-        Ok(diagnosis.join("\n"))
-    }
-
-    /// Find matching device ID from available devices list
-    fn find_matching_device_id(
-        available_devices: &[(String, String)],
-        device_type: &str,
-    ) -> Option<String> {
-        // Try exact ID match first
-        if let Some((id, _)) = available_devices.iter().find(|(id, _)| id == device_type) {
-            return Some(id.clone());
-        }
-
-        // Try exact display name match
-        if let Some((id, _)) = available_devices
-            .iter()
-            .find(|(_, display)| display == device_type)
-        {
-            return Some(id.clone());
-        }
-
-        // Try partial match for display names (handles variations like quotes)
-        let cleaned_config = device_type
-            .chars()
-            .filter(|c| c.is_alphanumeric() || c.is_whitespace())
-            .collect::<String>()
-            .to_lowercase();
-
-        // より柔軟なマッチング
-        available_devices.iter().find_map(|(id, display)| {
-            let cleaned_display = display
-                .chars()
-                .filter(|c| c.is_alphanumeric() || c.is_whitespace())
-                .collect::<String>()
-                .to_lowercase();
-
-            // 完全一致
-            if cleaned_config == cleaned_display {
-                return Some(id.clone());
-            }
-
-            // デバイスタイプ名に含まれる主要キーワードでマッチング
-            let config_words: Vec<&str> = cleaned_config.split_whitespace().collect();
-            let display_words: Vec<&str> = cleaned_display.split_whitespace().collect();
-
-            // 主要キーワードが一致するかチェック（例: "Galaxy", "Pixel", "Nexus"）
-            let important_words = ["galaxy", "pixel", "nexus", "tv", "wear", "automotive"];
-            for word in &important_words {
-                if cleaned_config.contains(word) && cleaned_display.contains(word) {
-                    // さらに詳細チェック（例: "Galaxy S24" vs "Galaxy Nexus"）
-                    let config_specific: Vec<&str> = config_words
-                        .iter()
-                        .filter(|w| w.chars().any(|c| c.is_ascii_digit()) || w.len() > 4)
-                        .cloned()
-                        .collect();
-                    let display_specific: Vec<&str> = display_words
-                        .iter()
-                        .filter(|w| w.chars().any(|c| c.is_ascii_digit()) || w.len() > 4)
-                        .cloned()
-                        .collect();
-
-                    if !config_specific.is_empty() && !display_specific.is_empty() {
-                        // 特定的なキーワードが一致する場合のみ
-                        if config_specific.iter().any(|w| display_specific.contains(w)) {
-                            return Some(id.clone());
-                        }
-                    } else if config_specific.is_empty() && display_specific.is_empty() {
-                        // 両方とも一般的な名前の場合は基本マッチング
-                        return Some(id.clone());
-                    }
-                }
-            }
-
-            None
-        })
-    }
-
-    async fn get_available_tags_for_api_level(&self, api_level: u32) -> Result<Vec<String>> {
-        let images = self.list_available_system_images().await?;
-        let mut tags = HashSet::new();
-
-        for image in images {
-            if image.contains(&format!("android-{api_level}")) {
-                let parts: Vec<&str> = image.split(';').collect();
-                if parts.len() >= 3 {
-                    tags.insert(parts[2].to_string());
-                }
-            }
-        }
-
-        Ok(tags.into_iter().collect())
-    }
-}
-
-impl DeviceManager for AndroidManager {
-    type Device = AndroidDevice;
-
-    async fn list_devices(&self) -> Result<Vec<Self::Device>> {
-        let avd_output = self
-            .command_runner
-            .run(&self.avdmanager_path, &["list", "avd"])
-            .await
-            .context("Failed to list Android AVDs")?;
-
-        // log::debug!("AVD list output:\n{}", avd_output);
-
-        // Get running AVD names mapped to their emulator IDs
-        let running_avds = self.get_running_avd_names().await?;
-
-        let mut devices = Vec::new();
-        let mut current_device_info: Option<(String, String, String, String, String)> = None; // Name, Path, Target, Tag/ABI, Device
-
-        let mut current_target_full = String::new();
-
-        for line in avd_output.lines() {
-            let trimmed_line = line.trim();
-
-            // Capture multi-line target information
-            if current_device_info.is_some() && line.starts_with("          Based on:") {
-                current_target_full.push(' ');
-                current_target_full.push_str(trimmed_line);
-            }
-
-            if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
-                if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
-                    // Append any additional target info
-                    if !current_target_full.is_empty() {
-                        target.push_str(&current_target_full);
-                        current_target_full.clear();
-                    }
-
-                    let is_running = running_avds.contains_key(&name);
-
-                    // Extract API level - simplified approach that tries multiple methods
-                    let api_level = {
-                        let mut api = 0u32;
-
-                        // Method 1: Try to read from config.ini in standard location
-                        if let Ok(home) = std::env::var("HOME") {
-                            let config_path = PathBuf::from(home)
-                                .join(".android")
-                                .join("avd")
-                                .join(format!("{}.avd", &name))
-                                .join("config.ini");
-
-                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                // Try regex first (with or without trailing slash)
-                                if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
-                                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                        api = parsed_api;
-                                    }
-                                }
-                                // Fallback to target line
-                                else if let Some(caps) =
-                                    TARGET_CONFIG_REGEX.captures(&config_content)
-                                {
-                                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                        api = parsed_api;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Method 2: If still no API found, try get_avd_path method
-                        if api == 0 {
-                            if let Ok(Some(avd_path)) = self.get_avd_path(&name).await {
-                                let config_path = avd_path.join("config.ini");
-                                if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                    if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content)
-                                    {
-                                        if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                            api = parsed_api;
-                                        }
-                                    } else if let Some(caps) =
-                                        TARGET_CONFIG_REGEX.captures(&config_content)
-                                    {
-                                        if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                            api = parsed_api;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Method 3: Fallback to parsing from avdmanager target string
-                        if api == 0 {
-                            if let Some(caps) = BASED_ON_REGEX.captures(&target) {
-                                let version = &caps[1];
-                                api = Self::parse_android_version_to_api_level(version);
-                            } else if let Some(caps) = API_LEVEL_REGEX.captures(&target) {
-                                api = caps[1].parse().unwrap_or(0);
-                            } else if let Some(caps) = ANDROID_VERSION_REGEX.captures(&target) {
-                                api = caps[1].parse().unwrap_or(0);
-                            }
-                        }
-
-                        api
-                    };
-
-                    // Get device display name from config.ini or fallback to device mapping
-                    let device_type_str = {
-                        let mut display_name = String::new();
-
-                        // Try to read displayname from config.ini
-                        if let Ok(home) = std::env::var("HOME") {
-                            let config_path = PathBuf::from(home)
-                                .join(".android")
-                                .join("avd")
-                                .join(format!("{}.avd", &name))
-                                .join("config.ini");
-
-                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                if let Some(caps) = AVD_DISPLAYNAME_REGEX.captures(&config_content)
-                                {
-                                    display_name = caps[1].trim().to_string();
-                                }
-                            }
-                        }
-
-                        // Fallback to device mapping if no displayname found
-                        if display_name.is_empty() && !device.is_empty() {
-                            let mapped_name = self.get_device_display_name(&device);
-                            display_name = mapped_name;
-                        }
-
-                        // Final fallback
-                        if display_name.is_empty() {
-                            display_name = "Unknown".to_string();
-                        }
-
-                        display_name
+                    let device_name = if !model.is_empty() && !manufacturer.is_empty() {
+                        format!("{} {} ({})", manufacturer, model, device_id)
+                    } else {
+                        device_id.to_string()
                     };
 
                     devices.push(AndroidDevice {
-                        name: name.to_string(),
-                        device_type: device_type_str,
+                        name: device_name,
+                        device_type: model.clone(),
                         api_level,
-                        is_running,
-                        status: if is_running {
-                            DeviceStatus::Running
-                        } else {
-                            DeviceStatus::Stopped
-                        },
-                        ..Default::default()
+                        status: DeviceStatus::Running,
+                        is_running: true,
+                        ram_size: "N/A".to_string(),
+                        storage_size: "N/A".to_string(),
+                        is_physical: true,
                     });
-                }
-                continue;
-            }
-
-            if let Some(caps) = AVD_NAME_REGEX.captures(trimmed_line) {
-                if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
-                    // Push previous device if any
-                    // Append any additional target info
-                    if !current_target_full.is_empty() {
-                        target.push_str(&current_target_full);
-                        current_target_full.clear();
-                    }
-
-                    let is_running = running_avds.contains_key(&name);
-
-                    let api_level = {
-                        // First try: extract from "Based on: Android X.Y"
-                        if let Some(caps) = BASED_ON_REGEX.captures(&target) {
-                            let version = &caps[1];
-                            Self::parse_android_version_to_api_level(version)
-                        }
-                        // Second try: extract from "API level XX"
-                        else if let Some(caps) = API_LEVEL_REGEX.captures(&target) {
-                            caps[1].parse().unwrap_or(0)
-                        }
-                        // Third try: extract from "android-XX"
-                        else if let Some(caps) = ANDROID_VERSION_REGEX.captures(&target) {
-                            caps[1].parse().unwrap_or(0)
-                        }
-                        // Fourth try: extract from any number pattern
-                        else if let Some(caps) = NUMBER_PATTERN_REGEX.captures(&target) {
-                            let potential_api = caps[1].parse().unwrap_or(0);
-                            // Validate that it's a reasonable API level (21-35)
-                            if (21..=40).contains(&potential_api) {
-                                potential_api
-                            } else {
-                                0
-                            }
-                        } else {
-                            0
-                        }
-                    };
-
-                    // Get device display name from config.ini or fallback to device mapping
-                    let device_type_str = {
-                        let mut display_name = String::new();
-
-                        // Try to read displayname from config.ini
-                        if let Ok(home) = std::env::var("HOME") {
-                            let config_path = PathBuf::from(home)
-                                .join(".android")
-                                .join("avd")
-                                .join(format!("{}.avd", &name))
-                                .join("config.ini");
-
-                            if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                                if let Some(caps) = AVD_DISPLAYNAME_REGEX.captures(&config_content)
-                                {
-                                    display_name = caps[1].trim().to_string();
-                                }
-                            }
-                        }
-
-                        // Fallback to device mapping if no displayname found
-                        if display_name.is_empty() && !device.is_empty() {
-                            let mapped_name = self.get_device_display_name(&device);
-                            display_name = mapped_name;
-                        }
-
-                        // Final fallback
-                        if display_name.is_empty() {
-                            display_name = "Unknown".to_string();
-                        }
-
-                        display_name
-                    };
-
-                    devices.push(AndroidDevice {
-                        name: name.to_string(),
-                        device_type: device_type_str,
-                        api_level,
-                        is_running,
-                        status: if is_running {
-                            DeviceStatus::Running
-                        } else {
-                            DeviceStatus::Stopped
-                        },
-                        ..Default::default()
-                    });
-                }
-                current_device_info = Some((
-                    caps[1].to_string(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                ));
-            } else if let Some(ref mut info) = current_device_info {
-                if let Some(caps) = PATH_REGEX.captures(trimmed_line) {
-                    info.1 = caps[1].to_string();
-                } else if let Some(caps) = TARGET_REGEX.captures(trimmed_line) {
-                    info.2 = caps[1].to_string();
-                } else if let Some(caps) = ABI_REGEX.captures(trimmed_line) {
-                    info.3 = caps[1].to_string();
-                } else if let Some(caps) = DEVICE_REGEX.captures(trimmed_line) {
-                    info.4 = caps[1].to_string();
                 }
             }
         }
-        if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
-            // Push the last device
-            // Append any additional target info
-            if !current_target_full.is_empty() {
-                target.push_str(&current_target_full);
-                current_target_full.clear();
-            }
-
-            let is_running = running_avds.contains_key(&name);
-
-            // Use the same API level detection logic as the other paths
-            let api_level = {
-                let mut api = 0u32;
-
-                // Method 1: Try to read from config.ini in standard location
-                if let Ok(home) = std::env::var("HOME") {
-                    let config_path = PathBuf::from(home)
-                        .join(".android")
-                        .join("avd")
-                        .join(format!("{}.avd", &name))
-                        .join("config.ini");
-
-                    if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                        // Try regex first (with or without trailing slash)
-                        if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
-                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                api = parsed_api;
-                            }
-                        }
-                        // Fallback to target line
-                        else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content) {
-                            if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                                api = parsed_api;
-                            }
-                        }
-                    }
-                }
-
-                // Fallback to avdmanager target string parsing
-                if api == 0 {
-                    if let Some(caps) = BASED_ON_REGEX.captures(&target) {
-                        let version = &caps[1];
-                        api = Self::parse_android_version_to_api_level(version);
-                    } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(&target) {
-                        api = caps[1].parse().unwrap_or(0);
-                    }
-                }
-
-                api
-            };
-
-            let device_type_str = if !device.is_empty() {
-                device
-            } else {
-                "Unknown".to_string()
-            };
-
-            // log::info!("Device '{}' - running: {}, API: {}", name, is_running, api_level);
-
-            devices.push(AndroidDevice {
-                name: name.to_string(),
-                device_type: device_type_str,
-                api_level,
-                is_running,
-                status: if is_running {
-                    DeviceStatus::Running
-                } else {
-                    DeviceStatus::Stopped
-                },
-                ..Default::default()
-            });
-        }
-
-        // log::info!("Total AVDs listed: {}", devices.len());
 
         Ok(devices)
     }
@@ -2431,6 +1041,202 @@ fn extract_percentage(line: &str) -> Option<u8> {
 }
 
 impl AndroidManager {
+    /// Lists all Android Virtual Devices (AVDs).
+    ///
+    /// # Returns
+    /// Vector of AndroidDevice structs representing available AVDs
+    pub async fn list_avds(&self) -> Result<Vec<AndroidDevice>> {
+        let output = self
+            .command_runner
+            .run(&self.avdmanager_path, &["list", "avd"])
+            .await
+            .context("Failed to list Android AVDs")?;
+
+        let mut devices = Vec::new();
+        let mut current_avd = HashMap::<String, String>::new();
+        let running_avds = self.get_running_avd_names().await.unwrap_or_default();
+
+        // Parse the output
+        for line in output.lines() {
+            let trimmed = line.trim();
+            if trimmed == "---------" {
+                // End of current AVD info, process it
+                if let Some(name) = current_avd.get("Name") {
+                    let mut device_name = name.clone();
+                    let api_level = self.extract_api_level_from_avd(&current_avd).unwrap_or(0);
+                    let device_type = current_avd
+                        .get("Device")
+                        .map(|d| {
+                            // Extract device type name from format like "pixel_7 (Pixel 7)"
+                            if let Some(paren_idx) = d.find(" (") {
+                                d[paren_idx + 2..d.len() - 1].to_string()
+                            } else {
+                                d.clone()
+                            }
+                        })
+                        .unwrap_or_else(|| "Unknown".to_string());
+
+                    // Check if running - support both original name and normalized name
+                    let is_running = running_avds.contains_key(&device_name)
+                        || running_avds.contains_key(&device_name.replace(' ', "_"));
+
+                    let status = if is_running {
+                        DeviceStatus::Running
+                    } else {
+                        DeviceStatus::Stopped
+                    };
+
+                    // For devices with spaces in names, prefer the display name from config
+                    let _avd_display_name = self
+                        .get_avd_display_name(&device_name)
+                        .await
+                        .unwrap_or_else(|| device_name.clone());
+
+                    // Always use the AVD ID (safe name) for operations
+                    device_name = current_avd.get("Name").unwrap_or(&device_name).clone();
+
+                    devices.push(AndroidDevice {
+                        name: device_name,
+                        device_type,
+                        api_level,
+                        status,
+                        is_running,
+                        ram_size: "2048".to_string(), // Default, will be updated from config
+                        storage_size: "8192".to_string(), // Default, will be updated from config
+                        is_physical: false,
+                    });
+                }
+                current_avd.clear();
+            } else if let Some((key, value)) = self.parse_key_value_line(trimmed) {
+                current_avd.insert(key, value);
+            }
+        }
+
+        // Process the last AVD if there's no trailing separator
+        if let Some(name) = current_avd.get("Name") {
+            let mut device_name = name.clone();
+            let api_level = self.extract_api_level_from_avd(&current_avd).unwrap_or(0);
+            let device_type = current_avd
+                .get("Device")
+                .map(|d| {
+                    if let Some(paren_idx) = d.find(" (") {
+                        d[paren_idx + 2..d.len() - 1].to_string()
+                    } else {
+                        d.clone()
+                    }
+                })
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            let is_running = running_avds.contains_key(&device_name)
+                || running_avds.contains_key(&device_name.replace(' ', "_"));
+
+            let status = if is_running {
+                DeviceStatus::Running
+            } else {
+                DeviceStatus::Stopped
+            };
+
+            let _avd_display_name = self
+                .get_avd_display_name(&device_name)
+                .await
+                .unwrap_or_else(|| device_name.clone());
+
+            device_name = current_avd.get("Name").unwrap_or(&device_name).clone();
+
+            devices.push(AndroidDevice {
+                name: device_name,
+                device_type,
+                api_level,
+                status,
+                is_running,
+                ram_size: "2048".to_string(),
+                storage_size: "8192".to_string(),
+                is_physical: false,
+            });
+        }
+
+        Ok(devices)
+    }
+
+    /// Parses a key-value line from avdmanager output.
+    fn parse_key_value_line(&self, line: &str) -> Option<(String, String)> {
+        if line.contains(':') {
+            let parts: Vec<&str> = line.splitn(2, ':').collect();
+            if parts.len() == 2 {
+                return Some((parts[0].trim().to_string(), parts[1].trim().to_string()));
+            }
+        }
+        None
+    }
+
+    /// Extracts API level from AVD information.
+    fn extract_api_level_from_avd(&self, avd_info: &HashMap<String, String>) -> Option<u32> {
+        // Try to extract from "Based on" field first
+        if let Some(based_on) = avd_info.get("Based on") {
+            if let Some(captures) = BASED_ON_REGEX.captures(based_on) {
+                if let Some(version) = captures.get(1) {
+                    // Convert Android version to API level
+                    let version_str = version.as_str();
+                    // Parse version string to float, then to u32
+                    if let Ok(version_float) = version_str.parse::<f32>() {
+                        let api_level = android_version_to_api_level(version_float as u32);
+                        return Some(api_level);
+                    }
+                }
+            }
+            // Try direct API level extraction
+            if let Some(captures) = API_LEVEL_REGEX.captures(based_on) {
+                if let Some(api) = captures.get(1) {
+                    return api.as_str().parse().ok();
+                }
+            }
+        }
+
+        // Try to extract from Target field
+        if let Some(target) = avd_info.get("Target") {
+            if let Some(captures) = ANDROID_VERSION_REGEX.captures(target) {
+                if let Some(api) = captures.get(1) {
+                    return api.as_str().parse().ok();
+                }
+            }
+        }
+
+        // Try to extract from Path (look for API level in path)
+        if let Some(path) = avd_info.get("Path") {
+            if let Some(api_match) = API_OR_ANDROID_REGEX.find(path) {
+                let api_str = api_match.as_str();
+                if let Some(captures) = API_OR_ANDROID_REGEX.captures(api_str) {
+                    if let Some(api) = captures.get(1) {
+                        return api.as_str().parse().ok();
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Gets the display name for an AVD from its config.ini file.
+    async fn get_avd_display_name(&self, avd_name: &str) -> Option<String> {
+        if let Ok(home_dir) = std::env::var("HOME") {
+            let config_path = std::path::PathBuf::from(home_dir)
+                .join(".android")
+                .join("avd")
+                .join(format!("{}.avd", avd_name))
+                .join("config.ini");
+
+            if let Ok(content) = fs::read_to_string(&config_path).await {
+                for line in content.lines() {
+                    if let Some(captures) = AVD_DISPLAYNAME_REGEX.captures(line) {
+                        if let Some(display_name) = captures.get(1) {
+                            return Some(display_name.as_str().to_string());
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
     /// SDK Manager functionality for installing API levels and system images.
     /// Lists all available packages from the SDK manager.
     ///
@@ -3120,5 +1926,397 @@ impl AndroidManager {
                 api_level
             )
         })
+    }
+
+    /// Lists all available Android device types.
+    pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
+        let output = self
+            .command_runner
+            .run(&self.avdmanager_path, &["list", "device"])
+            .await
+            .context("Failed to list Android devices")?;
+
+        let mut devices = Vec::new();
+        let mut current_device_id = None;
+        let mut current_device_name = None;
+
+        for line in output.lines() {
+            let trimmed = line.trim();
+            if let Some(captures) = ID_REGEX.captures(trimmed) {
+                current_device_id = Some(captures.get(1).unwrap().as_str().to_string());
+            } else if let Some(captures) = NAME_REGEX.captures(trimmed) {
+                current_device_name = Some(captures.get(1).unwrap().as_str().to_string());
+            } else if trimmed.starts_with("--------")
+                && current_device_id.is_some()
+                && current_device_name.is_some()
+            {
+                devices.push((
+                    current_device_id.take().unwrap(),
+                    current_device_name.take().unwrap(),
+                ));
+            }
+        }
+
+        // Don't forget the last device if there's no trailing separator
+        if let (Some(id), Some(name)) = (current_device_id, current_device_name) {
+            devices.push((id, name));
+        }
+
+        Ok(devices)
+    }
+
+    /// Gets the appropriate skin for a device.
+    async fn get_appropriate_skin(&self, device_id: &str, _device_type: &str) -> Option<String> {
+        // Try to find a matching skin for the device
+        // Common skins include: pixel_4, pixel_5, etc.
+        if device_id.contains("pixel") {
+            Some(device_id.to_string())
+        } else if device_id.contains("wear") {
+            Some("wear_round".to_string())
+        } else if device_id.contains("tv") {
+            Some("tv_1080p".to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Gets the first available system image for an API level.
+    async fn get_first_available_system_image(
+        &self,
+        api_level: &str,
+    ) -> Result<Option<(String, String)>> {
+        let packages = self.list_sdk_packages().await?;
+
+        for package in packages {
+            if package.installed
+                && package
+                    .name
+                    .starts_with(&format!("system-images;android-{};", api_level))
+            {
+                // Parse the package name to extract tag and abi
+                let parts: Vec<&str> = package.name.split(';').collect();
+                if parts.len() >= 4 {
+                    return Ok(Some((parts[2].to_string(), parts[3].to_string())));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Checks if a system image is available.
+    async fn check_system_image_available(
+        &self,
+        api_level: &str,
+        tag: &str,
+        abi: &str,
+    ) -> Result<bool> {
+        let packages = self.list_sdk_packages().await?;
+        let package_name = format!("system-images;android-{};{};{}", api_level, tag, abi);
+
+        Ok(packages
+            .iter()
+            .any(|p| p.name == package_name && p.installed))
+    }
+
+    /// Fine-tunes AVD configuration after creation.
+    async fn fine_tune_avd_config(
+        &self,
+        avd_name: &str,
+        config: &DeviceConfig,
+        _tag: &str,
+        _abi: &str,
+    ) -> Result<()> {
+        if let Ok(home_dir) = std::env::var("HOME") {
+            let config_path = std::path::PathBuf::from(home_dir)
+                .join(".android")
+                .join("avd")
+                .join(format!("{}.avd", avd_name))
+                .join("config.ini");
+
+            if config_path.exists() {
+                let mut content = fs::read_to_string(&config_path).await?;
+
+                // Update RAM size if specified
+                if let Some(ram) = config.additional_options.get("ram") {
+                    content = content.replace("hw.ramSize=2048", &format!("hw.ramSize={}", ram));
+                }
+
+                // Update storage size if specified
+                if let Some(storage) = config.additional_options.get("storage") {
+                    let storage_mb = storage.parse::<u32>().unwrap_or(8192);
+                    content = content.replace(
+                        "disk.dataPartition.size=8192M",
+                        &format!("disk.dataPartition.size={}M", storage_mb),
+                    );
+                }
+
+                // Add display name if original name had spaces
+                if config.name != avd_name && !content.contains("avd.ini.displayname=") {
+                    content.push_str(&format!("\navd.ini.displayname={}", config.name));
+                }
+
+                fs::write(&config_path, content).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Finds a matching device ID from available devices.
+    fn find_matching_device_id(
+        available_devices: &[(String, String)],
+        device_type: &str,
+    ) -> Option<String> {
+        let device_type_lower = device_type.to_lowercase();
+
+        // Try exact match first
+        for (id, name) in available_devices {
+            if name.to_lowercase() == device_type_lower {
+                return Some(id.clone());
+            }
+        }
+
+        // Try contains match
+        for (id, name) in available_devices {
+            if name.to_lowercase().contains(&device_type_lower)
+                || device_type_lower.contains(&name.to_lowercase())
+            {
+                return Some(id.clone());
+            }
+        }
+
+        // Try ID match
+        for (id, _) in available_devices {
+            if id.to_lowercase() == device_type_lower {
+                return Some(id.clone());
+            }
+        }
+
+        None
+    }
+
+    /// Lists all available system images.
+    pub async fn list_available_system_images(&self) -> Result<Vec<String>> {
+        let packages = self.list_sdk_packages().await?;
+        let mut images = Vec::new();
+
+        for package in packages {
+            if package.installed && package.name.starts_with("system-images;") {
+                images.push(package.name);
+            }
+        }
+
+        Ok(images)
+    }
+
+    /// Lists available API targets.
+    pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
+        let api_levels = self.list_available_api_levels().await?;
+        Ok(api_levels
+            .into_iter()
+            .map(|api| (api.level.to_string(), api.version_name))
+            .collect())
+    }
+
+    /// Lists devices filtered by category as name/type pairs.
+    pub async fn list_devices_by_category(
+        &self,
+        category: Option<&str>,
+    ) -> Result<Vec<(String, String)>> {
+        if let Some(cat) = category {
+            let category_str = cat.to_lowercase();
+            // Get available device types
+            let device_types = self.list_available_devices().await?;
+            Ok(device_types
+                .into_iter()
+                .filter(|(device_id, display_name)| {
+                    let device_category = self.get_device_category(device_id, display_name);
+                    match device_category {
+                        DeviceCategory::Phone => {
+                            category_str == "phone" || category_str == "generic"
+                        }
+                        DeviceCategory::Tablet => category_str == "tablet",
+                        DeviceCategory::TV => category_str == "tv",
+                        DeviceCategory::Wear => {
+                            category_str == "wear" || category_str == "wearable"
+                        }
+                        DeviceCategory::Automotive => {
+                            category_str == "automotive" || category_str == "auto"
+                        }
+                        DeviceCategory::Foldable => {
+                            category_str == "foldable" || category_str == "desktop"
+                        }
+                        DeviceCategory::Unknown => category_str == "unknown",
+                    }
+                })
+                .collect())
+        } else {
+            // Return all available device types
+            self.list_available_devices().await
+        }
+    }
+
+    /// Gets device category from device type and name.
+    pub fn get_device_category(&self, device_id: &str, display_name: &str) -> DeviceCategory {
+        let id_lower = device_id.to_lowercase();
+        let name_lower = display_name.to_lowercase();
+
+        // Check for specific categories based on keywords
+        if id_lower.contains("tv") || name_lower.contains("tv") {
+            DeviceCategory::TV
+        } else if id_lower.contains("wear")
+            || name_lower.contains("wear")
+            || name_lower.contains("watch")
+        {
+            DeviceCategory::Wear
+        } else if id_lower.contains("automotive")
+            || id_lower.contains("auto")
+            || name_lower.contains("automotive")
+        {
+            DeviceCategory::Automotive
+        } else if id_lower.contains("tablet")
+            || name_lower.contains("tablet")
+            || name_lower.contains("pad")
+        {
+            DeviceCategory::Tablet
+        } else if id_lower.contains("desktop")
+            || name_lower.contains("desktop")
+            || id_lower.contains("foldable")
+        {
+            DeviceCategory::Foldable
+        } else {
+            // Default to Phone for most common devices
+            DeviceCategory::Phone
+        }
+    }
+
+    /// Gets detailed device information.
+    pub async fn get_device_details(&self, identifier: &str) -> Result<DeviceDetails> {
+        use crate::app::state::DeviceDetails;
+
+        // Get AVD path
+        let home_dir = std::env::var("HOME")?;
+        let avd_path = std::path::PathBuf::from(&home_dir)
+            .join(".android")
+            .join("avd")
+            .join(format!("{}.avd", identifier));
+
+        let config_path = avd_path.join("config.ini");
+
+        let mut ram_mb = 2048;
+        let mut storage_mb = 8192;
+        let mut api_level = 0;
+        let mut device_type = "Unknown".to_string();
+
+        if let Ok(content) = fs::read_to_string(&config_path).await {
+            for line in content.lines() {
+                if line.starts_with("hw.ramSize=") {
+                    if let Some(value) = line.split('=').nth(1) {
+                        ram_mb = value.parse().unwrap_or(2048);
+                    }
+                } else if line.contains("disk.dataPartition.size=") {
+                    if let Some(value) = line.split('=').nth(1) {
+                        let size_str = value.trim_end_matches('M');
+                        storage_mb = size_str.parse().unwrap_or(8192);
+                    }
+                } else if line.starts_with("hw.device.name=") {
+                    if let Some(value) = line.split('=').nth(1) {
+                        device_type = value.to_string();
+                    }
+                } else if let Some(captures) = IMAGE_SYSDIR_REGEX.captures(line) {
+                    if let Some(api) = captures.get(1) {
+                        api_level = api.as_str().parse().unwrap_or(0);
+                    }
+                } else if let Some(captures) = TARGET_CONFIG_REGEX.captures(line) {
+                    if let Some(api) = captures.get(1) {
+                        api_level = api.as_str().parse().unwrap_or(0);
+                    }
+                }
+            }
+        }
+
+        Ok(DeviceDetails {
+            name: identifier.to_string(),
+            status: "Unknown".to_string(), // Will be updated by caller
+            platform: crate::app::state::Panel::Android,
+            device_type,
+            api_level_or_version: api_level.to_string(),
+            ram_size: Some(format!("{} MB", ram_mb)),
+            storage_size: Some(format!("{} MB", storage_mb)),
+            resolution: None,
+            dpi: None,
+            device_path: Some(avd_path.to_string_lossy().to_string()),
+            system_image: None,
+            identifier: identifier.to_string(),
+        })
+    }
+}
+
+use crate::app::state::DeviceDetails;
+
+#[allow(clippy::manual_async_fn)]
+impl DeviceManager for AndroidManager {
+    type Device = AndroidDevice;
+
+    fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
+        async {
+            // Get both AVDs and physical devices
+            let mut all_devices = Vec::new();
+
+            // Get AVDs
+            let avds = self.list_avds().await?;
+            all_devices.extend(avds);
+
+            // Get physical devices
+            let physical_devices = self.list_physical_devices().await?;
+            all_devices.extend(physical_devices);
+
+            Ok(all_devices)
+        }
+    }
+
+    fn start_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.start_device(&identifier).await }
+    }
+
+    fn stop_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.stop_device(&identifier).await }
+    }
+
+    fn create_device(
+        &self,
+        config: &DeviceConfig,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let config = config.clone();
+        async move { self.create_device(&config).await }
+    }
+
+    fn delete_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.delete_device(&identifier).await }
+    }
+
+    fn wipe_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.wipe_device(&identifier).await }
+    }
+
+    fn is_available(&self) -> impl std::future::Future<Output = bool> + Send {
+        async { self.is_available().await }
     }
 }

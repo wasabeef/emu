@@ -18,6 +18,7 @@ fn test_android_circular_navigation() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         },
         AndroidDevice {
             name: "Device2".to_string(),
@@ -27,6 +28,7 @@ fn test_android_circular_navigation() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         },
         AndroidDevice {
             name: "Device3".to_string(),
@@ -36,6 +38,7 @@ fn test_android_circular_navigation() {
             is_running: false,
             ram_size: "4096".to_string(),
             storage_size: "16384".to_string(),
+            is_physical: false,
         },
     ];
 
@@ -92,6 +95,7 @@ fn test_ios_circular_navigation() {
             status: DeviceStatus::Stopped,
             is_running: false,
             is_available: true,
+            is_physical: false,
         },
         IosDevice {
             name: "iPad Pro".to_string(),
@@ -102,6 +106,7 @@ fn test_ios_circular_navigation() {
             status: DeviceStatus::Stopped,
             is_running: false,
             is_available: true,
+            is_physical: false,
         },
     ];
 
@@ -179,6 +184,7 @@ fn test_single_device_navigation() {
         is_running: false,
         ram_size: "2048".to_string(),
         storage_size: "8192".to_string(),
+        is_physical: false,
     }];
 
     // Should stay at position 0 for single device
@@ -200,6 +206,7 @@ fn test_single_device_navigation() {
         status: DeviceStatus::Stopped,
         is_running: false,
         is_available: true,
+        is_physical: false,
     }];
 
     // Should stay at position 0 for single device
@@ -230,6 +237,7 @@ fn test_rapid_circular_navigation() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         })
         .collect();
 

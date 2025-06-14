@@ -18,6 +18,7 @@ pub mod event_processing;
 use crate::{
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
+    models::device_info::DeviceCategory,
     models::error::format_user_error,
     models::SdkInstallStatus,
     ui,
@@ -699,6 +700,27 @@ impl App {
                                     }
                                     KeyCode::Char('d') => {
                                         // d: Delete device
+                                        // Check if physical device
+                                        let is_physical = match state.active_panel {
+                                            Panel::Android => state
+                                                .android_devices
+                                                .get(state.selected_android)
+                                                .map(|d| d.is_physical)
+                                                .unwrap_or(false),
+                                            Panel::Ios => state
+                                                .ios_devices
+                                                .get(state.selected_ios)
+                                                .map(|d| d.is_physical)
+                                                .unwrap_or(false),
+                                        };
+
+                                        if is_physical {
+                                            state.add_warning_notification(
+                                                "Physical devices cannot be deleted".to_string(),
+                                            );
+                                            return Ok(());
+                                        }
+
                                         let (device_name, device_id) = match state.active_panel {
                                             Panel::Android => {
                                                 if let Some(device) = state
@@ -730,6 +752,27 @@ impl App {
                                             });
                                     }
                                     KeyCode::Char('w') => {
+                                        // Check if physical device
+                                        let is_physical = match state.active_panel {
+                                            Panel::Android => state
+                                                .android_devices
+                                                .get(state.selected_android)
+                                                .map(|d| d.is_physical)
+                                                .unwrap_or(false),
+                                            Panel::Ios => state
+                                                .ios_devices
+                                                .get(state.selected_ios)
+                                                .map(|d| d.is_physical)
+                                                .unwrap_or(false),
+                                        };
+
+                                        if is_physical {
+                                            state.add_warning_notification(
+                                                "Physical devices cannot be wiped".to_string(),
+                                            );
+                                            return Ok(());
+                                        }
+
                                         let (device_name, device_id) = match state.active_panel {
                                             Panel::Android => {
                                                 if let Some(device) = state
@@ -1297,6 +1340,18 @@ impl App {
         let result = match active_panel {
             Panel::Android => {
                 if let Some(device) = android_devices.get(selected_android) {
+                    // Check if it's a physical device
+                    if device.is_physical {
+                        let state = self.state.lock().await;
+                        drop(state);
+                        // Physical devices cannot be controlled
+                        let mut state = self.state.lock().await;
+                        state.add_warning_notification(
+                            "Physical devices cannot be started/stopped".to_string(),
+                        );
+                        return Ok(());
+                    }
+
                     let name = device.name.clone();
                     let is_running = device.is_running;
 
@@ -1377,6 +1432,15 @@ impl App {
             Panel::Ios => {
                 if let Some(ref ios_manager) = self.ios_manager {
                     if let Some(device) = ios_devices.get(selected_ios) {
+                        // Check if it's a physical device
+                        if device.is_physical {
+                            let mut state = self.state.lock().await;
+                            state.add_warning_notification(
+                                "Physical devices cannot be started/stopped".to_string(),
+                            );
+                            return Ok(());
+                        }
+
                         let name = device.name.clone();
                         let udid = device.udid.clone();
                         let is_running = device.is_running;
@@ -2418,7 +2482,25 @@ impl App {
                             .filter(|(id, display)| {
                                 let device_category =
                                     self.android_manager.get_device_category(id, display);
-                                device_category == category_filter
+                                match device_category {
+                                    DeviceCategory::Phone => {
+                                        &category_filter == "phone" || &category_filter == "generic"
+                                    }
+                                    DeviceCategory::Tablet => &category_filter == "tablet",
+                                    DeviceCategory::TV => &category_filter == "tv",
+                                    DeviceCategory::Wear => {
+                                        &category_filter == "wear" || &category_filter == "wearable"
+                                    }
+                                    DeviceCategory::Automotive => {
+                                        &category_filter == "automotive"
+                                            || &category_filter == "auto"
+                                    }
+                                    DeviceCategory::Foldable => {
+                                        &category_filter == "foldable"
+                                            || &category_filter == "desktop"
+                                    }
+                                    DeviceCategory::Unknown => &category_filter == "unknown",
+                                }
                             })
                             .collect()
                     };
@@ -2656,127 +2738,107 @@ impl App {
             // 短時間待機してUIが表示されてから読み込み
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-            // Android と iOS デバイスを並行して読み込み
-            let android_future = android_manager.list_devices();
-            let ios_future = async {
-                if let Some(ref ios_mgr) = ios_manager {
-                    Some(ios_mgr.list_devices().await)
-                } else {
-                    None
-                }
-            };
-
-            let (android_result, ios_result) = tokio::join!(android_future, ios_future);
-
-            // Androidデバイス処理
-            match android_result {
-                Ok(android_devices) => {
-                    let mut state = state_clone.lock().await;
-                    state.android_devices = android_devices;
-                    state.is_loading = false;
-                    state.mark_refreshed();
-
-                    // Mark Android panel for re-render
-
-                    // 最初のデバイスが選択されている場合、その詳細を取得
-                    let should_update_details = state.active_panel == Panel::Android
-                        && !state.android_devices.is_empty()
-                        && state.cached_device_details.is_none();
-                    drop(state);
-
-                    if should_update_details {
-                        // デバイス詳細を非同期で更新
-                        let state_clone2 = Arc::clone(&state_clone);
-                        let android_manager_clone = android_manager.clone();
-                        tokio::spawn(async move {
-                            {
-                                let state = state_clone2.lock().await;
-                                if let Some(device) =
-                                    state.android_devices.get(state.selected_android)
-                                {
-                                    let device_name = device.name.clone();
-                                    drop(state);
-
-                                    if let Ok(details) =
-                                        android_manager_clone.get_device_details(&device_name).await
-                                    {
-                                        let mut state = state_clone2.lock().await;
-                                        state.update_cached_device_details(details);
-                                    }
-                                }
-                            }
-                        });
+            // Android デバイスを段階的に読み込み
+            let state_clone_android = Arc::clone(&state_clone);
+            let android_manager_clone = android_manager.clone();
+            let android_handle = tokio::spawn(async move {
+                // まず仮想デバイス（AVD）を読み込み - 通常は高速
+                match android_manager_clone.list_avds().await {
+                    Ok(avd_devices) => {
+                        let mut state = state_clone_android.lock().await;
+                        state.android_devices = avd_devices;
+                        // まだロード中だが、仮想デバイスは表示可能
+                        state.mark_refreshed();
+                        drop(state);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load Android AVDs: {}", e);
                     }
                 }
-                Err(e) => {
-                    let mut state = state_clone.lock().await;
-                    state.is_loading = false;
-                    state.add_error_notification(format!("Failed to load Android devices: {}", e));
-                    drop(state);
-                }
-            }
 
-            // iOS結果を処理
-            if let Some(ios_res) = ios_result {
-                match ios_res {
-                    Ok(ios_devices) => {
-                        let mut state = state_clone.lock().await;
-                        state.ios_devices = ios_devices;
-
-                        // Mark iOS panel for re-render
-
-                        // 最初のデバイスが選択されている場合、その詳細を取得
-                        let should_update_details = state.active_panel == Panel::Ios
-                            && !state.ios_devices.is_empty()
-                            && state.cached_device_details.is_none();
-                        drop(state);
-
-                        if should_update_details {
-                            // デバイス詳細を非同期で更新
-                            let state_clone2 = Arc::clone(&state_clone);
-                            let _ios_manager_clone = ios_manager.clone();
-                            tokio::spawn(async move {
-                                {
-                                    let state = state_clone2.lock().await;
-                                    if let Some(device) = state.ios_devices.get(state.selected_ios)
-                                    {
-                                        // iOS デバイスの詳細は基本情報から生成
-                                        let details = crate::app::state::DeviceDetails {
-                                            name: device.name.clone(),
-                                            status: if device.is_running {
-                                                "Running".to_string()
-                                            } else {
-                                                "Stopped".to_string()
-                                            },
-                                            platform: Panel::Ios,
-                                            device_type: device.device_type.clone(),
-                                            api_level_or_version: format!(
-                                                "iOS {}",
-                                                device.ios_version
-                                            ),
-                                            ram_size: None,
-                                            storage_size: None,
-                                            resolution: None,
-                                            dpi: None,
-                                            device_path: None,
-                                            system_image: None,
-                                            identifier: device.udid.clone(),
-                                        };
-                                        drop(state);
-
-                                        let mut state = state_clone2.lock().await;
-                                        state.update_cached_device_details(details);
-                                    }
-                                }
-                            });
+                // 次に物理デバイスを追加で読み込み
+                match android_manager_clone.list_physical_devices().await {
+                    Ok(physical_devices) => {
+                        if !physical_devices.is_empty() {
+                            log::debug!(
+                                "Found {} physical Android devices",
+                                physical_devices.len()
+                            );
+                            let mut state = state_clone_android.lock().await;
+                            // 既存のAVDリストに物理デバイスを追加
+                            state.android_devices.extend(physical_devices);
+                            drop(state);
                         }
                     }
                     Err(e) => {
-                        let mut state = state_clone.lock().await;
-                        state.add_error_notification(format!("Failed to load iOS devices: {}", e));
-                        drop(state);
+                        log::error!("Failed to load physical Android devices: {}", e);
                     }
                 }
+
+                // 最後にローディング状態を解除
+                let mut state = state_clone_android.lock().await;
+                state.is_loading = false;
+
+                // デバイス詳細の更新チェック
+                let should_update_details = state.active_panel == Panel::Android
+                    && !state.android_devices.is_empty()
+                    && state.cached_device_details.is_none();
+
+                if should_update_details {
+                    if let Some(device) = state.android_devices.get(state.selected_android) {
+                        let device_name = device.name.clone();
+                        drop(state);
+
+                        if let Ok(details) =
+                            android_manager_clone.get_device_details(&device_name).await
+                        {
+                            let mut state = state_clone_android.lock().await;
+                            state.update_cached_device_details(details);
+                        }
+                    }
+                }
+            });
+
+            // iOS デバイスも段階的に読み込み
+            let state_clone_ios = Arc::clone(&state_clone);
+            let ios_handle = ios_manager.map(|ios_mgr| {
+                tokio::spawn(async move {
+                    // まずシミュレーターを読み込み
+                    match ios_mgr.list_simulators().await {
+                        Ok(simulators) => {
+                            let mut state = state_clone_ios.lock().await;
+                            state.ios_devices = simulators;
+                            drop(state);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to load iOS simulators: {}", e);
+                        }
+                    }
+
+                    // 次に物理デバイスを追加
+                    match ios_mgr.list_physical_devices().await {
+                        Ok(physical_devices) => {
+                            if !physical_devices.is_empty() {
+                                log::debug!(
+                                    "Found {} physical iOS devices",
+                                    physical_devices.len()
+                                );
+                                let mut state = state_clone_ios.lock().await;
+                                state.ios_devices.extend(physical_devices);
+                                drop(state);
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to load physical iOS devices: {}", e);
+                        }
+                    }
+                })
+            });
+
+            // 両方のハンドルの完了を待つ（エラーは無視）
+            let _ = android_handle.await;
+            if let Some(handle) = ios_handle {
+                let _ = handle.await;
             }
         });
     }

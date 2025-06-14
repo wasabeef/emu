@@ -124,6 +124,7 @@ fn test_device_selection_and_details_sync() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         },
         AndroidDevice {
             name: "Device2".to_string(),
@@ -133,6 +134,7 @@ fn test_device_selection_and_details_sync() {
             is_running: true,
             ram_size: "4096".to_string(),
             storage_size: "16384".to_string(),
+            is_physical: false,
         },
     ];
 
@@ -146,6 +148,7 @@ fn test_device_selection_and_details_sync() {
         status: DeviceStatus::Stopped,
         is_running: false,
         is_available: true,
+        is_physical: false,
     }];
 
     // Test Android panel selection
@@ -287,6 +290,7 @@ fn test_panel_switching_state_consistency() {
         is_running: false,
         ram_size: "2048".to_string(),
         storage_size: "8192".to_string(),
+        is_physical: false,
     }];
 
     state.ios_devices = vec![IosDevice {
@@ -298,6 +302,7 @@ fn test_panel_switching_state_consistency() {
         status: DeviceStatus::Stopped,
         is_running: false,
         is_available: true,
+        is_physical: false,
     }];
 
     // Test initial state

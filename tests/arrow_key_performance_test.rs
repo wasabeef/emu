@@ -18,6 +18,7 @@ fn test_rapid_navigation_performance() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         });
     }
 
@@ -60,6 +61,7 @@ fn test_navigation_debouncing() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         });
     }
 
@@ -105,6 +107,7 @@ fn test_batch_navigation_efficiency() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         });
     }
 
@@ -146,6 +149,7 @@ fn test_move_by_steps_correctness() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
+            is_physical: false,
         });
     }
 

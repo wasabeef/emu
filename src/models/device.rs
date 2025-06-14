@@ -26,6 +26,24 @@ pub struct AndroidDevice {
     pub ram_size: String,
     /// Storage size (e.g., "8192M", "4G")
     pub storage_size: String,
+    /// Whether this is a physical device (not an emulator)
+    #[serde(default)]
+    pub is_physical: bool,
+}
+
+impl Default for AndroidDevice {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            device_type: String::new(),
+            api_level: 0,
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "2048".to_string(),
+            storage_size: "8192".to_string(),
+            is_physical: false,
+        }
+    }
 }
 
 /// Represents an iOS Simulator device.
@@ -50,6 +68,25 @@ pub struct IosDevice {
     pub is_running: bool,
     /// Whether the device is available for use (not corrupted)
     pub is_available: bool,
+    /// Whether this is a physical device (not a simulator)
+    #[serde(default)]
+    pub is_physical: bool,
+}
+
+impl Default for IosDevice {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            udid: String::new(),
+            device_type: String::new(),
+            ios_version: String::new(),
+            runtime_version: String::new(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+            is_physical: false,
+        }
+    }
 }
 
 /// Represents the current operational state of a virtual device.
@@ -72,18 +109,4 @@ pub enum DeviceStatus {
     Error,
     /// Device status cannot be determined
     Unknown,
-}
-
-impl Default for AndroidDevice {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            device_type: String::new(),
-            api_level: 0,
-            status: DeviceStatus::Stopped,
-            is_running: false,
-            ram_size: "2048".to_string(),
-            storage_size: "512M".to_string(),
-        }
-    }
 }
