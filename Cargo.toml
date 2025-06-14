@@ -58,8 +58,41 @@ path = "src/bin/debug_avd.rs"
 name = "performance"
 harness = false
 
+# Development profile optimizations for faster builds
+[profile.dev]
+# Faster incremental builds
+opt-level = 0
+# Use multiple codegen units for parallel compilation
+codegen-units = 256
+# Split debuginfo for faster linking
+split-debuginfo = "unpacked"
+
+# Profile for faster development with some optimizations
+[profile.dev-opt]
+inherits = "dev"
+# Some optimization for better runtime performance
+opt-level = 1
+
 [profile.release]
+# Single codegen unit for better optimizations
 codegen-units = 1
+# Enable link-time optimization for smaller and faster binaries
 lto = true
+# Maximum optimization level
 opt-level = 3
+# Strip debug symbols for smaller binary
 strip = true
+# Enable overflow checks in release mode for safety
+overflow-checks = true
+
+# Additional profile for maximum performance (use with: cargo build --profile perf-release)
+[profile.perf-release]
+inherits = "release"
+# Use thin LTO for faster builds while still getting most LTO benefits
+lto = "thin"
+# Enable CPU-specific optimizations
+codegen-units = 1
+# Even more aggressive optimizations
+opt-level = 3
+# Panic immediately without unwinding for smaller binary
+panic = "abort"

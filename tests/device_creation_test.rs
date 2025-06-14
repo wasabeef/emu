@@ -1,6 +1,5 @@
 use emu::managers::android::AndroidManager;
 use emu::managers::common::DeviceManager;
-use emu::models::device_info::DynamicDeviceProvider;
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -70,28 +69,25 @@ async fn test_device_creation_flow() {
     }
 
     // Test basic device info operations
-    println!("📱 Testing get_available_devices...");
+    println!("📱 Testing list_available_devices (device info)...");
     let info_result = timeout(
         Duration::from_secs(10),
-        android_manager.get_available_devices(),
+        android_manager.list_available_devices(),
     )
     .await;
 
     match info_result {
-        Ok(Ok(device_infos)) => {
-            println!("   ✅ Successfully got {} device infos", device_infos.len());
-            for info in device_infos.iter().take(3) {
-                println!(
-                    "      Device: {} (OEM: {:?}, Category: {:?})",
-                    info.display_name, info.oem, info.category
-                );
+        Ok(Ok(devices)) => {
+            println!("   ✅ Successfully got {} device entries", devices.len());
+            for (id, name) in devices.iter().take(3) {
+                println!("      Device: {} ({})", name, id);
             }
         }
         Ok(Err(e)) => {
-            println!("   ❌ Failed to get device infos: {}", e);
+            println!("   ❌ Failed to get device entries: {}", e);
         }
         Err(_) => {
-            println!("   ❌ TIMEOUT: get_available_devices took too long");
+            println!("   ❌ TIMEOUT: list_available_devices took too long");
         }
     }
 

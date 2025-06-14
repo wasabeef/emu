@@ -10,6 +10,7 @@
 //! - **Smart Prioritization**: Devices sorted by model type and version automatically
 //! - **Graceful Error Handling**: Handles already-booted and already-shutdown states
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
+//! - **Physical Device Support**: Currently disabled for performance reasons (see list_devices method)
 
 //! # xcrun simctl Command Reference
 //!
@@ -194,8 +195,6 @@
 
 use crate::managers::common::{DeviceConfig, DeviceManager};
 #[cfg(target_os = "macos")]
-use crate::models::device_info::DynamicDeviceConfig;
-#[cfg(target_os = "macos")]
 use crate::models::DeviceStatus;
 use crate::models::IosDevice;
 #[cfg(target_os = "macos")]
@@ -348,152 +347,60 @@ impl IosManager {
         Ok(())
     }
 
-    pub async fn list_device_types(&self) -> Result<Vec<String>> {
-        let output = self
-            .command_runner
-            .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
-            .await
-            .context("Failed to list device types")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse device types JSON")?;
-        let mut device_types = Vec::new();
-        if let Some(types_array) = json.get("devicetypes").and_then(|v| v.as_array()) {
-            for device_type_json in types_array {
-                if let Some(identifier) =
-                    device_type_json.get("identifier").and_then(|v| v.as_str())
-                {
-                    device_types.push(identifier.to_string());
-                }
-            }
-        }
-        Ok(device_types)
-    }
-
-    /// Get device types with display names (similar to Android's approach)
+    /// Lists available iOS device types with their identifiers and display names.
     pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_runner
-            .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
+            .run("xcrun", &["simctl", "list", "devicetypes", "-j"])
             .await
-            .context("Failed to list device types")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse device types JSON")?;
+            .context("Failed to list iOS device types")?;
+
+        let json: Value = serde_json::from_str(&output).context("Failed to parse device types")?;
+
         let mut device_types = Vec::new();
 
         if let Some(types_array) = json.get("devicetypes").and_then(|v| v.as_array()) {
-            for device_type_json in types_array {
-                if let Some(identifier) =
-                    device_type_json.get("identifier").and_then(|v| v.as_str())
-                {
-                    // Try to get the name from JSON first
-                    let display_name =
-                        if let Some(name) = device_type_json.get("name").and_then(|v| v.as_str()) {
-                            name.to_string()
-                        } else {
-                            // Fallback: parse from identifier
-                            // com.apple.CoreSimulator.SimDeviceType.iPhone-15 -> iPhone 15
-                            Self::parse_device_type_display_name(identifier)
-                        };
-
-                    device_types.push((identifier.to_string(), display_name));
+            for device_type in types_array {
+                if let (Some(identifier), Some(name)) = (
+                    device_type.get("identifier").and_then(|v| v.as_str()),
+                    device_type.get("name").and_then(|v| v.as_str()),
+                ) {
+                    device_types.push((identifier.to_string(), name.to_string()));
                 }
             }
         }
-
-        // Sort devices by priority (similar to Android)
-        device_types.sort_by(|a, b| {
-            let priority_a = DynamicDeviceConfig::calculate_ios_device_priority(&a.1);
-            let priority_b = DynamicDeviceConfig::calculate_ios_device_priority(&b.1);
-            priority_a.cmp(&priority_b)
-        });
 
         Ok(device_types)
     }
 
-    /// Parse device type identifier to display name
-    ///
-    /// Converts identifiers like "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro"
-    /// into human-readable names like "iPhone 15 Pro"
-    fn parse_device_type_display_name(identifier: &str) -> String {
-        // com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro -> iPhone 15 Pro
-        let cleaned = identifier
-            .replace("com.apple.CoreSimulator.SimDeviceType.", "")
-            .replace("-", " ")
-            .replace("_", " ");
-
-        // Special case handling
-        let display = cleaned.replace(" inch", "\""); // 12.9 inch -> 12.9"
-
-        // Capitalize properly
-        display
-            .split_whitespace()
-            .map(|word| {
-                if word == "inch"
-                    || word == "se"
-                    || word == "mini"
-                    || (word.starts_with("i")
-                        && (word.starts_with("iPhone")
-                            || word.starts_with("iPad")
-                            || word.starts_with("iPod")))
-                {
-                    word.to_string() // Preserve these special cases as-is
-                } else {
-                    // Capitalize first letter
-                    let mut chars = word.chars();
-                    match chars.next() {
-                        None => String::new(),
-                        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                    }
-                }
-            })
-            .collect::<Vec<String>>()
-            .join(" ")
-    }
-
+    /// Lists available iOS runtimes.
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_runner
-            .run("xcrun", &["simctl", "list", "runtimes", "--json"])
+            .run("xcrun", &["simctl", "list", "runtimes", "-j"])
             .await
-            .context("Failed to list runtimes")?;
-        let json: Value = serde_json::from_str(&output).context("Failed to parse runtimes JSON")?;
-        let mut runtimes = Vec::new();
-        if let Some(runtimes_array) = json.get("runtimes").and_then(|v| v.as_array()) {
-            for runtime_json in runtimes_array {
-                if let Some(identifier) = runtime_json.get("identifier").and_then(|v| v.as_str()) {
-                    if runtime_json
-                        .get("isAvailable")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                    {
-                        // Extract display name from various possible fields
-                        let display_name =
-                            if let Some(name) = runtime_json.get("name").and_then(|v| v.as_str()) {
-                                // Use the name field if available
-                                name.to_string()
-                            } else if let Some(version) =
-                                runtime_json.get("version").and_then(|v| v.as_str())
-                            {
-                                // Use version if name is not available
-                                format!("iOS {}", version)
-                            } else {
-                                // Fallback: parse from identifier
-                                // com.apple.CoreSimulator.SimRuntime.iOS-17-0 -> iOS 17.0
-                                identifier
-                                    .replace("com.apple.CoreSimulator.SimRuntime.", "")
-                                    .replace("-", ".")
-                                    .replace("iOS.", "iOS ")
-                            };
+            .context("Failed to list iOS runtimes")?;
 
-                        runtimes.push((identifier.to_string(), display_name));
+        let json: Value = serde_json::from_str(&output).context("Failed to parse runtimes")?;
+
+        let mut runtimes = Vec::new();
+
+        if let Some(runtimes_array) = json.get("runtimes").and_then(|v| v.as_array()) {
+            for runtime in runtimes_array {
+                if let (Some(identifier), Some(name), Some(is_available)) = (
+                    runtime.get("identifier").and_then(|v| v.as_str()),
+                    runtime.get("name").and_then(|v| v.as_str()),
+                    runtime.get("isAvailable").and_then(|v| v.as_bool()),
+                ) {
+                    if is_available {
+                        runtimes.push((identifier.to_string(), name.to_string()));
                     }
                 }
             }
         }
 
-        // Sort by version (newest first) - similar to Android's approach
+        // Sort runtimes by version (newest first)
         runtimes.sort_by(|a, b| {
-            // Extract version numbers for sorting
             let version_a = extract_ios_version(&a.1);
             let version_b = extract_ios_version(&b.1);
             version_b
@@ -503,37 +410,107 @@ impl IosManager {
 
         Ok(runtimes)
     }
-}
 
-#[cfg(target_os = "macos")]
-impl DeviceManager for IosManager {
-    type Device = IosDevice;
-
-    async fn list_devices(&self) -> Result<Vec<Self::Device>> {
+    /// Lists all iOS simulators.
+    ///
+    /// # Returns
+    /// Vector of IosDevice structs representing available simulators
+    pub async fn list_simulators(&self) -> Result<Vec<IosDevice>> {
         let output = self
             .command_runner
-            .run("xcrun", &["simctl", "list", "devices", "--json"])
+            .run("xcrun", &["simctl", "list", "devices", "-j"])
             .await
             .context("Failed to list iOS devices")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse simctl JSON output")?;
+
+        let json: Value = serde_json::from_str(&output).context("Failed to parse device list")?;
+
         let mut devices = Vec::new();
-        if let Some(devices_obj) = json.get("devices") {
-            if let Some(devices_map) = devices_obj.as_object() {
-                for (runtime, device_list_json) in devices_map {
-                    if let Some(device_array_json) = device_list_json.as_array() {
-                        for device_json_val in device_array_json {
-                            if let Some(parsed_device) =
-                                self.parse_device_from_json(device_json_val, runtime)?
-                            {
-                                devices.push(parsed_device);
-                            }
+
+        if let Some(devices_map) = json.get("devices").and_then(|v| v.as_object()) {
+            for (runtime_str, device_list) in devices_map {
+                if let Some(devices_array) = device_list.as_array() {
+                    for device_json in devices_array {
+                        if let Ok(Some(device)) =
+                            self.parse_device_from_json(device_json, runtime_str)
+                        {
+                            devices.push(device);
                         }
                     }
                 }
             }
         }
+
+        // Sort devices by priority
+        devices.sort_by_key(|d| self.calculate_device_priority(&d.device_type, &d.name));
+
         Ok(devices)
+    }
+
+    /// Calculates priority for device sorting.
+    fn calculate_device_priority(&self, device_type: &str, name: &str) -> u32 {
+        let lower_type = device_type.to_lowercase();
+        let lower_name = name.to_lowercase();
+
+        // iPhone priority (0-99)
+        if lower_type.contains("iphone") || lower_name.contains("iphone") {
+            if lower_name.contains("pro max") {
+                0
+            } else if lower_name.contains("pro") {
+                10
+            } else if lower_name.contains("plus") || lower_name.contains("max") {
+                20
+            } else if lower_name.contains("mini") {
+                30
+            } else if lower_name.contains("se") {
+                40
+            } else {
+                // Extract version number for regular iPhones
+                let version = extract_ios_version(&lower_name);
+                50 - (version as u32).min(50)
+            }
+        }
+        // iPad priority (100-199)
+        else if lower_type.contains("ipad") || lower_name.contains("ipad") {
+            if lower_name.contains("pro") && lower_name.contains("12.9") {
+                100
+            } else if lower_name.contains("pro") && lower_name.contains("11") {
+                110
+            } else if lower_name.contains("pro") {
+                120
+            } else if lower_name.contains("air") {
+                130
+            } else if lower_name.contains("mini") {
+                140
+            } else {
+                150
+            }
+        }
+        // Apple TV priority (200-299)
+        else if lower_type.contains("tv") || lower_name.contains("tv") {
+            if lower_name.contains("4k") {
+                200
+            } else {
+                210
+            }
+        }
+        // Apple Watch priority (300-399)
+        else if lower_type.contains("watch") || lower_name.contains("watch") {
+            if lower_name.contains("ultra") {
+                300
+            } else if lower_name.contains("series") {
+                // Extract series number
+                let series = extract_ios_version(&lower_name) as u32;
+                310 - series.min(10)
+            } else if lower_name.contains("se") {
+                330
+            } else {
+                340
+            }
+        }
+        // Other devices
+        else {
+            999
+        }
     }
 
     async fn start_device(&self, identifier: &str) -> Result<()> {
@@ -691,6 +668,336 @@ impl DeviceManager for IosManager {
     async fn is_available(&self) -> bool {
         which::which("xcrun").is_ok()
     }
+
+    /// Gets detailed information about an iOS simulator device.
+    ///
+    /// This method retrieves comprehensive device information including:
+    /// - Device specifications (resolution, scale factor)
+    /// - Device path information
+    /// - Runtime and system details
+    ///
+    /// # Arguments
+    /// * `identifier` - The UDID of the iOS simulator
+    ///
+    /// # Returns
+    /// Result containing DeviceDetails with iOS-specific information
+    pub async fn get_device_details(
+        &self,
+        identifier: &str,
+    ) -> Result<crate::app::state::DeviceDetails> {
+        use crate::app::state::DeviceDetails;
+        use crate::app::Panel;
+
+        // Get device information from simctl
+        let output = self
+            .command_runner
+            .run("xcrun", &["simctl", "list", "devices", "-j"])
+            .await
+            .context("Failed to get device information")?;
+
+        let json: Value =
+            serde_json::from_str(&output).context("Failed to parse device information")?;
+
+        // Find the specific device
+        let mut device_info = None;
+        let mut runtime_name = None;
+
+        if let Some(devices) = json.get("devices").and_then(|v| v.as_object()) {
+            for (runtime_str, device_list) in devices {
+                if let Some(devices_array) = device_list.as_array() {
+                    for device in devices_array {
+                        if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
+                            if udid == identifier {
+                                device_info = Some(device.clone());
+                                // Parse runtime name from identifier like "com.apple.CoreSimulator.SimRuntime.iOS-17-0"
+                                runtime_name = Some(
+                                    runtime_str
+                                        .replace("com.apple.CoreSimulator.SimRuntime.iOS-", "")
+                                        .replace("-", "."),
+                                );
+                                break;
+                            }
+                        }
+                    }
+                }
+                if device_info.is_some() {
+                    break;
+                }
+            }
+        }
+
+        let device =
+            device_info.ok_or_else(|| anyhow::anyhow!("Device not found: {}", identifier))?;
+
+        // Extract basic device information
+        let name = device
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let state = device
+            .get("state")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        let device_type_identifier = device
+            .get("deviceTypeIdentifier")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        let data_path = device.get("dataPath").and_then(|v| v.as_str());
+
+        // Parse device type from identifier to get display name
+        let device_type_display = if device_type_identifier.contains("SimDeviceType.") {
+            device_type_identifier
+                .split("SimDeviceType.")
+                .last()
+                .unwrap_or(device_type_identifier)
+                .replace("-", " ")
+        } else {
+            device_type_identifier.to_string()
+        };
+
+        // Get device type details for resolution and scale
+        let (resolution, scale) = self
+            .get_device_specifications(&device_type_display)
+            .await
+            .unwrap_or((None, None));
+
+        // Simplify path for display
+        let simplified_path = if let Some(path) = data_path {
+            if let Ok(home_dir) = std::env::var("HOME") {
+                if path.starts_with(&home_dir) {
+                    Some(path.replace(&home_dir, "~"))
+                } else {
+                    Some(path.to_string())
+                }
+            } else {
+                Some(path.to_string())
+            }
+        } else {
+            None
+        };
+
+        // Format runtime version for display
+        let runtime_display = if let Some(runtime) = &runtime_name {
+            format!("iOS {}", runtime)
+        } else {
+            "Unknown".to_string()
+        };
+
+        Ok(DeviceDetails {
+            name,
+            status: match state {
+                "Booted" => "Booted".to_string(),
+                "Shutdown" => "Shutdown".to_string(),
+                "Creating" => "Creating".to_string(),
+                _ => "Unknown".to_string(),
+            },
+            platform: Panel::Ios,
+            device_type: device_type_display,
+            api_level_or_version: runtime_display.clone(),
+            ram_size: None,     // iOS simulators don't expose RAM info
+            storage_size: None, // iOS simulators don't expose storage info
+            resolution,
+            dpi: scale, // iOS uses scale factor instead of DPI
+            device_path: simplified_path,
+            system_image: None, // iOS doesn't use system images
+            identifier: identifier.to_string(),
+            udid: Some(identifier.to_string()),
+            runtime: Some(runtime_display),
+        })
+    }
+
+    /// Gets device specifications (resolution and scale) for iOS device types.
+    ///
+    /// This method maps device type names to their specifications. The mapping is based on
+    /// official Apple device specifications.
+    ///
+    /// # Arguments
+    /// * `device_type` - The device type name (e.g., "iPhone 15", "iPad Pro 12.9 inch")
+    ///
+    /// # Returns
+    /// Tuple of (resolution, scale_factor) as Option<String>
+    async fn get_device_specifications(
+        &self,
+        device_type: &str,
+    ) -> Result<(Option<String>, Option<String>)> {
+        let device_type_lower = device_type.to_lowercase();
+
+        // iPhone specifications
+        if device_type_lower.contains("iphone") {
+            let (width, height, scale) = if device_type_lower.contains("15 pro max")
+                || device_type_lower.contains("14 pro max")
+                || device_type_lower.contains("13 pro max")
+                || device_type_lower.contains("12 pro max")
+            {
+                (430, 932, 3.0) // 6.7" Pro Max
+            } else if device_type_lower.contains("15 plus") || device_type_lower.contains("14 plus")
+            {
+                (428, 926, 3.0) // 6.7" Plus
+            } else if device_type_lower.contains("15 pro")
+                || device_type_lower.contains("14 pro")
+                || device_type_lower.contains("13 pro")
+                || device_type_lower.contains("12 pro")
+            {
+                (393, 852, 3.0) // 6.1" Pro
+            } else if device_type_lower.contains("15")
+                || device_type_lower.contains("14")
+                || device_type_lower.contains("13")
+                || device_type_lower.contains("12")
+            {
+                (390, 844, 3.0) // 6.1" Standard
+            } else if device_type_lower.contains("13 mini") || device_type_lower.contains("12 mini")
+            {
+                (375, 812, 3.0) // 5.4" Mini
+            } else if device_type_lower.contains("11 pro max")
+                || device_type_lower.contains("xs max")
+            {
+                (414, 896, 3.0) // 6.5"
+            } else if device_type_lower.contains("11 pro")
+                || device_type_lower.contains("xs")
+                || device_type_lower.contains("x")
+            {
+                (375, 812, 3.0) // 5.8"
+            } else if device_type_lower.contains("11") || device_type_lower.contains("xr") {
+                (414, 896, 2.0) // 6.1" LCD
+            } else if device_type_lower.contains("se") && device_type_lower.contains("3") {
+                (375, 667, 2.0) // SE 3rd gen
+            } else if device_type_lower.contains("se") {
+                (320, 568, 2.0) // SE 1st/2nd gen
+            } else if device_type_lower.contains("8 plus")
+                || device_type_lower.contains("7 plus")
+                || device_type_lower.contains("6s plus")
+                || device_type_lower.contains("6 plus")
+            {
+                (414, 736, 3.0) // Plus models
+            } else {
+                (375, 667, 2.0) // Default iPhone
+            };
+
+            return Ok((
+                Some(format!("{}x{}", width, height)),
+                Some(scale.to_string()),
+            ));
+        }
+
+        // iPad specifications
+        if device_type_lower.contains("ipad") {
+            let (width, height, scale) = if device_type_lower.contains("pro")
+                && (device_type_lower.contains("12.9") || device_type_lower.contains("12_9"))
+            {
+                (1024, 1366, 2.0) // 12.9" iPad Pro
+            } else if device_type_lower.contains("pro")
+                && (device_type_lower.contains("11") || device_type_lower.contains("10.9"))
+            {
+                (834, 1194, 2.0) // 11" iPad Pro / 10.9" iPad Air
+            } else if device_type_lower.contains("air") {
+                (820, 1180, 2.0) // iPad Air
+            } else if device_type_lower.contains("mini") {
+                (744, 1133, 2.0) // iPad mini
+            } else {
+                (810, 1080, 2.0) // Standard iPad
+            };
+
+            return Ok((
+                Some(format!("{}x{}", width, height)),
+                Some(scale.to_string()),
+            ));
+        }
+
+        // Apple TV
+        if device_type_lower.contains("tv") {
+            return Ok((Some("1920x1080".to_string()), Some("1.0".to_string())));
+        }
+
+        // Apple Watch
+        if device_type_lower.contains("watch") {
+            let (width, height, scale) = if device_type_lower.contains("ultra") {
+                (410, 502, 2.0) // Apple Watch Ultra
+            } else if device_type_lower.contains("series 9")
+                || device_type_lower.contains("series 8")
+                || device_type_lower.contains("series 7")
+            {
+                if device_type_lower.contains("45") {
+                    (396, 484, 2.0) // 45mm
+                } else {
+                    (352, 430, 2.0) // 41mm
+                }
+            } else if device_type_lower.contains("se") {
+                if device_type_lower.contains("44") {
+                    (368, 448, 2.0) // 44mm SE
+                } else {
+                    (324, 394, 2.0) // 40mm SE
+                }
+            } else {
+                (368, 448, 2.0) // Default Watch
+            };
+
+            return Ok((
+                Some(format!("{}x{}", width, height)),
+                Some(scale.to_string()),
+            ));
+        }
+
+        // Unknown device type
+        Ok((None, None))
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[allow(clippy::manual_async_fn)]
+impl DeviceManager for IosManager {
+    type Device = IosDevice;
+
+    fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
+        async {
+            // Only list simulators for now - physical device support disabled for performance
+            self.list_simulators().await
+        }
+    }
+
+    fn start_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.start_device(&identifier).await }
+    }
+
+    fn stop_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.stop_device(&identifier).await }
+    }
+
+    fn create_device(
+        &self,
+        config: &DeviceConfig,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let config = config.clone();
+        async move { self.create_device(&config).await }
+    }
+
+    fn delete_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.delete_device(&identifier).await }
+    }
+
+    fn wipe_device(
+        &self,
+        identifier: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send {
+        let identifier = identifier.to_string();
+        async move { self.wipe_device(&identifier).await }
+    }
+
+    fn is_available(&self) -> impl std::future::Future<Output = bool> + Send {
+        async { self.is_available().await }
+    }
 }
 
 // Stub implementation for non-macOS platforms
@@ -717,9 +1024,14 @@ impl IosManager {
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         bail!("iOS simulator management is only available on macOS")
     }
+
+    pub async fn list_simulators(&self) -> Result<Vec<IosDevice>> {
+        bail!("iOS simulator management is only available on macOS")
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
+#[allow(clippy::manual_async_fn)]
 impl DeviceManager for IosManager {
     type Device = IosDevice; // This will use the potentially simplified IosDevice from models.rs for non-macOS
 

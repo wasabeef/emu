@@ -55,6 +55,8 @@ fn test_device_cache_management() {
         device_path: Some("/path/to/device".to_string()),
         system_image: Some("system.img".to_string()),
         identifier: "test_device".to_string(),
+        udid: None,    // Android devices don't have UDID
+        runtime: None, // Android devices don't have runtime version
     };
 
     // Test updating cache

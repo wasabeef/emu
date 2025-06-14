@@ -28,6 +28,20 @@ pub struct AndroidDevice {
     pub storage_size: String,
 }
 
+impl Default for AndroidDevice {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            device_type: String::new(),
+            api_level: 0,
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "2048".to_string(),
+            storage_size: "8192".to_string(),
+        }
+    }
+}
+
 /// Represents an iOS Simulator device.
 ///
 /// Contains all information needed to display and manage an iOS simulator
@@ -52,6 +66,21 @@ pub struct IosDevice {
     pub is_available: bool,
 }
 
+impl Default for IosDevice {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            udid: String::new(),
+            device_type: String::new(),
+            ios_version: String::new(),
+            runtime_version: String::new(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+        }
+    }
+}
+
 /// Represents the current operational state of a virtual device.
 ///
 /// Used by both Android and iOS devices to indicate their current status
@@ -72,18 +101,4 @@ pub enum DeviceStatus {
     Error,
     /// Device status cannot be determined
     Unknown,
-}
-
-impl Default for AndroidDevice {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            device_type: String::new(),
-            api_level: 0,
-            status: DeviceStatus::Stopped,
-            is_running: false,
-            ram_size: "2048".to_string(),
-            storage_size: "512M".to_string(),
-        }
-    }
 }

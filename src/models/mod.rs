@@ -14,8 +14,10 @@ pub mod device;
 pub mod device_info;
 pub mod error;
 pub mod platform;
+pub mod sdk;
 
 // Re-export commonly used types for convenience
 pub use device::{AndroidDevice, DeviceStatus, IosDevice};
 pub use error::DeviceError;
 pub use platform::Platform;
+pub use sdk::{ApiLevel, SdkInstallStatus, SdkPackage};

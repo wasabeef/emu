@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
             }
         }
         Err(e) => {
-            eprintln!("✗ Failed to list AVDs: {}", e);
+            eprintln!("✗ Failed to list devices: {}", e);
         }
     }
 

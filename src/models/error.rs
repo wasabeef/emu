@@ -212,6 +212,19 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
             .to_string();
     }
 
+    if error_str.contains("Failed to start emulator") {
+        return "Failed to start emulator. Check if AVD exists and system image is installed. Try running manually or check emulator logs.".to_string();
+    }
+
+    if error_str.contains("AVD") && error_str.contains("not found") {
+        return "AVD not found. The specified virtual device doesn't exist. Create the AVD first."
+            .to_string();
+    }
+
+    if error_str.contains("No system image available") {
+        return "System image not installed. Install the required system image using SDK Manager before creating AVDs.".to_string();
+    }
+
     if error_str.contains("adb")
         && (error_str.contains("not found") || error_str.contains("command not found"))
     {
