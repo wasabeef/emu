@@ -21,7 +21,7 @@
 
 use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::{AndroidDevice, ApiLevel, IosDevice, SdkInstallStatus};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -258,6 +258,8 @@ pub struct DeviceCache {
     pub android_api_levels: Vec<(String, String)>,
     /// Complete list of Android devices for category filtering
     pub android_device_cache: Option<Vec<(String, String)>>,
+    /// Pre-filtered and sorted category caches for instant category switching
+    pub category_caches: HashMap<String, Vec<(String, String)>>,
     /// Available iOS device types as (identifier, display_name) tuples
     pub ios_device_types: Vec<(String, String)>,
     /// Available iOS runtime versions as (identifier, display_name) tuples
@@ -274,6 +276,7 @@ impl Default for DeviceCache {
             android_device_types: Vec::new(),
             android_api_levels: Vec::new(),
             android_device_cache: None,
+            category_caches: HashMap::new(),
             ios_device_types: Vec::new(),
             ios_runtimes: Vec::new(),
             last_updated: std::time::Instant::now(),
@@ -290,16 +293,112 @@ impl DeviceCache {
     }
 
     /// Updates the Android device cache with new data.
+    /// Pre-builds category caches for instant category switching.
     /// Resets the loading flag and updates the timestamp.
     pub fn update_android_cache(
         &mut self,
         device_types: Vec<(String, String)>,
         api_levels: Vec<(String, String)>,
     ) {
-        self.android_device_types = device_types;
+        self.android_device_types = device_types.clone();
         self.android_api_levels = api_levels;
+
+        // Pre-build category caches for instant switching
+        self.build_category_caches(&device_types);
+
         self.last_updated = std::time::Instant::now();
         self.is_loading = false;
+    }
+
+    /// Pre-builds sorted category caches for instant category switching.
+    /// This eliminates the need for repeated priority calculations during category changes.
+    fn build_category_caches(&mut self, devices: &[(String, String)]) {
+        self.category_caches.clear();
+
+        let categories = [
+            "all",
+            "phone",
+            "tablet",
+            "wear",
+            "tv",
+            "automotive",
+            "desktop",
+        ];
+
+        for &category in &categories {
+            let mut filtered_devices: Vec<(String, String)> = if category == "all" {
+                devices.to_vec()
+            } else {
+                devices
+                    .iter()
+                    .filter(|(device_id, display_name)| {
+                        Self::device_matches_category(device_id, display_name, category)
+                    })
+                    .cloned()
+                    .collect()
+            };
+
+            // Sort by priority for this category
+            filtered_devices.sort_by(|a, b| {
+                let priority_a = crate::models::device_info::DynamicDeviceConfig::calculate_android_device_priority(&a.0, &a.1);
+                let priority_b = crate::models::device_info::DynamicDeviceConfig::calculate_android_device_priority(&b.0, &b.1);
+                priority_a.cmp(&priority_b)
+            });
+
+            self.category_caches
+                .insert(category.to_string(), filtered_devices);
+        }
+    }
+
+    /// Check if a device matches the given category.
+    fn device_matches_category(device_id: &str, display_name: &str, category: &str) -> bool {
+        let combined = format!(
+            "{} {}",
+            device_id.to_lowercase(),
+            display_name.to_lowercase()
+        );
+
+        match category {
+            "phone" => {
+                combined.contains("phone")
+                    || (combined.contains("pixel")
+                        && !combined.contains("fold")
+                        && !combined.contains("tablet"))
+                    || (combined.contains("galaxy")
+                        && !combined.contains("fold")
+                        && !combined.contains("tablet"))
+                    || combined.contains("oneplus")
+                    || (combined.contains("5") && combined.contains("inch"))
+                    || (combined.contains("6") && combined.contains("inch"))
+                    || (combined.contains("pro")
+                        && !combined.contains("tablet")
+                        && !combined.contains("fold"))
+            }
+            "tablet" => {
+                combined.contains("tablet")
+                    || combined.contains("pad")
+                    || (combined.contains("10") && combined.contains("inch"))
+                    || (combined.contains("11") && combined.contains("inch"))
+                    || (combined.contains("12") && combined.contains("inch"))
+            }
+            "wear" => {
+                combined.contains("wear")
+                    || combined.contains("watch")
+                    || (combined.contains("round") && !combined.contains("tablet"))
+            }
+            "tv" => {
+                combined.contains("tv") || combined.contains("1080p") || combined.contains("4k")
+            }
+            "automotive" => combined.contains("auto") || combined.contains("car"),
+            "desktop" => combined.contains("desktop") || combined.contains("freeform"),
+            _ => false,
+        }
+    }
+
+    /// Get pre-filtered and sorted devices for a category.
+    /// Returns instantly without any processing.
+    pub fn get_devices_for_category(&self, category: &str) -> Option<&Vec<(String, String)>> {
+        self.category_caches.get(category)
     }
 
     /// Updates the iOS device cache with new data.
@@ -400,6 +499,10 @@ pub struct DeviceDetails {
     pub system_image: Option<String>,
     /// Unique identifier (AVD name for Android, UDID for iOS)
     pub identifier: String,
+    /// iOS UDID (iOS only)
+    pub udid: Option<String>,
+    /// iOS Runtime version (iOS only)
+    pub runtime: Option<String>,
 }
 
 /// Main application state containing all UI and data state.
@@ -1152,7 +1255,7 @@ impl AppState {
                         platform: Panel::Android,
                         device_type: device.device_type.clone(),
                         api_level_or_version: format!(
-                            "API {} (Android {})",
+                            "API {} - Android {}",
                             device.api_level,
                             self.get_android_version_name(device.api_level)
                         ),
@@ -1163,6 +1266,8 @@ impl AppState {
                         device_path: None,  // Will be filled by manager
                         system_image: None, // Will be filled by manager
                         identifier: device.name.clone(),
+                        udid: None,
+                        runtime: None,
                     })
             }
             Panel::Ios => {
@@ -1185,6 +1290,8 @@ impl AppState {
                         device_path: None,  // Will be filled by manager
                         system_image: None, // iOS doesn't use system images
                         identifier: device.udid.clone(),
+                        udid: Some(device.udid.clone()),
+                        runtime: Some(device.runtime_version.clone()),
                     })
             }
         }

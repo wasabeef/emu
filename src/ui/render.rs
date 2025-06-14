@@ -42,12 +42,17 @@ const EMOJI_ANDROID: &str = "🤖";
 const EMOJI_IOS: &str = "🍎";
 const EMOJI_PACKAGE: &str = "📦";
 const EMOJI_DELETE: &str = "🗑️";
+const EMOJI_FOLDER: &str = "📂";
+const EMOJI_TAG: &str = "🏷️";
 const EMOJI_BRAIN: &str = "🧠";
 const EMOJI_DISK: &str = "💾";
 const EMOJI_PHONE: &str = "📱";
-const EMOJI_FOLDER: &str = "📂";
-const EMOJI_TAG: &str = "🏷️";
 const EMOJI_TARGET: &str = "🎯";
+const EMOJI_KEY: &str = "🔑";
+const EMOJI_MAGNIFIER: &str = "🔍";
+const EMOJI_GEAR: &str = "⚙️";
+const EMOJI_DOOR: &str = "🚪";
+const EMOJI_MEMO: &str = "📝";
 
 // Status Icons
 const ICON_SUCCESS: &str = "✓";
@@ -73,6 +78,14 @@ const NOTIFICATION_HEIGHT: u16 = 4;
 // Animation Constants
 const MOON_ANIMATION_INTERVAL_MS: u128 = 200;
 const MOON_PHASES: usize = 8;
+const MOON_PHASE_0: &str = "🌑";
+const MOON_PHASE_1: &str = "🌒";
+const MOON_PHASE_2: &str = "🌓";
+const MOON_PHASE_3: &str = "🌔";
+const MOON_PHASE_4: &str = "🌕";
+const MOON_PHASE_5: &str = "🌖";
+const MOON_PHASE_6: &str = "🌗";
+const MOON_PHASE_7: &str = "🌘";
 
 // Device Commands
 const CMD_ANDROID: &str = "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  📦 [i]nstall API  ❌ [d]elete  🧹 [w]ipe";
@@ -85,14 +98,14 @@ const CMD_LOG_DEFAULT: &str = "🗑️ [Shift+L]clear logs  🔍 [f]ilter  🖥�
 fn get_animated_moon(elapsed_ms: u128) -> &'static str {
     let moon_index = (elapsed_ms / MOON_ANIMATION_INTERVAL_MS) % MOON_PHASES as u128;
     match moon_index {
-        0 => "🌑",
-        1 => "🌒",
-        2 => "🌓",
-        3 => "🌔",
-        4 => "🌕",
-        5 => "🌖",
-        6 => "🌗",
-        _ => "🌘",
+        0 => MOON_PHASE_0,
+        1 => MOON_PHASE_1,
+        2 => MOON_PHASE_2,
+        3 => MOON_PHASE_3,
+        4 => MOON_PHASE_4,
+        5 => MOON_PHASE_5,
+        6 => MOON_PHASE_6,
+        _ => MOON_PHASE_7,
     }
 }
 
@@ -236,8 +249,8 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
 
     // Status bar without borders, smaller text
     let status_with_icon = match state.mode {
-        crate::app::Mode::Normal => format!("\u{1F6AA} {}", status_text),
-        crate::app::Mode::CreateDevice => format!("\u{1F4DD} {}", status_text),
+        crate::app::Mode::Normal => format!("{} {}", EMOJI_DOOR, status_text),
+        crate::app::Mode::CreateDevice => format!("{} {}", EMOJI_MEMO, status_text),
         crate::app::Mode::ConfirmDelete => status_text.to_string(),
         crate::app::Mode::ConfirmWipe => status_text.to_string(),
         _ => status_text.to_string(),
@@ -313,15 +326,8 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
                 ICON_STOPPED
             };
 
-            // Build text with single allocation, add physical device indicator
-            let text = if device.is_physical {
-                format!(
-                    "{} {} (API {}) 📱",
-                    status_char, device.name, device.api_level
-                )
-            } else {
-                format!("{} {} (API {})", status_char, device.name, device.api_level)
-            };
+            // Build text with single allocation
+            let text = format!("{} {} (API {})", status_char, device.name, device.api_level);
 
             let style = if selected {
                 selected_style
@@ -430,9 +436,7 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             } else {
                 ICON_STOPPED
             };
-            let text = if device.is_physical {
-                format!("{} {} 📱", status_char, device.name)
-            } else if device.is_available {
+            let text = if device.is_available {
                 format!("{} {}", status_char, device.name)
             } else {
                 format!("{} {} (unavailable)", status_char, device.name)
@@ -961,13 +965,16 @@ fn render_confirm_delete_dialog(frame: &mut Frame, state: &AppState, theme: &The
         frame.render_widget(message_widget, layout_chunks[0]);
 
         // Shortcuts at the bottom
-        let shortcuts = Paragraph::new("✅ [Y]es   ❌ [N]o / [Esc] Cancel")
-            .style(
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
+        let shortcuts = Paragraph::new(format!(
+            "{} [Y]es   {} [N]o / [Esc] Cancel",
+            ICON_CHECK, ICON_CROSS
+        ))
+        .style(
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center);
 
         frame.render_widget(shortcuts, layout_chunks[1]);
     }
@@ -1022,13 +1029,16 @@ fn render_confirm_wipe_dialog(frame: &mut Frame, state: &AppState, theme: &Theme
         frame.render_widget(message_widget, layout_chunks[0]);
 
         // Shortcuts at the bottom
-        let shortcuts = Paragraph::new("✅ [Y]es   ❌ [N]o / [Esc] Cancel")
-            .style(
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
+        let shortcuts = Paragraph::new(format!(
+            "{} [Y]es   {} [N]o / [Esc] Cancel",
+            ICON_CHECK, ICON_CROSS
+        ))
+        .style(
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center);
 
         frame.render_widget(shortcuts, layout_chunks[1]);
     }
@@ -1043,8 +1053,8 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         // Device name with platform icon
         let platform_icon = match details.platform {
-            crate::app::Panel::Android => "🤖",
-            crate::app::Panel::Ios => "🍎",
+            crate::app::Panel::Android => EMOJI_ANDROID,
+            crate::app::Panel::Ios => EMOJI_IOS,
         };
         lines.push(Line::from(vec![
             Span::styled(platform_icon, Style::default()),
@@ -1068,7 +1078,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
         lines.push(Line::from(vec![
             Span::raw("Status: "),
             Span::styled(
-                format!("● {}", details.status),
+                format!("{} {}", ICON_RUNNING, details.status),
                 Style::default().fg(status_color),
             ),
         ]));
@@ -1090,34 +1100,66 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         lines.push(Line::from(""));
 
-        // Hardware info (Android only for now)
-        if details.platform == crate::app::Panel::Android {
-            if let Some(ref ram) = details.ram_size {
-                lines.push(Line::from(vec![
-                    Span::raw(format!("{} RAM: ", EMOJI_BRAIN)),
-                    Span::styled(ram.clone(), Style::default().fg(Color::Cyan)),
-                ]));
-            }
+        // Platform-specific hardware info
+        match details.platform {
+            crate::app::Panel::Android => {
+                if let Some(ref ram) = details.ram_size {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} RAM: ", EMOJI_BRAIN), Style::default()),
+                        Span::styled(ram.clone(), Style::default().fg(Color::Cyan)),
+                    ]));
+                }
 
-            if let Some(ref storage) = details.storage_size {
-                lines.push(Line::from(vec![
-                    Span::raw(format!("{} Storage: ", EMOJI_DISK)),
-                    Span::styled(storage.clone(), Style::default().fg(Color::Cyan)),
-                ]));
-            }
+                if let Some(ref storage) = details.storage_size {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} Storage: ", EMOJI_DISK), Style::default()),
+                        Span::styled(storage.clone(), Style::default().fg(Color::Cyan)),
+                    ]));
+                }
 
-            if let Some(ref resolution) = details.resolution {
-                lines.push(Line::from(vec![
-                    Span::raw(format!("{} Resolution: ", EMOJI_PHONE)),
-                    Span::raw(resolution.clone()),
-                ]));
-            }
+                if let Some(ref resolution) = details.resolution {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} Resolution: ", EMOJI_PHONE), Style::default()),
+                        Span::raw(resolution.clone()),
+                    ]));
+                }
 
-            if let Some(ref dpi) = details.dpi {
-                lines.push(Line::from(vec![
-                    Span::raw(format!("{} DPI: ", EMOJI_TARGET)),
-                    Span::raw(dpi.clone()),
-                ]));
+                if let Some(ref dpi) = details.dpi {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} DPI: ", EMOJI_TARGET), Style::default()),
+                        Span::raw(dpi.clone()),
+                    ]));
+                }
+            }
+            crate::app::Panel::Ios => {
+                // iOS-specific information
+                if let Some(ref udid) = details.udid {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} UDID: ", EMOJI_KEY), Style::default()),
+                        Span::styled(udid.clone(), Style::default().fg(Color::Cyan)),
+                    ]));
+                }
+
+                if let Some(ref resolution) = details.resolution {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} Resolution: ", EMOJI_PHONE), Style::default()),
+                        Span::raw(resolution.clone()),
+                    ]));
+                }
+
+                if let Some(ref scale) = details.dpi {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} Scale: ", EMOJI_MAGNIFIER), Style::default()),
+                        Span::raw(format!("{}x", scale)),
+                    ]));
+                }
+
+                if let Some(ref runtime) = details.runtime {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} Runtime: ", EMOJI_GEAR), Style::default()),
+                        Span::styled(runtime.clone(), Style::default().fg(Color::Yellow)),
+                    ]));
+                }
             }
         }
 
@@ -1292,14 +1334,14 @@ fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &
                     }
                     crate::models::SdkInstallStatus::Completed => {
                         format!(
-                            "✅ API {} installed successfully - Press [Esc] to hide",
-                            api_level
+                            "{} API {} installed successfully - Press [Esc] to hide",
+                            ICON_CHECK, api_level
                         )
                     }
                     crate::models::SdkInstallStatus::Failed { error } => {
                         format!(
-                            "❌ API {} installation failed: {} - Press [Esc] to hide",
-                            api_level, error
+                            "{} API {} installation failed: {} - Press [Esc] to hide",
+                            ICON_CROSS, api_level, error
                         )
                     }
                     _ => CMD_LOG_DEFAULT.to_string(),
@@ -1440,7 +1482,7 @@ fn render_api_level_install_dialog(frame: &mut Frame, state: &AppState, theme: &
             Style::default().fg(Color::Gray),
         )]),
         Line::from(vec![Span::styled(
-            "✅ Green items are already installed",
+            format!("{} Green items are already installed", ICON_CHECK),
             Style::default().fg(Color::DarkGray),
         )]),
     ];
@@ -1564,7 +1606,7 @@ fn render_api_level_install_dialog(frame: &mut Frame, state: &AppState, theme: &
                 }
                 crate::models::SdkInstallStatus::Completed => {
                     vec![Line::from(vec![Span::styled(
-                        "✅ Uninstallation completed successfully!",
+                        format!("{} Uninstallation completed successfully!", ICON_CHECK),
                         Style::default()
                             .fg(Color::Green)
                             .add_modifier(Modifier::BOLD),
@@ -1573,7 +1615,7 @@ fn render_api_level_install_dialog(frame: &mut Frame, state: &AppState, theme: &
                 crate::models::SdkInstallStatus::Failed { error } => {
                     vec![
                         Line::from(vec![Span::styled(
-                            "❌ Uninstallation failed",
+                            format!("{} Uninstallation failed", ICON_CROSS),
                             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                         )]),
                         Line::from(vec![Span::styled(
@@ -1622,7 +1664,7 @@ fn render_api_level_install_dialog(frame: &mut Frame, state: &AppState, theme: &
             }
             crate::models::SdkInstallStatus::Completed => {
                 vec![Line::from(vec![Span::styled(
-                    "✅ Installation completed successfully!",
+                    format!("{} Installation completed successfully!", ICON_CHECK),
                     Style::default()
                         .fg(Color::Green)
                         .add_modifier(Modifier::BOLD),
@@ -1631,7 +1673,7 @@ fn render_api_level_install_dialog(frame: &mut Frame, state: &AppState, theme: &
             crate::models::SdkInstallStatus::Failed { error } => {
                 vec![
                     Line::from(vec![Span::styled(
-                        "❌ Installation failed:",
+                        format!("{} Installation failed:", ICON_CROSS),
                         Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                     )]),
                     Line::from(vec![Span::styled(error, Style::default().fg(Color::Red))]),

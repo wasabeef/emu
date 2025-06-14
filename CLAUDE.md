@@ -162,7 +162,6 @@ cargo test startup_performance_test -- --nocapture
 ### Recent Improvements (Latest)
 - ✅ **API Level Detection**: Fixed "Android API 36" format parsing with new regex patterns
 - ✅ **Cache Invalidation**: Fixed API installation cache not updating without restart
-- ✅ **Performance**: Removed physical device support temporarily for better performance
 - ✅ **Panel Switching**: Optimized to cancel unnecessary background updates
 - ✅ **Code Quality**: Fixed all clippy warnings and failing doctests
 
@@ -185,7 +184,6 @@ cargo test startup_performance_test -- --nocapture
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved with multiple fallbacks)
 - **iOS device details**: Limited device information display compared to Android
 - **Platform differences**: Some features are Android-only (API installation) or iOS-only (simulator logs)
-- **Physical devices**: Support disabled for performance reasons (planned for future release with better implementation)
 
 ### Architecture Strengths
 - Clean separation of concerns with trait-based abstractions

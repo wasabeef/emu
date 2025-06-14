@@ -26,9 +26,6 @@ pub struct AndroidDevice {
     pub ram_size: String,
     /// Storage size (e.g., "8192M", "4G")
     pub storage_size: String,
-    /// Whether this is a physical device (not an emulator)
-    #[serde(default)]
-    pub is_physical: bool,
 }
 
 impl Default for AndroidDevice {
@@ -41,7 +38,6 @@ impl Default for AndroidDevice {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
-            is_physical: false,
         }
     }
 }
@@ -68,9 +64,6 @@ pub struct IosDevice {
     pub is_running: bool,
     /// Whether the device is available for use (not corrupted)
     pub is_available: bool,
-    /// Whether this is a physical device (not a simulator)
-    #[serde(default)]
-    pub is_physical: bool,
 }
 
 impl Default for IosDevice {
@@ -84,7 +77,6 @@ impl Default for IosDevice {
             status: DeviceStatus::Stopped,
             is_running: false,
             is_available: true,
-            is_physical: false,
         }
     }
 }

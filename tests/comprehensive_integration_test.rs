@@ -17,7 +17,6 @@ fn test_complete_device_management_workflow() {
         is_running: false,
         ram_size: "2048".to_string(),
         storage_size: "8192".to_string(),
-        is_physical: false,
     }];
 
     state.ios_devices = vec![IosDevice {
@@ -29,7 +28,6 @@ fn test_complete_device_management_workflow() {
         status: DeviceStatus::Stopped,
         is_running: false,
         is_available: true,
-        is_physical: false,
     }];
 
     // Step 1: Navigate between panels
@@ -53,7 +51,6 @@ fn test_complete_device_management_workflow() {
         is_running: false,
         ram_size: "4096".to_string(),
         storage_size: "16384".to_string(),
-        is_physical: false,
     });
 
     state.move_down(); // 0 -> 1
@@ -211,7 +208,6 @@ fn test_performance_critical_operations() {
             is_running: false,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
-            is_physical: false,
         })
         .collect();
 
@@ -264,7 +260,6 @@ fn test_state_consistency_during_complex_operations() {
             is_running: true,
             ram_size: "2048".to_string(),
             storage_size: "8192".to_string(),
-            is_physical: false,
         },
         AndroidDevice {
             name: "Device2".to_string(),
@@ -274,7 +269,6 @@ fn test_state_consistency_during_complex_operations() {
             is_running: false,
             ram_size: "4096".to_string(),
             storage_size: "16384".to_string(),
-            is_physical: false,
         },
     ];
 
@@ -287,7 +281,6 @@ fn test_state_consistency_during_complex_operations() {
         status: DeviceStatus::Running,
         is_running: true,
         is_available: true,
-        is_physical: false,
     }];
 
     // Test multiple simultaneous state changes

@@ -212,6 +212,16 @@ impl App {
             terminal.draw(|f| ui::render::draw_app(f, &mut state, &ui::Theme::dark()))?;
         }
 
+        // Immediately check for any pending key events after initial render
+        // This ensures instant responsiveness from startup
+        while event::poll(Duration::from_millis(0))? {
+            if let Ok(CrosstermEvent::Key(_)) = event::read() {
+                // Found a key event, let the main loop handle it
+                needs_render = true;
+                break;
+            }
+        }
+
         loop {
             // Check for auto-refresh less frequently (skip if initial loading)
             if last_auto_refresh_check.elapsed() >= AUTO_REFRESH_CHECK_INTERVAL {
@@ -720,27 +730,6 @@ impl App {
                                     }
                                     KeyCode::Char('d') => {
                                         // d: Delete device
-                                        // Check if physical device
-                                        let is_physical = match state.active_panel {
-                                            Panel::Android => state
-                                                .android_devices
-                                                .get(state.selected_android)
-                                                .map(|d| d.is_physical)
-                                                .unwrap_or(false),
-                                            Panel::Ios => state
-                                                .ios_devices
-                                                .get(state.selected_ios)
-                                                .map(|d| d.is_physical)
-                                                .unwrap_or(false),
-                                        };
-
-                                        if is_physical {
-                                            state.add_warning_notification(
-                                                "Physical devices cannot be deleted".to_string(),
-                                            );
-                                            return Ok(());
-                                        }
-
                                         let (device_name, device_id) = match state.active_panel {
                                             Panel::Android => {
                                                 if let Some(device) = state
@@ -772,27 +761,7 @@ impl App {
                                             });
                                     }
                                     KeyCode::Char('w') => {
-                                        // Check if physical device
-                                        let is_physical = match state.active_panel {
-                                            Panel::Android => state
-                                                .android_devices
-                                                .get(state.selected_android)
-                                                .map(|d| d.is_physical)
-                                                .unwrap_or(false),
-                                            Panel::Ios => state
-                                                .ios_devices
-                                                .get(state.selected_ios)
-                                                .map(|d| d.is_physical)
-                                                .unwrap_or(false),
-                                        };
-
-                                        if is_physical {
-                                            state.add_warning_notification(
-                                                "Physical devices cannot be wiped".to_string(),
-                                            );
-                                            return Ok(());
-                                        }
-
+                                        // w: Wipe device
                                         let (device_name, device_id) = match state.active_panel {
                                             Panel::Android => {
                                                 if let Some(device) = state
@@ -1360,90 +1329,102 @@ impl App {
         let result = match active_panel {
             Panel::Android => {
                 if let Some(device) = android_devices.get(selected_android) {
-                    // Check if it's a physical device
-                    if device.is_physical {
-                        let state = self.state.lock().await;
-                        drop(state);
-                        // Physical devices cannot be controlled
-                        let mut state = self.state.lock().await;
-                        state.add_warning_notification(
-                            "Physical devices cannot be started/stopped".to_string(),
-                        );
-                        return Ok(());
-                    }
-
                     let name = device.name.clone();
                     let is_running = device.is_running;
 
                     if is_running {
-                        // Set stopping status
+                        // 即座にフィードバックを表示
                         {
                             let mut state = self.state.lock().await;
+                            state.add_info_notification(format!("Stopping device '{}'...", name));
                             state.set_device_operation_status(format!(
                                 "Stopping device '{}'...",
                                 name
                             ));
                         }
 
-                        match self.android_manager.stop_device(&name).await {
-                            Ok(()) => {
-                                let mut state = self.state.lock().await;
-                                state.clear_device_operation_status();
-                                state
-                                    .add_success_notification(format!("Device '{}' stopped", name));
-                                // Clear device details cache since device status changed
-                                if let Some(ref cached) = state.cached_device_details {
-                                    if cached.identifier == name {
-                                        state.clear_cached_device_details();
-                                    }
-                                }
-                                Ok(())
-                            }
-                            Err(e) => {
-                                let mut state = self.state.lock().await;
-                                state.clear_device_operation_status();
-                                state.add_error_notification(format!(
-                                    "Failed to stop device '{}': {}",
-                                    name,
-                                    format_user_error(&e)
-                                ));
-                                Err(e)
-                            }
-                        }
-                    } else {
-                        let mut state = self.state.lock().await;
-                        state.set_pending_device_start(name.clone());
-                        state.set_device_operation_status(format!("Starting device '{}'...", name));
-                        drop(state);
+                        // バックグラウンドで実際の停止処理を実行（UIをブロックしない）
+                        let state_clone = Arc::clone(&self.state);
+                        let android_manager = self.android_manager.clone();
+                        let device_name = name.clone();
 
-                        match self.android_manager.start_device(&name).await {
-                            Ok(()) => {
-                                let mut state = self.state.lock().await;
-                                state.clear_device_operation_status();
-                                state.add_info_notification(format!(
-                                    "Starting device '{}'...",
-                                    name
-                                ));
-                                // Clear device details cache since device status is changing
-                                if let Some(ref cached) = state.cached_device_details {
-                                    if cached.identifier == name {
-                                        state.clear_cached_device_details();
+                        tokio::spawn(async move {
+                            match android_manager.stop_device(&device_name).await {
+                                Ok::<(), anyhow::Error>(()) => {
+                                    let mut state = state_clone.lock().await;
+                                    state.clear_device_operation_status();
+                                    state.add_success_notification(format!(
+                                        "Device '{}' stopped",
+                                        device_name
+                                    ));
+                                    // Clear device details cache since device status changed
+                                    if let Some(ref cached) = state.cached_device_details {
+                                        if cached.identifier == device_name {
+                                            state.clear_cached_device_details();
+                                        }
                                     }
                                 }
-                                Ok(())
+                                Err(e) => {
+                                    let mut state = state_clone.lock().await;
+                                    state.clear_device_operation_status();
+                                    state.add_error_notification(format!(
+                                        "Failed to stop device '{}': {}",
+                                        device_name,
+                                        format_user_error(&e)
+                                    ));
+                                }
                             }
-                            Err(e) => {
-                                let mut state = self.state.lock().await;
-                                state.clear_pending_device_start();
-                                state.clear_device_operation_status();
-                                state.add_error_notification(format!(
-                                    "Failed to start device '{}': {}",
-                                    name,
-                                    format_user_error(&e)
-                                ));
-                                Err(e)
-                            }
+                        });
+
+                        Ok::<(), anyhow::Error>(())
+                    } else {
+                        // 即座にフィードバックを表示
+                        {
+                            let mut state = self.state.lock().await;
+                            state.set_pending_device_start(name.clone());
+                            state.add_info_notification(format!("Starting device '{}'...", name));
+                            state.set_device_operation_status(format!(
+                                "Starting device '{}'...",
+                                name
+                            ));
                         }
+
+                        // バックグラウンドで実際の起動処理を実行（UIをブロックしない）
+                        let state_clone = Arc::clone(&self.state);
+                        let android_manager = self.android_manager.clone();
+                        let device_name = name.clone();
+
+                        tokio::spawn(async move {
+                            match android_manager.start_device(&device_name).await {
+                                Ok::<(), anyhow::Error>(()) => {
+                                    let mut state = state_clone.lock().await;
+                                    state.clear_device_operation_status();
+                                    state.clear_pending_device_start();
+                                    state.add_success_notification(format!(
+                                        "Device '{}' started",
+                                        device_name
+                                    ));
+                                    // Clear device details cache since device status changed
+                                    if let Some(ref cached) = state.cached_device_details {
+                                        if cached.identifier == device_name {
+                                            state.clear_cached_device_details();
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let mut state = state_clone.lock().await;
+                                    state.clear_pending_device_start();
+                                    state.clear_device_operation_status();
+                                    state.add_error_notification(format!(
+                                        "Failed to start device '{}': {}",
+                                        device_name,
+                                        format_user_error(&e)
+                                    ));
+                                }
+                            }
+                        });
+
+                        Ok::<(), anyhow::Error>(())
                     }
                 } else {
                     Ok(())
@@ -1452,15 +1433,6 @@ impl App {
             Panel::Ios => {
                 if let Some(ref ios_manager) = self.ios_manager {
                     if let Some(device) = ios_devices.get(selected_ios) {
-                        // Check if it's a physical device
-                        if device.is_physical {
-                            let mut state = self.state.lock().await;
-                            state.add_warning_notification(
-                                "Physical devices cannot be started/stopped".to_string(),
-                            );
-                            return Ok(());
-                        }
-
                         let name = device.name.clone();
                         let udid = device.udid.clone();
                         let is_running = device.is_running;
@@ -1469,77 +1441,104 @@ impl App {
                             // Set stopping status
                             {
                                 let mut state = self.state.lock().await;
+                                state.add_info_notification(format!(
+                                    "Stopping device '{}'...",
+                                    name
+                                ));
                                 state.set_device_operation_status(format!(
                                     "Stopping device '{}'...",
                                     name
                                 ));
                             }
 
-                            match ios_manager.stop_device(&udid).await {
-                                Ok(()) => {
-                                    let mut state = self.state.lock().await;
-                                    state.clear_device_operation_status();
-                                    state.add_success_notification(format!(
-                                        "Device '{}' stopped",
-                                        name
-                                    ));
-                                    // Clear device details cache since device status changed
-                                    if let Some(ref cached) = state.cached_device_details {
-                                        if cached.identifier == udid {
-                                            state.clear_cached_device_details();
-                                        }
-                                    }
-                                    Ok(())
-                                }
-                                Err(e) => {
-                                    let mut state = self.state.lock().await;
-                                    state.clear_device_operation_status();
-                                    state.add_error_notification(format!(
-                                        "Failed to stop device '{}': {}",
-                                        name, e
-                                    ));
-                                    Err(e)
-                                }
-                            }
-                        } else {
-                            let mut state = self.state.lock().await;
-                            state.set_pending_device_start(name.clone());
-                            state.set_device_operation_status(format!(
-                                "Starting device '{}'...",
-                                name
-                            ));
-                            drop(state);
+                            // バックグラウンドで実際の停止処理を実行（UIをブロックしない）
+                            let state_clone = Arc::clone(&self.state);
+                            let ios_manager_clone = ios_manager.clone();
+                            let device_name = name.clone();
+                            let device_udid = udid.clone();
 
-                            match ios_manager.start_device(&udid).await {
-                                Ok(()) => {
-                                    let mut state = self.state.lock().await;
-                                    state.clear_device_operation_status();
-                                    state.add_info_notification(format!(
-                                        "Starting device '{}'...",
-                                        name
-                                    ));
-                                    // Clear device details cache since device status is changing
-                                    if let Some(ref cached) = state.cached_device_details {
-                                        if cached.identifier == udid {
-                                            state.clear_cached_device_details();
+                            tokio::spawn(async move {
+                                match ios_manager_clone.stop_device(&device_udid).await {
+                                    Ok::<(), anyhow::Error>(()) => {
+                                        let mut state = state_clone.lock().await;
+                                        state.clear_device_operation_status();
+                                        state.add_success_notification(format!(
+                                            "Device '{}' stopped",
+                                            device_name
+                                        ));
+                                        // Clear device details cache since device status changed
+                                        if let Some(ref cached) = state.cached_device_details {
+                                            if cached.identifier == device_udid {
+                                                state.clear_cached_device_details();
+                                            }
                                         }
                                     }
-                                    Ok(())
+                                    Err(e) => {
+                                        let mut state = state_clone.lock().await;
+                                        state.clear_device_operation_status();
+                                        state.add_error_notification(format!(
+                                            "Failed to stop device '{}': {}",
+                                            device_name, e
+                                        ));
+                                    }
                                 }
-                                Err(e) => {
-                                    let mut state = self.state.lock().await;
-                                    state.clear_pending_device_start();
-                                    state.clear_device_operation_status();
-                                    state.add_error_notification(format!(
-                                        "Failed to start device '{}': {}",
-                                        name, e
-                                    ));
-                                    Err(e)
-                                }
+                            });
+
+                            Ok::<(), anyhow::Error>(())
+                        } else {
+                            // 即座にフィードバックを表示
+                            {
+                                let mut state = self.state.lock().await;
+                                state.set_pending_device_start(name.clone());
+                                state.add_info_notification(format!(
+                                    "Starting device '{}'...",
+                                    name
+                                ));
+                                state.set_device_operation_status(format!(
+                                    "Starting device '{}'...",
+                                    name
+                                ));
                             }
+
+                            // バックグラウンドで実際の起動処理を実行（UIをブロックしない）
+                            let state_clone = Arc::clone(&self.state);
+                            let ios_manager_clone = ios_manager.clone();
+                            let device_name = name.clone();
+                            let device_udid = udid.clone();
+
+                            tokio::spawn(async move {
+                                match ios_manager_clone.start_device(&device_udid).await {
+                                    Ok::<(), anyhow::Error>(()) => {
+                                        let mut state = state_clone.lock().await;
+                                        state.clear_device_operation_status();
+                                        state.clear_pending_device_start();
+                                        state.add_success_notification(format!(
+                                            "Device '{}' started",
+                                            device_name
+                                        ));
+                                        // Clear device details cache since device status changed
+                                        if let Some(ref cached) = state.cached_device_details {
+                                            if cached.identifier == device_udid {
+                                                state.clear_cached_device_details();
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let mut state = state_clone.lock().await;
+                                        state.clear_pending_device_start();
+                                        state.clear_device_operation_status();
+                                        state.add_error_notification(format!(
+                                            "Failed to start device '{}': {}",
+                                            device_name, e
+                                        ));
+                                    }
+                                }
+                            });
+
+                            Ok::<(), anyhow::Error>(())
                         }
                     } else {
-                        Ok(())
+                        Ok::<(), anyhow::Error>(())
                     }
                 } else {
                     Ok(())
@@ -2208,20 +2207,22 @@ impl App {
             (state.active_panel, form_data, config)
         };
 
-        // Set creating state
-        {
-            let mut state = self.state.lock().await;
-            state.create_device_form.is_creating = true;
-            state.create_device_form.creation_status =
-                Some("Initializing device creation...".to_string());
-            state.create_device_form.error_message = None;
-        }
-
         // Clone necessary data for async operation
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();
         let device_name_for_display = form_data.name.clone();
+
+        // 即座にフィードバックを表示して、creating 状態を設定
+        {
+            let mut state = self.state.lock().await;
+            state.create_device_form.is_creating = true;
+            state
+                .add_info_notification(format!("Creating device '{}'...", device_name_for_display));
+            state.create_device_form.creation_status =
+                Some("Initializing device creation...".to_string());
+            state.create_device_form.error_message = None;
+        }
 
         // Create device asynchronously
         tokio::spawn(async move {
@@ -2346,61 +2347,79 @@ impl App {
         };
 
         if let Some(dialog) = dialog_info {
-            let result = match dialog.platform {
-                Panel::Android => {
-                    self.android_manager
-                        .delete_device(&dialog.device_identifier)
-                        .await
-                }
-                Panel::Ios => {
-                    if let Some(ref ios_manager) = self.ios_manager {
-                        ios_manager.delete_device(&dialog.device_identifier).await
-                    } else {
-                        return Err(anyhow::anyhow!("iOS manager not available"));
-                    }
-                }
-            };
-
-            match result {
-                Ok(()) => {
-                    let mut state = self.state.lock().await;
-
-                    // Optimized: Remove the device from local state instead of full refresh
-                    match dialog.platform {
-                        Panel::Android => {
-                            state
-                                .android_devices
-                                .retain(|device| device.name != dialog.device_identifier);
-                            // Adjust selection if needed
-                            if state.selected_android >= state.android_devices.len() {
-                                state.selected_android =
-                                    state.android_devices.len().saturating_sub(1);
-                            }
-                        }
-                        Panel::Ios => {
-                            state
-                                .ios_devices
-                                .retain(|device| device.udid != dialog.device_identifier);
-                            // Adjust selection if needed
-                            if state.selected_ios >= state.ios_devices.len() {
-                                state.selected_ios = state.ios_devices.len().saturating_sub(1);
-                            }
-                        }
-                    }
-
-                    state.add_success_notification(format!(
-                        "Device '{}' deleted successfully",
-                        dialog.device_name
-                    ));
-                }
-                Err(e) => {
-                    let mut state = self.state.lock().await;
-                    state.add_error_notification(format!(
-                        "Failed to delete device '{}': {}",
-                        dialog.device_name, e
-                    ));
-                }
+            // 即座にフィードバックを表示
+            {
+                let mut state = self.state.lock().await;
+                state.add_info_notification(format!("Deleting device '{}'...", dialog.device_name));
+                state.set_device_operation_status(format!(
+                    "Deleting device '{}'...",
+                    dialog.device_name
+                ));
             }
+
+            // バックグラウンドで実際の削除処理を実行（UIをブロックしない）
+            let state_clone = Arc::clone(&self.state);
+            let android_manager = self.android_manager.clone();
+            let ios_manager = self.ios_manager.clone();
+            let device_name = dialog.device_name.clone();
+            let device_identifier = dialog.device_identifier.clone();
+            let platform = dialog.platform;
+
+            tokio::spawn(async move {
+                let result = match platform {
+                    Panel::Android => android_manager.delete_device(&device_identifier).await,
+                    Panel::Ios => {
+                        if let Some(ref ios_mgr) = ios_manager {
+                            ios_mgr.delete_device(&device_identifier).await
+                        } else {
+                            Err(anyhow::anyhow!("iOS manager not available"))
+                        }
+                    }
+                };
+
+                match result {
+                    Ok(()) => {
+                        let mut state = state_clone.lock().await;
+
+                        // Optimized: Remove the device from local state instead of full refresh
+                        match platform {
+                            Panel::Android => {
+                                state
+                                    .android_devices
+                                    .retain(|device| device.name != device_identifier);
+                                // Adjust selection if needed
+                                if state.selected_android >= state.android_devices.len() {
+                                    state.selected_android =
+                                        state.android_devices.len().saturating_sub(1);
+                                }
+                            }
+                            Panel::Ios => {
+                                state
+                                    .ios_devices
+                                    .retain(|device| device.udid != device_identifier);
+                                // Adjust selection if needed
+                                if state.selected_ios >= state.ios_devices.len() {
+                                    state.selected_ios = state.ios_devices.len().saturating_sub(1);
+                                }
+                            }
+                        }
+
+                        state.clear_device_operation_status();
+                        state.add_success_notification(format!(
+                            "Device '{}' deleted successfully",
+                            device_name
+                        ));
+                    }
+                    Err(e) => {
+                        let mut state = state_clone.lock().await;
+                        state.clear_device_operation_status();
+                        state.add_error_notification(format!(
+                            "Failed to delete device '{}': {}",
+                            device_name, e
+                        ));
+                    }
+                }
+            });
         }
 
         Ok(())
@@ -2417,56 +2436,58 @@ impl App {
         };
 
         if let Some(dialog) = dialog_info {
-            // Set wiping status
+            // 即座にフィードバックを表示
             {
                 let mut state = self.state.lock().await;
+                state.add_info_notification(format!("Wiping device '{}'...", dialog.device_name));
                 state.set_device_operation_status(format!(
                     "Wiping device '{}'...",
                     dialog.device_name
                 ));
             }
 
-            let result = match dialog.platform {
-                Panel::Android => {
-                    self.android_manager
-                        .wipe_device(&dialog.device_identifier)
-                        .await
-                }
-                Panel::Ios => {
-                    if let Some(ref ios_manager) = self.ios_manager {
-                        ios_manager.wipe_device(&dialog.device_identifier).await
-                    } else {
-                        let mut state = self.state.lock().await;
+            // バックグラウンドで実際のワイプ処理を実行（UIをブロックしない）
+            let state_clone = Arc::clone(&self.state);
+            let android_manager = self.android_manager.clone();
+            let ios_manager = self.ios_manager.clone();
+            let device_name = dialog.device_name.clone();
+            let device_identifier = dialog.device_identifier.clone();
+            let platform = dialog.platform;
+
+            tokio::spawn(async move {
+                let result = match platform {
+                    Panel::Android => android_manager.wipe_device(&device_identifier).await,
+                    Panel::Ios => {
+                        if let Some(ref ios_mgr) = ios_manager {
+                            ios_mgr.wipe_device(&device_identifier).await
+                        } else {
+                            Err(anyhow::anyhow!("iOS manager not available"))
+                        }
+                    }
+                };
+
+                match result {
+                    Ok(()) => {
+                        let mut state = state_clone.lock().await;
                         state.clear_device_operation_status();
-                        return Err(anyhow::anyhow!("iOS manager not available"));
+                        state.add_success_notification(format!(
+                            "Device '{}' wiped successfully",
+                            device_name
+                        ));
+                        // Refresh will be triggered by auto-refresh check
+                        state.mark_refreshed();
+                    }
+                    Err(e) => {
+                        let mut state = state_clone.lock().await;
+                        state.clear_device_operation_status();
+                        state.add_error_notification(format!(
+                            "Failed to wipe device '{}': {}",
+                            device_name,
+                            format_user_error(&e)
+                        ));
                     }
                 }
-            };
-
-            match result {
-                Ok(()) => {
-                    let mut state = self.state.lock().await;
-                    state.clear_device_operation_status();
-                    state.add_success_notification(format!(
-                        "Device '{}' wiped successfully",
-                        dialog.device_name
-                    ));
-
-                    // Refresh devices to update status
-                    drop(state);
-                    self.refresh_devices().await?;
-                    self.update_device_details().await;
-                }
-                Err(e) => {
-                    let mut state = self.state.lock().await;
-                    state.clear_device_operation_status();
-                    state.add_error_notification(format!(
-                        "Failed to wipe device '{}': {}",
-                        dialog.device_name,
-                        format_user_error(&e)
-                    ));
-                }
-            }
+            });
         }
 
         Ok(())
@@ -2492,9 +2513,29 @@ impl App {
                 let cached_devices = cache.android_device_cache.clone();
                 drop(cache);
 
-                if let Some(all_devices) = cached_devices {
-                    // Filter in memory instead of making new API call
-                    let filtered_devices = if category_filter == "all" {
+                // Check if we have pre-built category cache for instant switching
+                let cached_category_devices = {
+                    let cache = device_cache_clone.read().await;
+                    cache.get_devices_for_category(&category_filter).cloned()
+                };
+
+                if let Some(cached_devices) = cached_category_devices {
+                    // Use pre-built category cache for instant response
+                    let mut state = self.state.lock().await;
+                    state.create_device_form.available_device_types = cached_devices;
+
+                    // デバイスタイプ選択をリセット
+                    state.create_device_form.selected_device_type_index = 0;
+                    if !state.create_device_form.available_device_types.is_empty() {
+                        let (id, display) =
+                            state.create_device_form.available_device_types[0].clone();
+                        state.create_device_form.device_type_id = id;
+                        state.create_device_form.device_type = display;
+                        state.create_device_form.generate_placeholder_name();
+                    }
+                } else if let Some(all_devices) = cached_devices {
+                    // Fallback to old filtering method if category cache not available
+                    let mut filtered_devices = if category_filter == "all" {
                         all_devices
                     } else {
                         all_devices
@@ -2525,7 +2566,13 @@ impl App {
                             .collect()
                     };
 
-                    // Update state with filtered devices
+                    // Sort by priority (Pixel devices with higher numbers first)
+                    filtered_devices.sort_by(|a, b| {
+                        let priority_a = crate::models::device_info::DynamicDeviceConfig::calculate_android_device_priority(&a.0, &a.1);
+                        let priority_b = crate::models::device_info::DynamicDeviceConfig::calculate_android_device_priority(&b.0, &b.1);
+                        priority_a.cmp(&priority_b)
+                    });
+
                     let mut state = self.state.lock().await;
                     state.create_device_form.available_device_types = filtered_devices;
 
@@ -2755,8 +2802,7 @@ impl App {
 
         // 真のバックグラウンドタスクとして実行（UIブロックなし）
         tokio::spawn(async move {
-            // 短時間待機してUIが表示されてから読み込み
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            // 即座にデバイス読み込みを開始（待機なし）
 
             // Android デバイスを読み込み
             let state_clone_android = Arc::clone(&state_clone);
@@ -2779,7 +2825,8 @@ impl App {
 
             // iOS デバイスを読み込み
             let state_clone_ios = Arc::clone(&state_clone);
-            let ios_handle = ios_manager.map(|ios_mgr| {
+            let ios_manager_for_loading = ios_manager.clone();
+            let ios_handle = ios_manager_for_loading.map(|ios_mgr| {
                 tokio::spawn(async move {
                     match ios_mgr.list_devices().await {
                         Ok(devices) => {
@@ -2798,62 +2845,30 @@ impl App {
             if let Some(handle) = ios_handle {
                 let _ = handle.await;
             }
+
+            // デバイス読み込み完了後、フォーカスされているデバイスの詳細情報を更新
+            // 即座に実行してレスポンスを向上
+
+            // 現在選択されているデバイスの詳細情報を更新（ノンブロッキング）
+            let state_clone_details = Arc::clone(&state_clone);
+            let android_manager_details = android_manager.clone();
+            let ios_manager_details = ios_manager.clone();
+
+            tokio::spawn(async move {
+                Self::update_device_details_internal(
+                    state_clone_details,
+                    android_manager_details,
+                    ios_manager_details,
+                )
+                .await;
+            });
         });
     }
 
     /// Update device details for the currently selected device
     async fn update_device_details(&mut self) {
-        let (active_panel, device_identifier) = {
-            let state = self.state.lock().await;
-            let identifier = match state.active_panel {
-                Panel::Android => state
-                    .android_devices
-                    .get(state.selected_android)
-                    .map(|d| d.name.clone()),
-                Panel::Ios => state
-                    .ios_devices
-                    .get(state.selected_ios)
-                    .map(|d| d.udid.clone()),
-            };
-            (state.active_panel, identifier)
-        };
-
-        if let Some(identifier) = device_identifier {
-            // Get detailed information asynchronously
-            match active_panel {
-                Panel::Android => {
-                    if let Ok(mut details) =
-                        self.android_manager.get_device_details(&identifier).await
-                    {
-                        let mut state = self.state.lock().await;
-                        // Update status from current device state
-                        if let Some(device) =
-                            state.android_devices.iter().find(|d| d.name == identifier)
-                        {
-                            details.status = if device.is_running {
-                                "Running".to_string()
-                            } else {
-                                "Stopped".to_string()
-                            };
-                            details.api_level_or_version = format!(
-                                "API {} - Android {}",
-                                device.api_level,
-                                state.get_android_version_name(device.api_level)
-                            );
-                            // Update device type to display name if available
-                            if !device.device_type.is_empty() && device.device_type != "Unknown" {
-                                details.device_type = device.device_type.clone();
-                            }
-                        }
-                        state.update_cached_device_details(details);
-                    }
-                }
-                Panel::Ios => {
-                    // TODO: Implement iOS device details
-                    // For now, just use basic details
-                }
-            }
-        }
+        // スケジュールするだけで、実際の更新はバックグラウンドで実行
+        self.schedule_device_details_update().await;
     }
 
     /// Schedule device details update with delay to avoid performance issues
@@ -2881,25 +2896,25 @@ impl App {
         android_manager: AndroidManager,
         ios_manager: Option<IosManager>,
     ) {
-        let (active_panel, device_identifier, is_physical) = {
+        let (active_panel, device_identifier) = {
             let state_lock = state.lock().await;
-            let (identifier, is_physical) = match state_lock.active_panel {
+            let identifier = match state_lock.active_panel {
                 Panel::Android => state_lock
                     .android_devices
                     .get(state_lock.selected_android)
-                    .map(|d| (d.name.clone(), d.is_physical))
-                    .unwrap_or((String::new(), false)),
+                    .map(|d| d.name.clone())
+                    .unwrap_or_default(),
                 Panel::Ios => state_lock
                     .ios_devices
                     .get(state_lock.selected_ios)
-                    .map(|d| (d.udid.clone(), d.is_physical))
-                    .unwrap_or((String::new(), false)),
+                    .map(|d| d.udid.clone())
+                    .unwrap_or_default(),
             };
-            (state_lock.active_panel, identifier, is_physical)
+            (state_lock.active_panel, identifier)
         };
 
-        // Skip detail fetching for physical devices (they don't have config files)
-        if is_physical || device_identifier.is_empty() {
+        // Skip detail fetching if no device is selected
+        if device_identifier.is_empty() {
             return;
         }
 
@@ -2935,9 +2950,46 @@ impl App {
                 }
             }
             Panel::Ios => {
-                // TODO: Implement iOS device details
-                if let Some(_ios_manager) = ios_manager {
-                    // For now, just use basic details from state
+                if let Some(ios_manager) = ios_manager {
+                    if let Ok(mut details) =
+                        ios_manager.get_device_details(&device_identifier).await
+                    {
+                        // Update status from current device state
+                        let mut state_lock = state.lock().await;
+                        if let Some(device) = state_lock
+                            .ios_devices
+                            .iter()
+                            .find(|d| d.udid == device_identifier)
+                        {
+                            details.status = if device.is_running {
+                                "Booted".to_string()
+                            } else {
+                                "Shutdown".to_string()
+                            };
+
+                            // Ensure consistent runtime version display
+                            details.api_level_or_version = device.runtime_version.clone();
+                            details.runtime = Some(device.runtime_version.clone());
+
+                            // Update device type to display name if available
+                            if !device.device_type.is_empty() && device.device_type != "Unknown" {
+                                // Parse device type identifier to display name
+                                let device_type_display =
+                                    if device.device_type.contains("SimDeviceType.") {
+                                        device
+                                            .device_type
+                                            .split("SimDeviceType.")
+                                            .last()
+                                            .unwrap_or(&device.device_type)
+                                            .replace("-", " ")
+                                    } else {
+                                        device.device_type.clone()
+                                    };
+                                details.device_type = device_type_display;
+                            }
+                        }
+                        state_lock.update_cached_device_details(details);
+                    }
                 }
             }
         }

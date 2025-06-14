@@ -123,6 +123,9 @@ async fn run_tui() -> Result<()> {
     let mut stdout = io::stdout();
     // Switch to alternate screen buffer to preserve terminal history
     execute!(stdout, EnterAlternateScreen)?;
+    // Flush to ensure terminal is ready
+    use std::io::Write;
+    stdout.flush()?;
     let backend = CrosstermBackend::new(stdout);
     let terminal = Terminal::new(backend)?;
 

@@ -49,27 +49,11 @@ async fn main() -> Result<()> {
     println!("\n3. Listing existing AVDs...");
     match android_manager.list_devices().await {
         Ok(devices) => {
-            let avds: Vec<_> = devices.iter().filter(|d| !d.is_physical).collect();
-            let physical: Vec<_> = devices.iter().filter(|d| d.is_physical).collect();
-
-            if avds.is_empty() {
+            if devices.is_empty() {
                 println!("ℹ No existing AVDs found");
             } else {
-                println!("✓ Found {} existing AVDs:", avds.len());
-                for device in &avds {
-                    println!(
-                        "  - {} (API {}) - Status: {:?}",
-                        device.name, device.api_level, device.status
-                    );
-                }
-            }
-
-            println!("\n3b. Checking for physical devices...");
-            if physical.is_empty() {
-                println!("ℹ No physical devices found");
-            } else {
-                println!("✓ Found {} physical devices:", physical.len());
-                for device in &physical {
+                println!("✓ Found {} existing AVDs:", devices.len());
+                for device in &devices {
                     println!(
                         "  - {} (API {}) - Status: {:?}",
                         device.name, device.api_level, device.status
@@ -79,37 +63,6 @@ async fn main() -> Result<()> {
         }
         Err(e) => {
             eprintln!("✗ Failed to list devices: {}", e);
-        }
-    }
-
-    // Test physical device detection directly
-    println!("\n3c. Testing direct physical device detection...");
-    match android_manager.list_physical_devices().await {
-        Ok(physical_devices) => {
-            if physical_devices.is_empty() {
-                println!("ℹ No physical devices detected directly");
-            } else {
-                println!(
-                    "✓ Found {} physical devices directly:",
-                    physical_devices.len()
-                );
-                for device in &physical_devices {
-                    println!(
-                        "  - {} [{}] (API {}) - Type: {}",
-                        device.name,
-                        if device.is_physical {
-                            "Physical"
-                        } else {
-                            "Virtual"
-                        },
-                        device.api_level,
-                        device.device_type
-                    );
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("✗ Failed to list physical devices directly: {}", e);
         }
     }
 

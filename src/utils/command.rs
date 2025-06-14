@@ -176,15 +176,44 @@ impl CommandRunner {
         I: IntoIterator<Item = A>,
         A: AsRef<OsStr>,
     {
-        let child = Command::new(program)
-            .args(args)
+        let program_ref = program.as_ref();
+        let args_vec: Vec<_> = args
+            .into_iter()
+            .map(|a| a.as_ref().to_os_string())
+            .collect();
+
+        // デバッグログの追加
+        if self.debug_mode {
+            let command_str = std::iter::once(program_ref.to_string_lossy())
+                .chain(args_vec.iter().map(|arg| arg.to_string_lossy()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            log::debug!("[SPAWN] Executing: {}", command_str);
+        }
+
+        let child = Command::new(program_ref)
+            .args(&args_vec)
             .stdout(std::process::Stdio::null()) // Suppress stdout output
             .stderr(std::process::Stdio::null()) // Suppress stderr output
             .stdin(std::process::Stdio::null()) // No stdin needed
             .spawn()
-            .context("Failed to spawn command")?;
+            .context(format!(
+                "Failed to spawn command: {} {}",
+                program_ref.to_string_lossy(),
+                args_vec
+                    .iter()
+                    .map(|a| a.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ))?;
 
-        Ok(child.id().unwrap_or(0))
+        let pid = child.id().unwrap_or(0);
+
+        if self.debug_mode {
+            log::debug!("[SPAWN] Command spawned with PID: {}", pid);
+        }
+
+        Ok(pid)
     }
 
     /// Runs a command with input provided to stdin.
