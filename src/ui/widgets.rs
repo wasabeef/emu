@@ -437,3 +437,16 @@ pub fn create_help_text() -> Vec<Line<'static>> {
         ]),
     ]
 }
+
+/// Returns an animated moon emoji based on the current time.
+/// The moon cycles through different phases to create a loading animation.
+pub fn get_animated_moon() -> &'static str {
+    let elapsed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+
+    let moon_phases = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+    let index = ((elapsed / 200) % moon_phases.len() as u128) as usize;
+    moon_phases[index]
+}

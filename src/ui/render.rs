@@ -5,7 +5,7 @@ use crate::{
         state::{CreateDeviceField, NotificationType},
         AppState, Panel,
     },
-    ui::Theme,
+    ui::{widgets::get_animated_moon, Theme},
 };
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -659,11 +659,11 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
     };
 
     if form.is_creating {
-        // Show creation progress
+        // Show creation progress with moon animation
         let progress_msg = if let Some(ref status) = form.creation_status {
-            status.clone()
+            format!("{} {}", get_animated_moon(), status)
         } else {
-            "Creating device... Please wait...".to_string()
+            format!("{} Creating device... Please wait...", get_animated_moon())
         };
 
         let creating_msg = Paragraph::new(progress_msg)
@@ -675,9 +675,12 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
             .alignment(Alignment::Center);
         frame.render_widget(creating_msg, msg_chunk);
     } else if form.is_loading_cache && form.available_device_types.is_empty() {
-        let loading_msg = Paragraph::new("Loading device information...")
-            .style(Style::default().fg(theme.primary))
-            .alignment(Alignment::Center);
+        let loading_msg = Paragraph::new(format!(
+            "{} Loading device information...",
+            get_animated_moon()
+        ))
+        .style(Style::default().fg(theme.primary))
+        .alignment(Alignment::Center);
         frame.render_widget(loading_msg, msg_chunk);
     } else if let Some(error) = &form.error_message {
         let error_msg = Paragraph::new(error.as_str())
@@ -1119,13 +1122,7 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
 fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _theme: &Theme) {
     let device_text = match state.mode {
         crate::app::Mode::Normal => {
-            if state.is_loading {
-                "⏳ Loading devices..."
-            } else if let Some(ref operation) = state.device_operation_status {
-                &format!("⏳ {}", operation)
-            } else {
-                "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe"
-            }
+            "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe"
         }
         _ => "",
     };
@@ -1141,19 +1138,37 @@ fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _them
     frame.render_widget(device_commands, area);
 }
 
-fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, _theme: &Theme) {
-    let log_text = match state.mode {
-        crate::app::Mode::Normal => "🗑️ [Shift+L]clear logs  🔍 [f]ilter  🖥️ [Shift+F]ullscreen",
-        _ => "",
+fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
+    let (log_text, style) = match state.mode {
+        crate::app::Mode::Normal => {
+            if state.is_loading {
+                (
+                    format!("{} Loading devices...", get_animated_moon()),
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else if let Some(ref operation) = state.device_operation_status {
+                (
+                    format!("{} {}...", get_animated_moon(), operation),
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                (
+                    "🗑️ [Shift+L]clear logs  🔍 [f]ilter  🖥️ [Shift+F]ullscreen".to_string(),
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::DIM),
+                )
+            }
+        }
+        _ => ("".to_string(), Style::default()),
     };
 
-    // Log commands without borders, smaller and dimmer text, centered
     let log_commands = Paragraph::new(log_text)
-        .style(
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::DIM),
-        )
+        .style(style)
         .alignment(Alignment::Center);
     frame.render_widget(log_commands, area);
 }
