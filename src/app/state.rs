@@ -751,6 +751,70 @@ impl AppState {
         }
     }
 
+    /// Moves device selection by a specified number of steps.
+    /// Positive steps move down/right, negative steps move up/left.
+    /// Handles wrapping at list boundaries.
+    pub fn move_by_steps(&mut self, steps: i32) {
+        if steps == 0 {
+            return;
+        }
+
+        match self.active_panel {
+            Panel::Android => {
+                let device_count = self.android_devices.len();
+                if device_count == 0 {
+                    return;
+                }
+
+                // Calculate new position with wrapping
+                let current = self.selected_android as i32;
+                let new_pos = if steps > 0 {
+                    // Moving down
+                    let raw_pos = current + steps;
+                    (raw_pos % device_count as i32) as usize
+                } else {
+                    // Moving up
+                    let raw_pos = current + steps;
+                    if raw_pos < 0 {
+                        let wrapped = device_count as i32 + (raw_pos % device_count as i32);
+                        (wrapped % device_count as i32) as usize
+                    } else {
+                        raw_pos as usize
+                    }
+                };
+
+                self.selected_android = new_pos;
+                self.update_android_scroll_offset();
+            }
+            Panel::Ios => {
+                let device_count = self.ios_devices.len();
+                if device_count == 0 {
+                    return;
+                }
+
+                // Calculate new position with wrapping
+                let current = self.selected_ios as i32;
+                let new_pos = if steps > 0 {
+                    // Moving down
+                    let raw_pos = current + steps;
+                    (raw_pos % device_count as i32) as usize
+                } else {
+                    // Moving up
+                    let raw_pos = current + steps;
+                    if raw_pos < 0 {
+                        let wrapped = device_count as i32 + (raw_pos % device_count as i32);
+                        (wrapped % device_count as i32) as usize
+                    } else {
+                        raw_pos as usize
+                    }
+                };
+
+                self.selected_ios = new_pos;
+                self.update_ios_scroll_offset();
+            }
+        }
+    }
+
     /// Helper method to update Android scroll offset.
     /// Currently empty as scroll offset is calculated dynamically during rendering.
     fn update_android_scroll_offset(&mut self) {

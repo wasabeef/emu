@@ -12,6 +12,12 @@ pub mod events;
 /// Application state management and data structures.
 pub mod state;
 
+/// Application constants for performance and configuration.
+pub mod constants;
+
+/// Event processing optimizations for improved key input handling.
+pub mod event_processing;
+
 use crate::{
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
@@ -25,6 +31,9 @@ use std::{sync::Arc, time::Duration};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
+
+use self::constants::performance::*;
+use self::event_processing::EventBatcher;
 
 // Re-export commonly used types from the state module
 pub use self::state::{AppState, FocusedPanel, Mode, Panel};
@@ -146,6 +155,10 @@ impl App {
         const NOTIFICATION_CHECK_INTERVAL: Duration = Duration::from_millis(500);
         let mut last_notification_check = std::time::Instant::now();
 
+        // Initialize event batcher for improved input handling
+        let mut event_batcher = EventBatcher::new(MAX_EVENTS_PER_FRAME);
+        let mut last_frame = std::time::Instant::now();
+
         loop {
             // Check for auto-refresh less frequently (skip if initial loading)
             if last_auto_refresh_check.elapsed() >= AUTO_REFRESH_CHECK_INTERVAL {
@@ -174,8 +187,20 @@ impl App {
             terminal.draw(|f| ui::render::draw_app(f, &mut state, &ui::Theme::dark()))?;
             drop(state);
 
-            if event::poll(Duration::from_millis(100))? {
-                if let CrosstermEvent::Key(key) = event::read()? {
+            // Collect events for this frame
+            let _poll_timeout = FRAME_DURATION.saturating_sub(last_frame.elapsed());
+
+            // Collect all available events up to the batch limit
+            while event::poll(Duration::from_millis(0))? {
+                if let Ok(event) = event::read() {
+                    event_batcher.add_event(event);
+                }
+            }
+
+            // Process batched events
+            let events = event_batcher.take_batch();
+            for event in events {
+                if let CrosstermEvent::Key(key) = event {
                     let mut state = self.state.lock().await;
 
                     match state.mode {
@@ -826,6 +851,12 @@ impl App {
                     }
                 }
             }
+
+            // Maintain frame rate
+            if last_frame.elapsed() < FRAME_DURATION {
+                tokio::time::sleep(FRAME_DURATION - last_frame.elapsed()).await;
+            }
+            last_frame = std::time::Instant::now();
         }
     }
 
