@@ -151,6 +151,9 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
         crate::app::Mode::ConfirmWipe => {
             render_confirm_wipe_dialog(frame, state, theme);
         }
+        crate::app::Mode::ManageApiLevels => {
+            render_api_level_dialog(frame, state, theme);
+        }
         _ => {}
     }
 
@@ -1122,7 +1125,7 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
 fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _theme: &Theme) {
     let device_text = match state.mode {
         crate::app::Mode::Normal => {
-            "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe"
+            "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe  📦 [i]nstall"
         }
         _ => "",
     };
@@ -1171,4 +1174,250 @@ fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &
         .style(style)
         .alignment(Alignment::Center);
     frame.render_widget(log_commands, area);
+}
+
+fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
+    let size = frame.area();
+
+    // Get API level management state
+    let api_mgmt = match &state.api_level_management {
+        Some(mgmt) => mgmt,
+        None => return,
+    };
+
+    // Calculate dialog dimensions (larger to prevent content being cut off)
+    let dialog_width = 90.min(size.width - 2);
+    let dialog_height = 26.min(size.height - 2);
+
+    let dialog_area = Rect {
+        x: (size.width - dialog_width) / 2,
+        y: (size.height - dialog_height) / 2,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Clear background
+    frame.render_widget(Clear, dialog_area);
+
+    // Dialog border with statistics
+    let installed_count = api_mgmt
+        .api_levels
+        .iter()
+        .filter(|api| api.is_installed)
+        .count();
+    let total_count = api_mgmt.api_levels.len();
+    let title = format!(
+        "📦 Android System Images ({}/{} installed)",
+        installed_count, total_count
+    );
+
+    let dialog_block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.primary));
+
+    let inner_area = dialog_block.inner(dialog_area);
+    frame.render_widget(dialog_block, dialog_area);
+
+    // Layout for content with proper spacing (similar to create device dialog)
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Top margin
+            Constraint::Length(2), // Instructions
+            Constraint::Min(15),   // API level list (bigger area)
+            Constraint::Length(3), // Progress/error/status area
+            Constraint::Length(1), // Shortcuts
+        ])
+        .split(inner_area);
+
+    // Skip chunks[0] for top margin
+
+    // Instructions with better formatting
+    let instruction_text = "✅ Green = Installed  📦 Gray = Available  Select and press Enter/d";
+    let instructions = Paragraph::new(instruction_text)
+        .style(Style::default().fg(theme.text))
+        .alignment(Alignment::Center);
+    frame.render_widget(instructions, chunks[1]);
+
+    // API level list - always show list area, even if empty or loading
+    if api_mgmt.api_levels.is_empty() {
+        let empty_msg = if api_mgmt.is_loading {
+            // Don't show anything in the list area while loading, status shown below
+            ""
+        } else {
+            "No API levels found. Please check your Android SDK installation."
+        };
+
+        let empty_widget = Paragraph::new(empty_msg)
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.text)),
+            );
+        frame.render_widget(empty_widget, chunks[2]);
+    } else {
+        // Calculate visible range for scrolling
+        let available_height = chunks[2].height.saturating_sub(2) as usize; // Subtract borders
+        let total_items = api_mgmt.api_levels.len();
+
+        // Calculate scroll offset to keep selected item visible
+        let scroll_offset = api_mgmt.get_scroll_offset(available_height);
+
+        // Get visible items
+        let visible_items: Vec<_> = api_mgmt
+            .api_levels
+            .iter()
+            .enumerate()
+            .skip(scroll_offset)
+            .take(available_height)
+            .collect();
+
+        // Create list items
+        let items: Vec<ListItem> = visible_items
+            .into_iter()
+            .map(|(i, api)| {
+                let selected = i == api_mgmt.selected_index;
+
+                // Status icon only (no text needed)
+                let status_icon = if api.is_installed { "✅" } else { "📦" };
+
+                // Show recommended variant info
+                let variant_info = if let Some(variant) = api.get_recommended_variant() {
+                    format!(" - {}", variant.display_name)
+                } else {
+                    String::new()
+                };
+
+                let text = format!("{} {}{}", status_icon, api.display_name, variant_info);
+
+                let style = if selected {
+                    // Selected item: use theme primary background with contrasting text
+                    if api.is_installed {
+                        Style::default()
+                            .bg(theme.primary)
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                            .bg(theme.primary)
+                            .fg(Color::Black)
+                            .add_modifier(Modifier::BOLD)
+                    }
+                } else {
+                    // Non-selected items: use color coding
+                    if api.is_installed {
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    }
+                };
+
+                ListItem::new(text).style(style)
+            })
+            .collect();
+
+        // Add scroll indicators to title if needed
+        let list_title = if total_items > available_height {
+            let position_info = format!("{}/{}", api_mgmt.selected_index + 1, total_items);
+            let scroll_indicator =
+                if scroll_offset > 0 && scroll_offset + available_height < total_items {
+                    " [↕]" // Can scroll both ways
+                } else if scroll_offset > 0 {
+                    " [↑]" // Can scroll up
+                } else if scroll_offset + available_height < total_items {
+                    " [↓]" // Can scroll down
+                } else {
+                    ""
+                };
+            format!("API Levels ({}){}", position_info, scroll_indicator)
+        } else {
+            format!("API Levels ({})", total_items)
+        };
+
+        let list = List::new(items).block(
+            Block::default()
+                .title(list_title)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.text)),
+        );
+        frame.render_widget(list, chunks[2]);
+    }
+
+    // Status display (similar to create device dialog)
+    if api_mgmt.is_loading {
+        let loading_msg = Paragraph::new(format!("{} Loading API levels...", get_animated_moon()))
+            .style(
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(Alignment::Center);
+        frame.render_widget(loading_msg, chunks[3]);
+    } else if let Some(ref progress) = api_mgmt.install_progress {
+        let (progress_text, color) = if progress.percentage >= 100 {
+            (
+                "✅ Installation completed successfully!".to_string(),
+                Color::Green,
+            )
+        } else {
+            (
+                format!(
+                    "{} {} - {}%",
+                    get_animated_moon(),
+                    progress.operation,
+                    progress.percentage
+                ),
+                Color::Yellow,
+            )
+        };
+
+        let progress_widget = Paragraph::new(progress_text)
+            .style(Style::default().fg(color).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Center);
+        frame.render_widget(progress_widget, chunks[3]);
+    } else if let Some(ref package) = api_mgmt.installing_package {
+        let installing_msg =
+            Paragraph::new(format!("{} Processing: {}", get_animated_moon(), package))
+                .style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .alignment(Alignment::Center);
+        frame.render_widget(installing_msg, chunks[3]);
+    } else if let Some(ref error) = api_mgmt.error_message {
+        let error_widget = Paragraph::new(error.as_str())
+            .style(Style::default().fg(Color::Red))
+            .alignment(Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true });
+        frame.render_widget(error_widget, chunks[3]);
+    }
+
+    // Shortcuts at the bottom - dynamic based on selected item
+    let shortcuts = if api_mgmt.install_progress.is_some() || api_mgmt.installing_package.is_some()
+    {
+        "⏳ Processing... Please wait..."
+    } else if let Some(selected_api) = api_mgmt.get_selected_api_level() {
+        if selected_api.is_installed {
+            "[↑/↓/j/k] Navigate  [d] Uninstall Selected  [Esc] Cancel"
+        } else {
+            "[↑/↓/j/k] Navigate  [Enter] Install Selected  [Esc] Cancel"
+        }
+    } else {
+        "[↑/↓/j/k] Navigate  [Enter] Install  [d] Uninstall  [Esc] Cancel"
+    };
+    let shortcuts_widget = Paragraph::new(shortcuts)
+        .style(
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::DIM),
+        )
+        .alignment(Alignment::Center);
+    frame.render_widget(shortcuts_widget, chunks[4]);
 }

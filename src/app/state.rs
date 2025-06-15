@@ -12,7 +12,7 @@
 //! Background operations use async tasks with proper synchronization through RwLock.
 
 use crate::models::device_info::DynamicDeviceConfig;
-use crate::models::{AndroidDevice, IosDevice};
+use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -60,6 +60,8 @@ pub enum Mode {
     ConfirmDelete,
     /// Wipe data confirmation dialog is active
     ConfirmWipe,
+    /// API level management dialog is active
+    ManageApiLevels,
     /// Help screen is displayed
     Help,
 }
@@ -199,6 +201,20 @@ impl DeviceCache {
         self.ios_runtimes = runtimes;
         self.last_updated = std::time::Instant::now();
         self.is_loading = false;
+    }
+
+    /// Invalidates the Android cache by clearing API levels and marking as stale.
+    /// This forces a cache refresh on the next device creation.
+    pub fn invalidate_android_cache(&mut self) {
+        self.android_api_levels.clear();
+        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
+    }
+
+    /// Invalidates the iOS cache by clearing runtimes and marking as stale.
+    /// This forces a cache refresh on the next device creation.
+    pub fn invalidate_ios_cache(&mut self) {
+        self.ios_runtimes.clear();
+        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
     }
 }
 
@@ -351,6 +367,8 @@ pub struct AppState {
     pub android_scroll_offset: usize,
     /// Scroll offset for iOS device list
     pub ios_scroll_offset: usize,
+    /// API level management dialog state (when dialog is open)
+    pub api_level_management: Option<ApiLevelManagementState>,
 }
 
 impl Default for CreateDeviceForm {
@@ -671,6 +689,7 @@ impl Default for AppState {
             cached_device_details: None,
             android_scroll_offset: 0,
             ios_scroll_offset: 0,
+            api_level_management: None,
         }
     }
 }
@@ -1300,5 +1319,84 @@ impl AppState {
             }
             Panel::Ios => !cache.ios_device_types.is_empty() && !cache.ios_runtimes.is_empty(),
         }
+    }
+}
+
+/// State for API level management dialog.
+#[derive(Debug, Clone)]
+pub struct ApiLevelManagementState {
+    /// List of available API levels
+    pub api_levels: Vec<ApiLevel>,
+    /// Currently selected API level index
+    pub selected_index: usize,
+    /// Whether data is being loaded
+    pub is_loading: bool,
+    /// Current installation progress
+    pub install_progress: Option<InstallProgress>,
+    /// Package ID being installed/uninstalled
+    pub installing_package: Option<String>,
+    /// Error message to display
+    pub error_message: Option<String>,
+    /// Scroll offset for the API level list
+    pub scroll_offset: usize,
+}
+
+impl Default for ApiLevelManagementState {
+    fn default() -> Self {
+        Self {
+            api_levels: Vec::new(),
+            selected_index: 0,
+            is_loading: true,
+            install_progress: None,
+            installing_package: None,
+            error_message: None,
+            scroll_offset: 0,
+        }
+    }
+}
+
+impl ApiLevelManagementState {
+    /// Creates a new API level management state.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Moves selection up.
+    pub fn move_up(&mut self) {
+        if !self.api_levels.is_empty() {
+            if self.selected_index == 0 {
+                self.selected_index = self.api_levels.len() - 1;
+            } else {
+                self.selected_index -= 1;
+            }
+        }
+    }
+
+    /// Moves selection down.
+    pub fn move_down(&mut self) {
+        if !self.api_levels.is_empty() {
+            self.selected_index = (self.selected_index + 1) % self.api_levels.len();
+        }
+    }
+
+    /// Gets the currently selected API level.
+    pub fn get_selected_api_level(&self) -> Option<&ApiLevel> {
+        self.api_levels.get(self.selected_index)
+    }
+
+    /// Calculates scroll offset to keep selected item visible.
+    pub fn get_scroll_offset(&self, available_height: usize) -> usize {
+        if self.api_levels.is_empty() || available_height == 0 {
+            return 0;
+        }
+
+        let total_items = self.api_levels.len();
+        let selected = self.selected_index;
+
+        // Keep selected item in the middle of the visible area when possible
+        let preferred_offset = selected.saturating_sub(available_height / 2);
+        let max_offset = total_items.saturating_sub(available_height);
+
+        preferred_offset.min(max_offset)
     }
 }

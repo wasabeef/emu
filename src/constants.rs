@@ -242,7 +242,24 @@ pub mod avdmanager_args {
 /// Android packages and system image configurations
 pub mod android_packages {
     pub const DEFAULT_TAG: &str = "google_apis_playstore";
-    pub const DEFAULT_ABI: &str = "arm64-v8a";
+
+    /// Returns the default ABI based on the host architecture
+    pub fn default_abi() -> &'static str {
+        #[cfg(target_arch = "x86_64")]
+        {
+            "x86_64"
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            "arm64-v8a"
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        {
+            // Default to x86_64 for other architectures
+            "x86_64"
+        }
+    }
+
     pub const GOOGLE_APIS_TAG: &str = "google_apis";
     pub const SYSTEM_IMAGE_FORMAT: &str = "system-images;android-{};{};{}";
     pub const SYSTEM_IMAGES_PREFIX: &str = "system-images/android-";

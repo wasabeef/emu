@@ -36,7 +36,7 @@ use self::constants::performance::*;
 use self::event_processing::EventBatcher;
 
 // Re-export commonly used types from the state module
-pub use self::state::{AppState, FocusedPanel, Mode, Panel};
+pub use self::state::{ApiLevelManagementState, AppState, FocusedPanel, Mode, Panel};
 
 /// Main application controller that coordinates all components.
 ///
@@ -406,10 +406,23 @@ impl App {
                                                                 state_clone.lock().await;
                                                             state
                                                                 .create_device_form
-                                                                .available_versions = targets;
+                                                                .available_versions =
+                                                                targets.clone();
                                                             state
                                                                 .create_device_form
-                                                                .available_device_types = devices;
+                                                                .available_device_types =
+                                                                devices.clone();
+
+                                                            // Update cache with the fetched data
+                                                            {
+                                                                let mut cache = state
+                                                                    .device_cache
+                                                                    .write()
+                                                                    .await;
+                                                                cache.update_android_cache(
+                                                                    devices, targets,
+                                                                );
+                                                            }
 
                                                             // Set defaults if not empty
                                                             if !state
@@ -474,10 +487,23 @@ impl App {
                                                                 state
                                                                     .create_device_form
                                                                     .available_device_types =
-                                                                    device_types;
+                                                                    device_types.clone();
                                                                 state
                                                                     .create_device_form
-                                                                    .available_versions = runtimes;
+                                                                    .available_versions =
+                                                                    runtimes.clone();
+
+                                                                // Update cache with the fetched data
+                                                                {
+                                                                    let mut cache = state
+                                                                        .device_cache
+                                                                        .write()
+                                                                        .await;
+                                                                    cache.update_ios_cache(
+                                                                        device_types,
+                                                                        runtimes,
+                                                                    );
+                                                                }
 
                                                                 // Set defaults if not empty
                                                                 if !state
@@ -592,6 +618,32 @@ impl App {
                                         device_identifier: device_id,
                                         platform: state.active_panel,
                                     });
+                                }
+                                KeyCode::Char('i') => {
+                                    // i: Install API level (Android only)
+                                    if state.active_panel == Panel::Android {
+                                        state.mode = Mode::ManageApiLevels;
+                                        state.api_level_management =
+                                            Some(state::ApiLevelManagementState::new());
+
+                                        // Load API levels in background
+                                        let android_manager = self.android_manager.clone();
+                                        let state_clone = self.state.clone();
+
+                                        tokio::spawn(async move {
+                                            if let Ok(api_levels) =
+                                                android_manager.list_api_levels().await
+                                            {
+                                                let mut state = state_clone.lock().await;
+                                                if let Some(ref mut api_state) =
+                                                    state.api_level_management
+                                                {
+                                                    api_state.api_levels = api_levels;
+                                                    api_state.is_loading = false;
+                                                }
+                                            }
+                                        });
+                                    }
                                 }
                                 _ => {}
                             }
@@ -842,6 +894,233 @@ impl App {
                             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                                 state.mode = Mode::Normal;
                                 state.confirm_wipe_dialog = None;
+                            }
+                            _ => {}
+                        },
+                        Mode::ManageApiLevels => match key.code {
+                            KeyCode::Esc => {
+                                // Only allow closing if not currently installing/uninstalling
+                                if let Some(ref api_mgmt) = state.api_level_management {
+                                    if api_mgmt.install_progress.is_none()
+                                        && api_mgmt.installing_package.is_none()
+                                    {
+                                        state.mode = Mode::Normal;
+                                        state.api_level_management = None;
+                                    }
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if let Some(ref mut api_state) = state.api_level_management {
+                                    api_state.move_up();
+                                }
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if let Some(ref mut api_state) = state.api_level_management {
+                                    api_state.move_down();
+                                }
+                            }
+                            KeyCode::Enter => {
+                                // Enter key - Install only
+                                if let Some(ref api_state) = state.api_level_management {
+                                    if let Some(api_level) = api_state.get_selected_api_level() {
+                                        if let Some(variant) = api_level.get_recommended_variant() {
+                                            if !variant.is_installed {
+                                                let package_id = variant.package_id.clone();
+
+                                                // Set installing package indicator
+                                                if let Some(ref mut api_mgmt) =
+                                                    state.api_level_management
+                                                {
+                                                    api_mgmt.installing_package =
+                                                        Some(package_id.clone());
+                                                    api_mgmt.error_message = None;
+                                                }
+
+                                                let android_manager = self.android_manager.clone();
+                                                let state_clone = self.state.clone();
+                                                let state_clone_for_progress = state_clone.clone();
+
+                                                tokio::spawn(async move {
+                                                    let result = android_manager
+                                                        .install_system_image(
+                                                            &package_id,
+                                                            move |progress| {
+                                                                let state_clone =
+                                                                    state_clone_for_progress
+                                                                        .clone();
+                                                                tokio::spawn(async move {
+                                                                    let mut state =
+                                                                        state_clone.lock().await;
+                                                                    if let Some(ref mut api_mgmt) =
+                                                                        state.api_level_management
+                                                                    {
+                                                                        api_mgmt.install_progress =
+                                                                            Some(progress);
+                                                                    }
+                                                                });
+                                                            },
+                                                        )
+                                                        .await;
+
+                                                    // Small delay to ensure final progress update is shown
+                                                    tokio::time::sleep(
+                                                        tokio::time::Duration::from_millis(500),
+                                                    )
+                                                    .await;
+
+                                                    let mut state = state_clone.lock().await;
+                                                    if let Some(ref mut api_mgmt) =
+                                                        state.api_level_management
+                                                    {
+                                                        api_mgmt.installing_package = None;
+                                                        api_mgmt.install_progress = None;
+                                                    }
+
+                                                    if let Err(e) = result {
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.error_message = Some(format!(
+                                                                "Failed to install: {}",
+                                                                e
+                                                            ));
+                                                        }
+                                                    } else {
+                                                        state.add_success_notification(
+                                                            "System image installed successfully"
+                                                                .to_string(),
+                                                        );
+                                                        // Invalidate device creation cache to ensure new API levels appear
+                                                        {
+                                                            let mut cache =
+                                                                state.device_cache.write().await;
+                                                            cache.invalidate_android_cache();
+                                                        }
+
+                                                        // Refresh API levels list to show new installation status
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.is_loading = true;
+                                                        }
+
+                                                        // Trigger background refresh
+                                                        let android_manager_refresh =
+                                                            android_manager.clone();
+                                                        let state_refresh = state_clone.clone();
+                                                        tokio::spawn(async move {
+                                                            if let Ok(new_levels) =
+                                                                android_manager_refresh
+                                                                    .list_api_levels()
+                                                                    .await
+                                                            {
+                                                                let mut state =
+                                                                    state_refresh.lock().await;
+                                                                if let Some(ref mut api_mgmt) =
+                                                                    state.api_level_management
+                                                                {
+                                                                    api_mgmt.api_levels =
+                                                                        new_levels;
+                                                                    api_mgmt.is_loading = false;
+                                                                }
+                                                            }
+                                                        });
+                                                        // Don't auto-close dialog - user should close manually
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            KeyCode::Char('d') => {
+                                // 'd' key - Uninstall only
+                                if let Some(ref api_state) = state.api_level_management {
+                                    if let Some(api_level) = api_state.get_selected_api_level() {
+                                        if let Some(variant) = api_level.get_recommended_variant() {
+                                            if variant.is_installed {
+                                                let package_id = variant.package_id.clone();
+
+                                                // Set installing package indicator
+                                                if let Some(ref mut api_mgmt) =
+                                                    state.api_level_management
+                                                {
+                                                    api_mgmt.installing_package =
+                                                        Some(package_id.clone());
+                                                    api_mgmt.error_message = None;
+                                                }
+
+                                                let android_manager = self.android_manager.clone();
+                                                let state_clone = self.state.clone();
+
+                                                tokio::spawn(async move {
+                                                    if let Err(e) = android_manager
+                                                        .uninstall_system_image(&package_id)
+                                                        .await
+                                                    {
+                                                        let mut state = state_clone.lock().await;
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.installing_package = None;
+                                                            api_mgmt.error_message = Some(format!(
+                                                                "Failed to uninstall: {}",
+                                                                e
+                                                            ));
+                                                        }
+                                                    } else {
+                                                        let mut state = state_clone.lock().await;
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.installing_package = None;
+                                                        }
+                                                        state.add_success_notification(
+                                                            "System image uninstalled successfully"
+                                                                .to_string(),
+                                                        );
+                                                        // Invalidate device creation cache to ensure updated API levels appear
+                                                        {
+                                                            let mut cache =
+                                                                state.device_cache.write().await;
+                                                            cache.invalidate_android_cache();
+                                                        }
+
+                                                        // Refresh API levels list to show new installation status
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.is_loading = true;
+                                                        }
+
+                                                        // Trigger background refresh for uninstall
+                                                        let android_manager_refresh =
+                                                            android_manager.clone();
+                                                        let state_refresh = state_clone.clone();
+                                                        tokio::spawn(async move {
+                                                            if let Ok(new_levels) =
+                                                                android_manager_refresh
+                                                                    .list_api_levels()
+                                                                    .await
+                                                            {
+                                                                let mut state =
+                                                                    state_refresh.lock().await;
+                                                                if let Some(ref mut api_mgmt) =
+                                                                    state.api_level_management
+                                                                {
+                                                                    api_mgmt.api_levels =
+                                                                        new_levels;
+                                                                    api_mgmt.is_loading = false;
+                                                                }
+                                                            }
+                                                        });
+                                                        // Don't auto-close dialog - user should close manually
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             _ => {}
                         },

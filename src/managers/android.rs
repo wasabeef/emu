@@ -340,7 +340,7 @@ pub struct AndroidManager {
     /// Command runner for executing Android SDK tools
     command_runner: CommandRunner,
     /// Path to Android SDK home directory (from ANDROID_HOME or ANDROID_SDK_ROOT)
-    _android_home: PathBuf,
+    android_home: PathBuf,
     /// Path to avdmanager executable
     avdmanager_path: PathBuf,
     /// Path to emulator executable
@@ -368,7 +368,7 @@ impl AndroidManager {
 
         Ok(Self {
             command_runner: CommandRunner::new(),
-            _android_home: android_home,
+            android_home,
             avdmanager_path,
             emulator_path,
         })
@@ -816,7 +816,7 @@ impl AndroidManager {
     pub async fn list_available_system_images(&self) -> Result<Vec<String>> {
         let mut images = Vec::new();
 
-        if let Ok(sdkmanager_path) = Self::find_tool(&self._android_home, "sdkmanager") {
+        if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
             let output = self
                 .command_runner
                 .run(
@@ -1100,7 +1100,7 @@ impl AndroidManager {
                     // Fall back to hardcoded values
                     self.get_android_version_name(device.api_level)
                 };
-                format!("API {} (Android {})", device.api_level, version_name)
+                format!("API {} ({})", device.api_level, version_name)
             },
             ram_size: None,
             storage_size: None,
@@ -1192,36 +1192,33 @@ impl AndroidManager {
         Ok(details)
     }
 
-    /// Get Android version name from API level (with dynamic lookup fallback)
+    /// Get Android version name from API level (with accurate mapping)
     fn get_android_version_name(&self, api_level: u32) -> String {
-        // First try to get from cached/hardcoded values for performance
-        let hardcoded = match api_level {
-            36 => "16".to_string(),
-            35 => "15".to_string(),
-            34 => "14".to_string(),
-            33 => "13".to_string(),
-            32 => "12L".to_string(),
-            31 => "12".to_string(),
-            30 => "11".to_string(),
-            29 => "10".to_string(),
-            28 => "9".to_string(),
-            27 => "8.1".to_string(),
-            26 => "8.0".to_string(),
-            25 => "7.1".to_string(),
-            24 => "7.0".to_string(),
-            23 => "6.0".to_string(),
-            22 => "5.1".to_string(),
-            21 => "5.0".to_string(),
-            _ => "".to_string(),
-        };
-
-        if !hardcoded.is_empty() {
-            return hardcoded;
+        match api_level {
+            35 => "Android 15".to_string(),
+            34 => "Android 14".to_string(),
+            33 => "Android 13".to_string(),
+            32 => "Android 12L".to_string(), // Fixed: was showing "Android 32"
+            31 => "Android 12".to_string(),
+            30 => "Android 11".to_string(),
+            29 => "Android 10".to_string(),
+            28 => "Android 9".to_string(),
+            27 => "Android 8.1".to_string(),
+            26 => "Android 8.0".to_string(),
+            25 => "Android 7.1".to_string(),
+            24 => "Android 7.0".to_string(),
+            23 => "Android 6.0".to_string(),
+            22 => "Android 5.1".to_string(),
+            21 => "Android 5.0".to_string(),
+            20 => "Android 4.4W".to_string(),
+            19 => "Android 4.4".to_string(),
+            18 => "Android 4.3".to_string(),
+            17 => "Android 4.2".to_string(),
+            16 => "Android 4.1".to_string(),
+            15 => "Android 4.0.3".to_string(),
+            14 => "Android 4.0".to_string(),
+            _ => format!("Android {}", api_level),
         }
-
-        // For unknown API levels, we could implement dynamic lookup via sdkmanager
-        // but for now return a generic format
-        format!("API {}", api_level)
     }
 
     /// Get Android version name from SDK dynamically
@@ -1241,7 +1238,7 @@ impl AndroidManager {
         }
 
         // Try to parse from sdkmanager output
-        if let Ok(sdkmanager_path) = Self::find_tool(&self._android_home, "sdkmanager") {
+        if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
             if let Ok(output) = self.command_runner.run(&sdkmanager_path, &["--list"]).await {
                 // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
                 let pattern = format!(
@@ -1579,7 +1576,10 @@ impl AndroidManager {
         {
             (found_tag, found_abi)
         } else {
-            ("google_apis_playstore".to_string(), "arm64-v8a".to_string())
+            (
+                "google_apis_playstore".to_string(),
+                crate::constants::android_packages::default_abi().to_string(),
+            )
         };
 
         let package_path = format!("system-images;android-{};{};{}", config.version, tag, abi);
@@ -2125,7 +2125,9 @@ impl DeviceManager for AndroidManager {
             let default_abi = config
                 .additional_options
                 .get("abi")
-                .map_or("arm64-v8a", |s| s.as_str());
+                .map_or(crate::constants::android_packages::default_abi(), |s| {
+                    s.as_str()
+                });
             (default_tag.to_string(), default_abi.to_string())
         };
 
@@ -2402,5 +2404,326 @@ impl DeviceManager for AndroidManager {
     async fn is_available(&self) -> bool {
         // Availability is determined by `new()` succeeding (tools found).
         true
+    }
+}
+
+impl AndroidManager {
+    /// Lists available API levels with their installation status and Android version names.
+    /// Returns a comprehensive list of system images with accurate version mapping.
+    pub async fn list_api_levels(&self) -> Result<Vec<crate::models::ApiLevel>> {
+        use crate::models::{ApiLevel, SystemImageVariant};
+
+        // Get all available system images from SDK
+        let sdkmanager_path = Self::find_tool(&self.android_home, "sdkmanager")?;
+        let output = tokio::process::Command::new(&sdkmanager_path)
+            .args(["--list", "--verbose"])
+            .output()
+            .await?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to list system images: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let mut api_levels_map: std::collections::HashMap<u32, ApiLevel> =
+            std::collections::HashMap::new();
+
+        // Track which section we're in and parse system images
+        let mut in_installed_section = false;
+        let mut found_system_images = false;
+
+        for line in output_str.lines() {
+            let line = line.trim();
+
+            // Track sections - use more flexible matching
+            if line.contains("Installed packages") || line.contains("Installed Packages") {
+                in_installed_section = true;
+                continue;
+            } else if line.contains("Available Packages") || line.contains("Available Updates") {
+                in_installed_section = false;
+                continue;
+            }
+
+            // Parse system image lines
+            if line.starts_with("system-images;android-") {
+                found_system_images = true;
+
+                // Extract package ID (first column before whitespace)
+                let package_id = line.split_whitespace().next().unwrap_or(line);
+
+                if let Some(api_level) = self.parse_api_level_from_package(package_id) {
+                    let is_installed = in_installed_section;
+
+                    // Parse package components
+                    let parts: Vec<&str> = package_id.split(';').collect();
+                    if parts.len() >= 4 {
+                        let variant = parts[2].to_string();
+                        let architecture = parts[3].to_string();
+
+                        let system_variant = SystemImageVariant::new(
+                            variant.clone(),
+                            architecture,
+                            package_id.to_string(),
+                        );
+
+                        // Get or create API level entry
+                        let api_entry = api_levels_map.entry(api_level).or_insert_with(|| {
+                            let version_name = self.get_android_version_name(api_level);
+                            ApiLevel::new(
+                                api_level,
+                                version_name,
+                                format!("system-images;android-{};google_apis;x86_64", api_level),
+                            )
+                        });
+
+                        // Add variant with installation status
+                        let mut variant_clone = system_variant;
+                        variant_clone.is_installed = is_installed;
+                        api_entry.variants.push(variant_clone);
+
+                        // Update overall installation status (if any variant is installed)
+                        if is_installed {
+                            api_entry.is_installed = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // If no system images found, create a default list with common API levels
+        if !found_system_images {
+            let default_apis = vec![35, 34, 33, 32, 31, 30, 29, 28];
+            for api in default_apis {
+                let version_name = self.get_android_version_name(api);
+                let api_level = ApiLevel::new(
+                    api,
+                    version_name,
+                    format!("system-images;android-{};google_apis;x86_64", api),
+                );
+                api_levels_map.insert(api, api_level);
+            }
+        }
+
+        // Convert to sorted vector
+        let mut api_levels: Vec<ApiLevel> = api_levels_map.into_values().collect();
+        api_levels.sort_by(|a, b| b.api.cmp(&a.api)); // Sort by API level descending
+
+        Ok(api_levels)
+    }
+
+    /// Installs a system image with progress callback.
+    pub async fn install_system_image<F>(
+        &self,
+        package_id: &str,
+        progress_callback: F,
+    ) -> Result<()>
+    where
+        F: Fn(crate::models::InstallProgress) + Send + Sync + 'static,
+    {
+        use crate::models::InstallProgress;
+
+        // Initial progress
+        progress_callback(InstallProgress {
+            operation: "Preparing installation...".to_string(),
+            percentage: 0,
+            eta_seconds: None,
+        });
+
+        let sdkmanager_path = Self::find_tool(&self.android_home, "sdkmanager")?;
+        let mut child = tokio::process::Command::new(&sdkmanager_path)
+            .args([package_id])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+
+        // Send 'y' to accept license
+        if let Some(stdin) = child.stdin.as_mut() {
+            use tokio::io::AsyncWriteExt;
+            stdin.write_all(b"y\n").await?;
+            stdin.flush().await?;
+        }
+
+        // Set progress to show we're starting
+        progress_callback(InstallProgress {
+            operation: "Starting installation process...".to_string(),
+            percentage: 5,
+            eta_seconds: None,
+        });
+
+        // Simulate progress updates with timer since sdkmanager doesn't provide reliable progress
+        let progress_callback = std::sync::Arc::new(progress_callback);
+        let progress_clone = progress_callback.clone();
+
+        // Start a timer-based progress update
+        tokio::spawn(async move {
+            let mut progress = 10u8;
+            let mut stage = 0;
+
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+                match stage {
+                    0 => {
+                        // Initial loading phase (10-20%)
+                        progress_clone(InstallProgress {
+                            operation: "Loading package information...".to_string(),
+                            percentage: progress,
+                            eta_seconds: None,
+                        });
+                        progress += 5;
+                        if progress >= 20 {
+                            stage = 1;
+                            progress = 20;
+                        }
+                    }
+                    1 => {
+                        // Download phase (20-70%)
+                        progress_clone(InstallProgress {
+                            operation: "Downloading system image...".to_string(),
+                            percentage: progress,
+                            eta_seconds: None,
+                        });
+                        progress += 3;
+                        if progress >= 70 {
+                            stage = 2;
+                            progress = 70;
+                        }
+                    }
+                    2 => {
+                        // Extract phase (70-90%)
+                        progress_clone(InstallProgress {
+                            operation: "Extracting system image...".to_string(),
+                            percentage: progress,
+                            eta_seconds: None,
+                        });
+                        progress += 4;
+                        if progress >= 90 {
+                            stage = 3;
+                            progress = 90;
+                        }
+                    }
+                    3 => {
+                        // Install phase (90-95%)
+                        progress_clone(InstallProgress {
+                            operation: "Installing system image...".to_string(),
+                            percentage: progress,
+                            eta_seconds: None,
+                        });
+                        progress += 2;
+                        if progress >= 95 {
+                            break;
+                        }
+                    }
+                    _ => break,
+                }
+            }
+        });
+
+        // Monitor stdout for real progress (sdkmanager outputs to stdout)
+        if let Some(stdout) = child.stdout.take() {
+            let progress_stdout = progress_callback.clone();
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let reader = BufReader::new(stdout);
+                let mut lines = reader.lines();
+
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Look for download progress indicators
+                    if line.contains("Downloading") {
+                        // Try to extract size information
+                        if line.contains(" MiB") || line.contains(" MB") {
+                            // Extract percentage if present (e.g., "(45%)")
+                            if let Some(start) = line.find('(') {
+                                if let Some(end) = line.find('%') {
+                                    if let Ok(pct) = line[start + 1..end].trim().parse::<u8>() {
+                                        progress_stdout(InstallProgress {
+                                            operation: "Downloading system image...".to_string(),
+                                            percentage: (20 + (pct * 50 / 100)).min(70),
+                                            eta_seconds: None,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } else if line.contains("Unzipping") || line.contains("Extracting") {
+                        progress_stdout(InstallProgress {
+                            operation: "Extracting system image...".to_string(),
+                            percentage: 75,
+                            eta_seconds: None,
+                        });
+                    } else if line.contains("Installing") {
+                        progress_stdout(InstallProgress {
+                            operation: "Installing system image...".to_string(),
+                            percentage: 85,
+                            eta_seconds: None,
+                        });
+                    }
+                }
+            });
+        }
+
+        // Also monitor stderr for any error messages
+        if let Some(stderr) = child.stderr.take() {
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let reader = BufReader::new(stderr);
+                let mut lines = reader.lines();
+
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Log errors for debugging
+                    if line.contains("Error") || line.contains("error") || line.contains("Failed") {
+                        eprintln!("sdkmanager error: {}", line);
+                    }
+                }
+            });
+        }
+
+        let output = child.wait_with_output().await?;
+
+        if output.status.success() {
+            // Don't send final progress update - let the caller handle completion
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to install system image: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    /// Uninstalls a system image.
+    pub async fn uninstall_system_image(&self, package_id: &str) -> Result<()> {
+        let sdkmanager_path = Self::find_tool(&self.android_home, "sdkmanager")?;
+        let output = tokio::process::Command::new(&sdkmanager_path)
+            .args(["--uninstall", package_id])
+            .output()
+            .await?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to uninstall system image: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    /// Parses API level from package ID.
+    fn parse_api_level_from_package(&self, package_id: &str) -> Option<u32> {
+        if let Some(start) = package_id.find("android-") {
+            let api_part = &package_id[start + 8..];
+            if let Some(end) = api_part.find(';') {
+                api_part[..end].parse().ok()
+            } else {
+                api_part.parse().ok()
+            }
+        } else {
+            None
+        }
     }
 }
