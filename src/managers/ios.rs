@@ -194,6 +194,7 @@
 //! - Non-macOS platforms get stub implementations that return appropriate errors
 //! - The `which` crate is used to verify `xcrun` availability at runtime
 
+#[cfg(target_os = "macos")]
 use crate::constants::ios::{
     IOS_ALREADY_BOOTED_ERROR, IOS_ALREADY_SHUTDOWN_ERROR, IOS_DEVICE_STATUS_BOOTED,
     IOS_DEVICE_STATUS_CREATING, IOS_DEVICE_STATUS_SHUTDOWN, IOS_DEVICE_TYPE_PREFIX,
