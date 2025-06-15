@@ -32,7 +32,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - Centralized `AppState` with `Arc<Mutex<>>` for thread safety
 - Background device loading for fast startup (~100ms)
 - Smart caching system for device metadata and details
-- Debounced UI updates (50-100ms delays) for smooth navigation
+- Direct event processing for ultra-responsive input handling
 
 ## Current Features
 
@@ -60,12 +60,14 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - **Modal workflows**: Guided device creation with field validation
 - **Keyboard navigation**: Vim-like keybindings (jk for up/down, q to quit) with circular navigation and page scrolling
 - **Real-time feedback**: Status notifications, operation progress, log streaming
+- **Ultra-responsive input**: Direct event processing without debouncing ensures no key presses are ignored during rapid input or long holds
 
 ### Performance Optimizations
 - **Fast startup**: UI renders immediately (~50ms), device data loads in background (~104ms average total)
 - **Smart caching**: Device metadata and details cached with platform-aware invalidation
-- **Debounced updates**: 50-100ms delays prevent UI stuttering during rapid navigation
+- **Ultra-responsive keyboard input**: Direct event processing with 8ms polling for 120fps responsiveness
 - **Memory management**: Automatic log rotation (1000 entries max), cache expiration, background task cleanup
+- **Optimized event loop**: Simplified architecture eliminates input lag and key press ignoring issues
 
 ## Development Commands
 
@@ -160,6 +162,7 @@ cargo test startup_performance_test -- --nocapture
 - ✅ Form validation framework (`src/utils/validation.rs`)
 - ✅ Enhanced command execution utilities with retry and error ignoring
 - ✅ iOS Simulator.app automatic lifecycle management
+- ✅ Ultra-responsive keyboard input handling eliminating all input lag and key press ignoring
 
 ### Known Issues & Limitations
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved but not perfect)
@@ -176,10 +179,11 @@ cargo test startup_performance_test -- --nocapture
 ## Key Files & Functions
 
 ### Application Core
-- `src/app/mod.rs` - Main application logic, event loop, background task coordination
+- `src/app/mod.rs` - Main application logic, ultra-responsive event loop, background task coordination
 - `src/app/state.rs` - Application state, device management, UI state coordination
 - `src/app/events.rs` - Event type definitions
 - `src/app/actions.rs` - User action handlers
+- `src/app/event_processing.rs` - Event processing utilities (legacy, now using direct processing)
 
 ### Device Management
 - `src/managers/common.rs` - `DeviceManager` trait definition
@@ -220,7 +224,7 @@ cargo test startup_performance_test -- --nocapture
 - Use `impl Future + Send` for trait methods to avoid async trait limitations
 - Background tasks with `tokio::spawn` and proper cancellation
 - State access with `Arc<Mutex<>>` for thread safety
-- Debounced operations for UI responsiveness
+- Direct event processing for ultra-responsive UI interactions
 
 ### State Management
 - Centralized state in `AppState` with method-based access
@@ -230,9 +234,10 @@ cargo test startup_performance_test -- --nocapture
 
 ### Performance Patterns
 - Background device loading on startup
-- Debounced UI updates (50-100ms delays)
+- Direct event processing for 120fps responsiveness
 - Smart cache invalidation based on context
 - Memory-efficient log management with rotation
+- Simplified event loop architecture eliminating input lag
 
 ## Development Workflow
 
@@ -254,8 +259,9 @@ cargo test startup_performance_test -- --nocapture
 ### Performance Considerations
 - Keep startup time under 150ms
 - Use background loading for heavy operations
-- Implement debouncing for rapid user interactions
+- Use direct event processing for ultra-responsive input (no debouncing needed)
 - Cache expensive operations appropriately
 - Test with performance benchmarks
+- Maintain 120fps responsiveness for keyboard input
 
-This codebase represents a well-architected, performant TUI application with comprehensive testing and clean abstractions. The async-first design and trait-based architecture provide excellent foundations for continued development.
+This codebase represents a well-architected, performant TUI application with comprehensive testing and clean abstractions. The async-first design, trait-based architecture, and ultra-responsive input handling provide excellent foundations for continued development.
