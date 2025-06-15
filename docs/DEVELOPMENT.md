@@ -951,7 +951,7 @@ impl DeviceConfig {
 2. Update version in `Cargo.toml`:
    ```toml
    [package]
-   version = "0.1.0"  # Update this
+   version = "0.2.0"  # Update this
    ```
 
 3. Update `CHANGELOG.md` (optional - automated release notes are generated):
@@ -961,7 +961,7 @@ impl DeviceConfig {
 4. Commit the version bump:
    ```bash
    git add Cargo.toml CHANGELOG.md
-   git commit -m "chore: bump version to v0.1.0"
+   git commit -m "chore: bump version to v0.2.0"
    ```
 
 ### Creating a Release
