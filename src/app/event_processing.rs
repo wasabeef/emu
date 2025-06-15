@@ -1,7 +1,11 @@
-//! Event processing optimizations for improved key input handling.
+//! Event processing utilities for key input handling (legacy).
 //!
-//! This module provides event batching and debouncing to prevent input lag
-//! and ensure smooth navigation, especially for rapid key presses.
+//! This module provided event batching and debouncing functionality in previous versions.
+//! The current implementation uses direct event processing in the main loop for
+//! ultra-responsive input handling without any debouncing or batching delays.
+//!
+//! **Note**: This module is kept for compatibility but is no longer used in the main
+//! application loop. The app now uses direct event processing for 120fps responsiveness.
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::collections::VecDeque;
