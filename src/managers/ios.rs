@@ -156,6 +156,8 @@
 //! - Boot operations attempt to open Simulator.app automatically
 //! - Failures to open Simulator.app are logged but don't fail the operation
 //! - Devices can run in "headless" mode without the Simulator app
+//! - Automatic cleanup: Simulator.app quits when last device stops
+//! - Graceful shutdown: Uses AppleScript with killall fallback
 //!
 //! ## Log Streaming
 //!
@@ -192,6 +194,7 @@
 //! - Non-macOS platforms get stub implementations that return appropriate errors
 //! - The `which` crate is used to verify `xcrun` availability at runtime
 
+use crate::constants::ios::*;
 use crate::managers::common::{DeviceConfig, DeviceManager};
 #[cfg(target_os = "macos")]
 use crate::models::device_info::DynamicDeviceConfig;
@@ -315,16 +318,16 @@ impl IosManager {
             .to_string();
 
         let ios_version_str = runtime_str
-            .replace("com.apple.CoreSimulator.SimRuntime.iOS-", "")
+            .replace(IOS_RUNTIME_PREFIX, "")
             .replace("-", ".");
 
         let status = match state_str {
-            "Booted" => DeviceStatus::Running,
-            "Shutdown" => DeviceStatus::Stopped,
-            "Creating" => DeviceStatus::Creating,
+            IOS_DEVICE_STATUS_BOOTED => DeviceStatus::Running,
+            IOS_DEVICE_STATUS_SHUTDOWN => DeviceStatus::Stopped,
+            IOS_DEVICE_STATUS_CREATING => DeviceStatus::Creating,
             _ => DeviceStatus::Unknown,
         };
-        let is_running_bool = state_str == "Booted";
+        let is_running_bool = state_str == IOS_DEVICE_STATUS_BOOTED;
 
         Ok(Some(IosDevice {
             name,
@@ -417,12 +420,12 @@ impl IosManager {
     fn parse_device_type_display_name(identifier: &str) -> String {
         // com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro -> iPhone 15 Pro
         let cleaned = identifier
-            .replace("com.apple.CoreSimulator.SimDeviceType.", "")
+            .replace(IOS_DEVICE_TYPE_PREFIX, "")
             .replace("-", " ")
             .replace("_", " ");
 
         // Special case handling
-        let display = cleaned.replace(" inch", "\""); // 12.9 inch -> 12.9"
+        let display = cleaned.replace(IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT); // 12.9 inch -> 12.9"
 
         // Capitalize properly
         display
@@ -503,6 +506,67 @@ impl IosManager {
 
         Ok(runtimes)
     }
+
+    /// Helper method to quit Simulator.app if no devices are running
+    ///
+    /// This method checks if any iOS devices are still running after a shutdown operation.
+    /// If no devices are running, it attempts to quit Simulator.app gracefully using
+    /// AppleScript. If that fails, it falls back to using `killall` to force quit.
+    ///
+    /// This prevents the Simulator.app icon from lingering in the Dock when all
+    /// devices have been stopped, providing a cleaner user experience.
+    ///
+    /// # Implementation Details
+    ///
+    /// 1. **Device Status Check**: Queries all devices to see if any are running
+    /// 2. **Graceful Quit**: Attempts `osascript -e "tell application \"Simulator\" to quit"`
+    /// 3. **Force Quit Fallback**: Uses `killall Simulator` if graceful quit fails
+    /// 4. **Error Handling**: Logs warnings but doesn't fail the operation
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// // Called automatically after device shutdown
+    /// self.quit_simulator_if_no_running_devices().await;
+    /// ```
+    async fn quit_simulator_if_no_running_devices(&self) {
+        // Check if there are any running devices
+        match self.list_devices().await {
+            Ok(devices) => {
+                let has_running_devices = devices.iter().any(|device| device.is_running);
+
+                if !has_running_devices {
+                    log::info!("No iOS devices are running, quitting Simulator.app");
+
+                    // Quit Simulator.app gracefully
+                    if let Err(e) = self
+                        .command_runner
+                        .run("osascript", &["-e", SIMULATOR_QUIT_COMMAND])
+                        .await
+                    {
+                        log::warn!("Failed to quit Simulator.app gracefully: {}", e);
+
+                        // Fallback: Force quit using killall
+                        if let Err(e2) = self
+                            .command_runner
+                            .run("killall", &[SIMULATOR_APP_NAME])
+                            .await
+                        {
+                            log::warn!("Failed to force quit Simulator.app: {}", e2);
+                        }
+                    }
+                } else {
+                    log::debug!("Other iOS devices are still running, keeping Simulator.app open");
+                }
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to check device status before quitting Simulator.app: {}",
+                    e
+                );
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -557,7 +621,7 @@ impl DeviceManager for IosManager {
                         if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
                             if udid == identifier {
                                 if let Some(state) = device.get("state").and_then(|v| v.as_str()) {
-                                    if state == "Booted" {
+                                    if state == IOS_DEVICE_STATUS_BOOTED {
                                         is_already_booted = true;
                                         break;
                                     }
@@ -582,7 +646,7 @@ impl DeviceManager for IosManager {
                 Ok(_) => log::info!("Successfully booted iOS device {}", identifier),
                 Err(e) => {
                     let error_msg = e.to_string();
-                    if error_msg.contains("Unable to boot device in current state: Booted") {
+                    if error_msg.contains(IOS_ALREADY_BOOTED_ERROR) {
                         log::info!(
                             "Device {} was already in the process of booting",
                             identifier
@@ -597,7 +661,7 @@ impl DeviceManager for IosManager {
         // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
         if let Err(e) = self
             .command_runner
-            .spawn("open", &["-a", "Simulator"])
+            .spawn("open", &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME])
             .await
         {
             log::warn!("Failed to open Simulator app: {}. Device might be booting in headless mode or Simulator app needs to be opened manually.", e);
@@ -616,12 +680,21 @@ impl DeviceManager for IosManager {
         match shutdown_result {
             Ok(_) => {
                 log::info!("Successfully shut down iOS device {}", identifier);
+
+                // Check if all devices are now stopped, and if so, quit Simulator.app
+                // This prevents the Simulator icon from lingering in the Dock
+                self.quit_simulator_if_no_running_devices().await;
+
                 Ok(())
             }
             Err(e) => {
                 let error_msg = e.to_string();
-                if error_msg.contains("Unable to shutdown device in current state: Shutdown") {
+                if error_msg.contains(IOS_ALREADY_SHUTDOWN_ERROR) {
                     log::info!("Device {} was already shut down", identifier);
+
+                    // Even if device was already stopped, check if we should quit Simulator.app
+                    self.quit_simulator_if_no_running_devices().await;
+
                     Ok(())
                 } else {
                     Err(e).context(format!("Failed to shutdown iOS device {}", identifier))

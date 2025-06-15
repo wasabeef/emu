@@ -15,6 +15,87 @@ use ratatui::{
     Frame,
 };
 
+/// Renders a generic confirmation dialog with customizable title, message, and style
+fn render_confirmation_dialog(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    message: &str,
+    icon: &str,
+    border_color: Color,
+    theme: &Theme,
+) {
+    let dialog_width = 50.min(area.width - 4);
+    let dialog_height = 8.min(area.height - 4);
+    let x = (area.width.saturating_sub(dialog_width)) / 2;
+    let y = (area.height.saturating_sub(dialog_height)) / 2;
+
+    let dialog_area = Rect::new(x, y, dialog_width, dialog_height);
+
+    // Clear background
+    frame.render_widget(Clear, dialog_area);
+
+    // Dialog background
+    let background_block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(border_color))
+        .title(format!("{} {}", icon, title))
+        .style(Style::default().bg(Color::Black));
+    frame.render_widget(background_block, dialog_area);
+
+    // Inner area for content
+    let inner_area = Rect::new(
+        dialog_area.x + 1,
+        dialog_area.y + 1,
+        dialog_area.width.saturating_sub(2),
+        dialog_area.height.saturating_sub(2),
+    );
+
+    // Split inner area
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(2),    // Message
+            Constraint::Length(2), // Shortcuts
+        ])
+        .split(inner_area);
+
+    // Message
+    let message_text = Paragraph::new(message)
+        .style(Style::default().fg(theme.text))
+        .alignment(Alignment::Center);
+    frame.render_widget(message_text, inner_chunks[0]);
+
+    // Shortcuts
+    let shortcuts = vec![
+        Span::styled(
+            "y",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" = Yes  "),
+        Span::styled(
+            "n",
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" = No  "),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" = Cancel"),
+    ];
+    let shortcuts_paragraph = Paragraph::new(Line::from(shortcuts))
+        .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center);
+    frame.render_widget(shortcuts_paragraph, inner_chunks[1]);
+}
+
 pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
     let size = frame.area();
 
@@ -196,10 +277,7 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         .map(|(i, device)| {
             let selected = i == state.selected_android && is_active;
             let status_indicator = if device.is_running { "●" } else { "○" };
-            let text = format!(
-                "{} {} (API {})",
-                status_indicator, device.name, device.api_level
-            );
+            let text = format!("{} {}", status_indicator, device.name.replace('_', " "));
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(Color::Black)
@@ -352,22 +430,38 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
 }
 
 fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
-    // Get current selected device name
-    let selected_device = match state.active_panel {
-        Panel::Android => state
-            .android_devices
-            .get(state.selected_android)
-            .map(|d| d.name.clone())
-            .unwrap_or_else(|| "No device selected".to_string()),
-        Panel::Ios => state
-            .ios_devices
-            .get(state.selected_ios)
-            .map(|d| d.name.clone())
-            .unwrap_or_else(|| "No device selected".to_string()),
+    // Get device name that is actually streaming logs
+    let log_device_name = if let Some((panel, device_name)) = &state.current_log_device {
+        format!("{:?} - {}", panel, device_name)
+    } else {
+        match state.active_panel {
+            Panel::Android => state
+                .android_devices
+                .get(state.selected_android)
+                .map(|d| {
+                    if d.is_running {
+                        format!("{} (not streaming)", d.name)
+                    } else {
+                        format!("{} (stopped)", d.name)
+                    }
+                })
+                .unwrap_or_else(|| "No device selected".to_string()),
+            Panel::Ios => state
+                .ios_devices
+                .get(state.selected_ios)
+                .map(|d| {
+                    if d.is_running {
+                        format!("{} (not streaming)", d.name)
+                    } else {
+                        format!("{} (stopped)", d.name)
+                    }
+                })
+                .unwrap_or_else(|| "No device selected".to_string()),
+        }
     };
 
     // Build title with colored filter level
-    let mut title_spans = vec![Span::raw("📋 Logs - "), Span::raw(&selected_device)];
+    let mut title_spans = vec![Span::raw("📋 Logs - "), Span::raw(&log_device_name)];
 
     if let Some(ref filter) = state.log_filter_level {
         title_spans.push(Span::raw(" [Filter: "));
@@ -773,43 +867,6 @@ fn render_select_field(
 
 fn render_confirm_delete_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     if let Some(ref dialog) = state.confirm_delete_dialog {
-        let size = frame.area();
-
-        // Calculate dialog dimensions
-        let dialog_width = 50.min(size.width - 4);
-        let dialog_height = 8.min(size.height - 4);
-
-        // Center the dialog
-        let x = (size.width.saturating_sub(dialog_width)) / 2;
-        let y = (size.height.saturating_sub(dialog_height)) / 2;
-
-        let dialog_area = Rect::new(x, y, dialog_width, dialog_height);
-
-        // Clear the area behind the dialog
-        frame.render_widget(Clear, dialog_area);
-
-        // Add a background block to ensure full coverage
-        let background_block = Block::default().style(Style::default().bg(Color::Black));
-        frame.render_widget(background_block, dialog_area);
-
-        let dialog_block = Block::default()
-            .title("Confirm Delete")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red));
-
-        let inner_area = dialog_block.inner(dialog_area);
-        frame.render_widget(dialog_block, dialog_area);
-
-        // Layout for content and shortcuts
-        let layout_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(3),    // Message content
-                Constraint::Length(1), // Shortcuts
-            ])
-            .split(inner_area);
-
-        // Message text
         let platform_name = match dialog.platform {
             Panel::Android => "Android device",
             Panel::Ios => "iOS simulator",
@@ -825,65 +882,20 @@ fn render_confirm_delete_dialog(frame: &mut Frame, state: &AppState, theme: &The
             platform_name, device_icon, dialog.device_name
         );
 
-        let message_widget = Paragraph::new(message)
-            .style(Style::default().fg(theme.text))
-            .alignment(Alignment::Center)
-            .wrap(ratatui::widgets::Wrap { trim: true });
-
-        frame.render_widget(message_widget, layout_chunks[0]);
-
-        // Shortcuts at the bottom
-        let shortcuts = Paragraph::new("✅ [Y]es   ❌ [N]o / [Esc] Cancel")
-            .style(
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
-
-        frame.render_widget(shortcuts, layout_chunks[1]);
+        render_confirmation_dialog(
+            frame,
+            frame.area(),
+            "Confirm Delete",
+            &message,
+            "⚠️",
+            Color::Red,
+            theme,
+        );
     }
 }
 
 fn render_confirm_wipe_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     if let Some(ref dialog) = state.confirm_wipe_dialog {
-        let size = frame.area();
-
-        // Calculate dialog dimensions
-        let dialog_width = 50.min(size.width - 4);
-        let dialog_height = 8.min(size.height - 4);
-
-        // Center the dialog
-        let x = (size.width.saturating_sub(dialog_width)) / 2;
-        let y = (size.height.saturating_sub(dialog_height)) / 2;
-
-        let dialog_area = Rect::new(x, y, dialog_width, dialog_height);
-
-        // Clear the area behind the dialog
-        frame.render_widget(Clear, dialog_area);
-
-        // Add a background block to ensure full coverage
-        let background_block = Block::default().style(Style::default().bg(Color::Black));
-        frame.render_widget(background_block, dialog_area);
-
-        let dialog_block = Block::default()
-            .title("Confirm Wipe")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
-
-        let inner_area = dialog_block.inner(dialog_area);
-        frame.render_widget(dialog_block, dialog_area);
-
-        // Layout for content and shortcuts
-        let layout_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(3),    // Message content
-                Constraint::Length(1), // Shortcuts
-            ])
-            .split(inner_area);
-
-        // Message text
         let platform_name = match dialog.platform {
             Panel::Android => "Android device",
             Panel::Ios => "iOS simulator",
@@ -899,23 +911,15 @@ fn render_confirm_wipe_dialog(frame: &mut Frame, state: &AppState, theme: &Theme
             platform_name, device_icon, dialog.device_name
         );
 
-        let message_widget = Paragraph::new(message)
-            .style(Style::default().fg(theme.text))
-            .alignment(Alignment::Center)
-            .wrap(ratatui::widgets::Wrap { trim: true });
-
-        frame.render_widget(message_widget, layout_chunks[0]);
-
-        // Shortcuts at the bottom
-        let shortcuts = Paragraph::new("✅ [Y]es   ❌ [N]o / [Esc] Cancel")
-            .style(
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
-
-        frame.render_widget(shortcuts, layout_chunks[1]);
+        render_confirmation_dialog(
+            frame,
+            frame.area(),
+            "Confirm Wipe",
+            &message,
+            "🧹",
+            Color::Yellow,
+            theme,
+        );
     }
 }
 
@@ -923,111 +927,132 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
     let border_style = Style::default().fg(theme.text);
 
     if let Some(details) = state.get_selected_device_details() {
-        // Create content lines
         let mut lines = Vec::new();
 
-        // Device name with platform icon
+        // === HEADER: Device Name & Platform ===
         let platform_icon = match details.platform {
             crate::app::Panel::Android => "🤖",
             crate::app::Panel::Ios => "🍎",
         };
         lines.push(Line::from(vec![
-            Span::styled(platform_icon, Style::default()),
+            Span::styled(platform_icon, Style::default().fg(theme.primary)),
             Span::raw(" "),
             Span::styled(
-                details.name.clone(),
+                details.name.replace('_', " "), // Format name for display
                 Style::default()
                     .fg(theme.primary)
                     .add_modifier(Modifier::BOLD),
             ),
         ]));
 
-        lines.push(Line::from(""));
+        // Separator line
+        lines.push(Line::from(vec![Span::styled(
+            "━".repeat(30),
+            Style::default().fg(Color::DarkGray),
+        )]));
 
-        // Status
-        let status_color = if details.status == "Running" || details.status == "Booted" {
-            Color::Green
-        } else {
-            Color::Gray
-        };
+        // === ESSENTIAL: Status ===
+        let (status_icon, status_color) =
+            if details.status == "Running" || details.status == "Booted" {
+                ("●", Color::Green)
+            } else {
+                ("○", Color::Gray)
+            };
         lines.push(Line::from(vec![
-            Span::raw("Status: "),
+            Span::styled(status_icon, Style::default().fg(status_color)),
+            Span::raw(" "),
             Span::styled(
-                format!("● {}", details.status),
-                Style::default().fg(status_color),
+                &details.status,
+                Style::default()
+                    .fg(status_color)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]));
 
-        // API Level / iOS Version
+        lines.push(Line::from(""));
+
+        // === DEVELOPMENT INFO ===
+        // Display resolution (prioritized for app development)
+        if let Some(ref resolution) = details.resolution {
+            let dpi_info = details
+                .dpi
+                .as_ref()
+                .map(|d| format!(" ({})", d))
+                .unwrap_or_default();
+            lines.push(Line::from(vec![
+                Span::raw("📱 Display: "),
+                Span::styled(
+                    format!("{}{}", resolution, dpi_info),
+                    Style::default().fg(Color::Yellow),
+                ),
+            ]));
+        }
+
+        // Hardware specs
+        if let Some(ref ram) = details.ram_size {
+            lines.push(Line::from(vec![
+                Span::raw("🧠 RAM: "),
+                Span::styled(ram.clone(), Style::default().fg(Color::Cyan)),
+            ]));
+        }
+
+        if let Some(ref storage) = details.storage_size {
+            lines.push(Line::from(vec![
+                Span::raw("💾 Storage: "),
+                Span::styled(storage.clone(), Style::default().fg(Color::Cyan)),
+            ]));
+        }
+
+        // Architecture info (only if available from system image)
+        if details.platform == crate::app::Panel::Android {
+            if let Some(ref sys_img) = details.system_image {
+                let architecture = if sys_img.contains("arm64") {
+                    "arm64-v8a"
+                } else if sys_img.contains("x86_64") {
+                    "x86_64"
+                } else if sys_img.contains("x86") {
+                    "x86"
+                } else {
+                    "unknown"
+                };
+                lines.push(Line::from(vec![
+                    Span::raw("🔧 Arch: "),
+                    Span::styled(architecture, Style::default().fg(Color::Magenta)),
+                ]));
+            }
+        }
+
+        lines.push(Line::from(""));
+
+        // === VERSION INFO ===
         lines.push(Line::from(vec![
-            Span::raw("Version: "),
+            Span::raw("📋 Version: "),
             Span::styled(
                 details.api_level_or_version,
                 Style::default().fg(theme.primary),
             ),
         ]));
 
-        // Device Type
         lines.push(Line::from(vec![
-            Span::raw("Type: "),
+            Span::raw("🏷️  Type: "),
             Span::raw(details.device_type),
         ]));
 
+        // === MANAGEMENT INFO ===
+        // Device ID (useful for automation/scripting)
         lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("🆔 ID: "),
+            Span::styled(details.identifier.clone(), Style::default().fg(Color::Blue)),
+        ]));
 
-        // Hardware info (Android only for now)
-        if details.platform == crate::app::Panel::Android {
-            if let Some(ref ram) = details.ram_size {
-                lines.push(Line::from(vec![
-                    Span::raw("🧠 RAM: "),
-                    Span::styled(ram.clone(), Style::default().fg(Color::Cyan)),
-                ]));
-            }
-
-            if let Some(ref storage) = details.storage_size {
-                lines.push(Line::from(vec![
-                    Span::raw("💾 Storage: "),
-                    Span::styled(storage.clone(), Style::default().fg(Color::Cyan)),
-                ]));
-            }
-
-            if let Some(ref resolution) = details.resolution {
-                lines.push(Line::from(vec![
-                    Span::raw("📱 Resolution: "),
-                    Span::raw(resolution.clone()),
-                ]));
-            }
-
-            if let Some(ref dpi) = details.dpi {
-                lines.push(Line::from(vec![
-                    Span::raw("🎯 DPI: "),
-                    Span::raw(dpi.clone()),
-                ]));
-            }
-        }
-
-        // Path info
+        // Path info (full path)
         if let Some(ref path) = details.device_path {
             lines.push(Line::from(""));
-            lines.push(Line::from(vec![Span::raw("📂 Path:")]));
-            // Show full path with word wrapping
-            lines.push(Line::from(vec![Span::styled(
-                path.clone(),
-                Style::default().fg(Color::DarkGray),
-            )]));
-        }
-
-        // System image (Android only)
-        if details.platform == crate::app::Panel::Android {
-            if let Some(ref system_image) = details.system_image {
-                lines.push(Line::from(""));
-                lines.push(Line::from(vec![Span::raw("🏷️  System Image:")]));
-                // Show full system image path with word wrapping
-                lines.push(Line::from(vec![Span::styled(
-                    system_image.clone(),
-                    Style::default().fg(Color::DarkGray),
-                )]));
-            }
+            lines.push(Line::from(vec![
+                Span::raw("📂 "),
+                Span::styled(path.clone(), Style::default().fg(Color::DarkGray)),
+            ]));
         }
 
         let paragraph = Paragraph::new(lines)
@@ -1040,6 +1065,29 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
             .wrap(ratatui::widgets::Wrap { trim: true });
 
         frame.render_widget(paragraph, area);
+
+        // Show loading indicator in bottom-right corner if key data is still loading
+        // Only show for Android devices that should have additional data loaded
+        let is_loading =
+            details.platform == crate::app::Panel::Android && details.device_path.is_none();
+
+        if is_loading {
+            let moon_icon = get_animated_moon();
+            let loading_text = format!("{} Loading", moon_icon);
+            let loading_width = "🌙 Loading".len() as u16; // Use fixed width for consistent positioning
+            let loading_area = Rect::new(
+                area.x + area.width.saturating_sub(loading_width + 3),
+                area.y + area.height.saturating_sub(2),
+                loading_width + 2,
+                1,
+            );
+
+            let loading_paragraph = Paragraph::new(loading_text)
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Right);
+
+            frame.render_widget(loading_paragraph, loading_area);
+        }
     } else {
         // No device selected
         let no_device_text = Paragraph::new("No device selected")

@@ -12,13 +12,11 @@ pub mod events;
 /// Application state management and data structures.
 pub mod state;
 
-/// Application constants for performance and configuration.
-pub mod constants;
-
 /// Event processing optimizations for improved key input handling.
 pub mod event_processing;
 
 use crate::{
+    constants::performance::{FRAME_DURATION, MAX_EVENTS_PER_FRAME},
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
     models::error::format_user_error,
@@ -32,7 +30,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use self::constants::performance::*;
 use self::event_processing::EventBatcher;
 
 // Re-export commonly used types from the state module
@@ -247,7 +244,7 @@ impl App {
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
-                                    // パネル切り替えを高速化：ログストリームとデバイス詳細を遅延更新
+                                    // Speed up panel switching: Delay log stream and device detail updates
                                     self.schedule_log_stream_update().await;
                                     self.schedule_device_details_update().await;
                                 }
@@ -257,7 +254,7 @@ impl App {
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
-                                    // パネル切り替えを高速化：ログストリームとデバイス詳細を遅延更新
+                                    // Speed up panel switching: Delay log stream and device detail updates
                                     self.schedule_log_stream_update().await;
                                     self.schedule_device_details_update().await;
                                 }
@@ -270,12 +267,21 @@ impl App {
                                     state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                     state.active_panel = new_panel;
                                     drop(state);
-                                    // パネル切り替えを高速化：ログストリームとデバイス詳細を遅延更新
+                                    // Speed up panel switching: Delay log stream and device detail updates
                                     self.schedule_log_stream_update().await;
                                     self.schedule_device_details_update().await;
                                 }
                                 KeyCode::Up | KeyCode::Char('k') => {
                                     state.move_up();
+                                    // Always clear logs and stop streaming when device changes
+                                    state.clear_logs();
+
+                                    // Stop current log task
+                                    if let Some(handle) = state.log_task_handle.take() {
+                                        handle.abort();
+                                    }
+                                    state.current_log_device = None;
+
                                     // Only clear cache if device actually changed
                                     let need_update = {
                                         let current_device = match state.active_panel {
@@ -301,10 +307,20 @@ impl App {
                                         state.clear_cached_device_details();
                                         drop(state);
                                         self.schedule_device_details_update().await;
+                                        self.update_log_stream().await?;
                                     }
                                 }
                                 KeyCode::Down | KeyCode::Char('j') => {
                                     state.move_down();
+                                    // Always clear logs and stop streaming when device changes
+                                    state.clear_logs();
+
+                                    // Stop current log task
+                                    if let Some(handle) = state.log_task_handle.take() {
+                                        handle.abort();
+                                    }
+                                    state.current_log_device = None;
+
                                     // Only clear cache if device actually changed
                                     let need_update = {
                                         let current_device = match state.active_panel {
@@ -330,6 +346,7 @@ impl App {
                                         state.clear_cached_device_details();
                                         drop(state);
                                         self.schedule_device_details_update().await;
+                                        self.update_log_stream().await?;
                                     }
                                 }
                                 KeyCode::Enter => {
@@ -677,7 +694,7 @@ impl App {
                             KeyCode::Down => {
                                 // Ignore navigation if currently creating
                                 if !state.create_device_form.is_creating {
-                                    // 上下キーは常にフィールド移動
+                                    // Up/Down keys always move between fields
                                     match state.active_panel {
                                         Panel::Android => state.create_device_form.next_field(),
                                         Panel::Ios => state.create_device_form.next_field_ios(),
@@ -687,7 +704,7 @@ impl App {
                             KeyCode::Up => {
                                 // Ignore navigation if currently creating
                                 if !state.create_device_form.is_creating {
-                                    // 上下キーは常にフィールド移動
+                                    // Up/Down keys always move between fields
                                     match state.active_panel {
                                         Panel::Android => state.create_device_form.prev_field(),
                                         Panel::Ios => state.create_device_form.prev_field_ios(),
@@ -711,7 +728,7 @@ impl App {
                                                 .device_category_filter
                                                 .clone();
                                             self.handle_create_device_left(&mut state);
-                                            // カテゴリが変更された場合、デバイスリストを再読み込み
+                                            // Reload device list if category changed
                                             if old_category
                                                 != state.create_device_form.device_category_filter
                                             {
@@ -741,7 +758,7 @@ impl App {
                                                 .device_category_filter
                                                 .clone();
                                             self.handle_create_device_right(&mut state);
-                                            // カテゴリが変更された場合、デバイスリストを再読み込み
+                                            // Reload device list if category changed
                                             if old_category
                                                 != state.create_device_form.device_category_filter
                                             {
@@ -1037,87 +1054,116 @@ impl App {
                                 // 'd' key - Uninstall only
                                 if let Some(ref api_state) = state.api_level_management {
                                     if let Some(api_level) = api_state.get_selected_api_level() {
-                                        if let Some(variant) = api_level.get_recommended_variant() {
-                                            if variant.is_installed {
-                                                let package_id = variant.package_id.clone();
+                                        // Get all installed variants for this API level
+                                        let installed_variants: Vec<_> = api_level
+                                            .variants
+                                            .iter()
+                                            .filter(|v| v.is_installed)
+                                            .map(|v| v.package_id.clone())
+                                            .collect();
 
-                                                // Set installing package indicator
-                                                if let Some(ref mut api_mgmt) =
-                                                    state.api_level_management
-                                                {
-                                                    api_mgmt.installing_package =
-                                                        Some(package_id.clone());
-                                                    api_mgmt.error_message = None;
-                                                }
+                                        if !installed_variants.is_empty() {
+                                            // Display first package ID in UI (for progress indicator)
+                                            let display_package_id = installed_variants[0].clone();
 
-                                                let android_manager = self.android_manager.clone();
-                                                let state_clone = self.state.clone();
+                                            // Set installing package indicator
+                                            if let Some(ref mut api_mgmt) =
+                                                state.api_level_management
+                                            {
+                                                api_mgmt.installing_package =
+                                                    Some(display_package_id.clone());
+                                                api_mgmt.error_message = None;
+                                            }
 
-                                                tokio::spawn(async move {
+                                            let android_manager = self.android_manager.clone();
+                                            let state_clone = self.state.clone();
+
+                                            tokio::spawn(async move {
+                                                let mut success = true;
+                                                let mut last_error = None;
+
+                                                // Uninstall all installed variants
+                                                for package_id in &installed_variants {
                                                     if let Err(e) = android_manager
-                                                        .uninstall_system_image(&package_id)
+                                                        .uninstall_system_image(package_id)
                                                         .await
                                                     {
-                                                        let mut state = state_clone.lock().await;
-                                                        if let Some(ref mut api_mgmt) =
-                                                            state.api_level_management
-                                                        {
-                                                            api_mgmt.installing_package = None;
-                                                            api_mgmt.error_message = Some(format!(
-                                                                "Failed to uninstall: {}",
-                                                                e
-                                                            ));
-                                                        }
-                                                    } else {
-                                                        let mut state = state_clone.lock().await;
-                                                        if let Some(ref mut api_mgmt) =
-                                                            state.api_level_management
-                                                        {
-                                                            api_mgmt.installing_package = None;
-                                                        }
-                                                        state.add_success_notification(
-                                                            "System image uninstalled successfully"
-                                                                .to_string(),
-                                                        );
-                                                        // Invalidate device creation cache to ensure updated API levels appear
-                                                        {
-                                                            let mut cache =
-                                                                state.device_cache.write().await;
-                                                            cache.invalidate_android_cache();
-                                                        }
+                                                        success = false;
+                                                        last_error = Some(e);
+                                                    }
+                                                }
 
-                                                        // Refresh API levels list to show new installation status
-                                                        if let Some(ref mut api_mgmt) =
-                                                            state.api_level_management
-                                                        {
-                                                            api_mgmt.is_loading = true;
-                                                        }
+                                                let mut state = state_clone.lock().await;
 
-                                                        // Trigger background refresh for uninstall
-                                                        let android_manager_refresh =
-                                                            android_manager.clone();
-                                                        let state_refresh = state_clone.clone();
-                                                        tokio::spawn(async move {
-                                                            if let Ok(new_levels) =
-                                                                android_manager_refresh
-                                                                    .list_api_levels()
-                                                                    .await
-                                                            {
-                                                                let mut state =
-                                                                    state_refresh.lock().await;
-                                                                if let Some(ref mut api_mgmt) =
-                                                                    state.api_level_management
+                                                if success {
+                                                    // Immediately update the UI state before background refresh
+                                                    if let Some(ref mut api_mgmt) =
+                                                        state.api_level_management
+                                                    {
+                                                        // Update the installed status of all uninstalled variants
+                                                        for api_level in &mut api_mgmt.api_levels {
+                                                            for variant in &mut api_level.variants {
+                                                                if installed_variants
+                                                                    .contains(&variant.package_id)
                                                                 {
-                                                                    api_mgmt.api_levels =
-                                                                        new_levels;
-                                                                    api_mgmt.is_loading = false;
+                                                                    variant.is_installed = false;
                                                                 }
                                                             }
-                                                        });
-                                                        // Don't auto-close dialog - user should close manually
+                                                            // Update overall API level installation status
+                                                            api_level.is_installed = api_level
+                                                                .variants
+                                                                .iter()
+                                                                .any(|v| v.is_installed);
+                                                        }
+
+                                                        api_mgmt.installing_package = None;
+                                                    }
+
+                                                    state.add_success_notification(
+                                                        "System image(s) uninstalled successfully"
+                                                            .to_string(),
+                                                    );
+                                                } else {
+                                                    // Handle error
+                                                    if let Some(ref mut api_mgmt) =
+                                                        state.api_level_management
+                                                    {
+                                                        api_mgmt.installing_package = None;
+                                                        api_mgmt.error_message = Some(format!(
+                                                            "Failed to uninstall: {}",
+                                                            last_error.unwrap_or_else(
+                                                                || anyhow::anyhow!("Unknown error")
+                                                            )
+                                                        ));
+                                                    }
+                                                }
+
+                                                // Invalidate device creation cache
+                                                {
+                                                    let mut cache =
+                                                        state.device_cache.write().await;
+                                                    cache.invalidate_android_cache();
+                                                }
+
+                                                // Trigger background refresh
+                                                let android_manager_refresh =
+                                                    android_manager.clone();
+                                                let state_refresh = state_clone.clone();
+                                                tokio::spawn(async move {
+                                                    if let Ok(new_levels) = android_manager_refresh
+                                                        .list_api_levels()
+                                                        .await
+                                                    {
+                                                        let mut state = state_refresh.lock().await;
+                                                        if let Some(ref mut api_mgmt) =
+                                                            state.api_level_management
+                                                        {
+                                                            api_mgmt.api_levels = new_levels;
+                                                            api_mgmt.is_loading = false;
+                                                        }
                                                     }
                                                 });
-                                            }
+                                            });
                                         }
                                     }
                                 }
@@ -1442,7 +1488,7 @@ impl App {
             selected_ios,
             android_devices,
             ios_devices,
-            current_log_device,
+            _current_log_device,
         ) = {
             let state_lock = state.lock().await;
             (
@@ -1473,13 +1519,14 @@ impl App {
             }
         };
 
-        // Check if we're already streaming logs for this device
-        if let Some((panel, name)) = &current_log_device {
-            if panel == &active_panel && name == &device_name {
-                // Already streaming logs for this device, no need to update
-                return;
-            }
-        }
+        // Always update log stream to ensure correct device selection
+        // Note: Commented out early return to force log stream update
+        // if let Some((panel, name)) = &current_log_device {
+        //     if panel == &active_panel && name == &device_name {
+        //         // Already streaming logs for this device, no need to update
+        //         return;
+        //     }
+        // }
 
         if !device_is_running {
             // Clear current log device
@@ -1583,7 +1630,7 @@ impl App {
 
     async fn stream_android_logs(
         state: Arc<Mutex<AppState>>,
-        _device_name: String,
+        device_name: String,
         emulator_serial: String,
     ) {
         let result = Command::new("adb")
@@ -1599,28 +1646,52 @@ impl App {
                     let reader = BufReader::new(stdout);
                     let mut lines = reader.lines();
 
-                    while let Ok(Some(line)) = lines.next_line().await {
-                        // No filtering - show all Android logs
-                        if line.trim().is_empty() {
-                            continue;
+                    loop {
+                        tokio::select! {
+                            result = lines.next_line() => {
+                                match result {
+                                    Ok(Some(line)) => {
+                                        // No filtering - show all Android logs
+                                        if line.trim().is_empty() {
+                                            continue;
+                                        }
+
+                                        let level = if line.contains(" E ") || line.contains("ERROR") {
+                                            "ERROR"
+                                        } else if line.contains(" W ") || line.contains("WARN") {
+                                            "WARN"
+                                        } else if line.contains(" I ") || line.contains("INFO") {
+                                            "INFO"
+                                        } else if line.contains(" D ") || line.contains("DEBUG") {
+                                            "DEBUG"
+                                        } else {
+                                            "INFO"
+                                        };
+
+                                        let message = line;
+
+                                        let mut state = state.lock().await;
+                                        state.add_log(level.to_string(), message);
+                                    }
+                                    Ok(None) => break, // Stream ended
+                                    Err(_) => break,   // Error occurred
+                                }
+                            }
+                            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                                // Check if task should be cancelled by checking if we're still the active log device
+                                let should_continue = {
+                                    let state_lock = state.lock().await;
+                                    if let Some((panel, name)) = &state_lock.current_log_device {
+                                        panel == &crate::app::Panel::Android && name == &device_name
+                                    } else {
+                                        false
+                                    }
+                                };
+                                if !should_continue {
+                                    break;
+                                }
+                            }
                         }
-
-                        let level = if line.contains(" E ") || line.contains("ERROR") {
-                            "ERROR"
-                        } else if line.contains(" W ") || line.contains("WARN") {
-                            "WARN"
-                        } else if line.contains(" I ") || line.contains("INFO") {
-                            "INFO"
-                        } else if line.contains(" D ") || line.contains("DEBUG") {
-                            "DEBUG"
-                        } else {
-                            "INFO"
-                        };
-
-                        let message = line;
-
-                        let mut state = state.lock().await;
-                        state.add_log(level.to_string(), message);
                     }
                 }
 
@@ -2286,7 +2357,7 @@ impl App {
         Ok(())
     }
 
-    /// カテゴリフィルター変更時にデバイスタイプを再読み込み
+    /// Reload device types when category filter changes
     async fn reload_device_types_for_category(&mut self) -> Result<()> {
         // First, get the necessary info and check cache
         let (current_panel, category_filter, device_cache_clone) = {
@@ -2325,7 +2396,7 @@ impl App {
                     let mut state = self.state.lock().await;
                     state.create_device_form.available_device_types = filtered_devices;
 
-                    // デバイスタイプ選択をリセット
+                    // Reset device type selection
                     state.create_device_form.selected_device_type_index = 0;
                     if !state.create_device_form.available_device_types.is_empty() {
                         let (id, display) =
@@ -2348,7 +2419,7 @@ impl App {
                     let mut state = self.state.lock().await;
                     state.create_device_form.available_device_types = filtered_devices;
 
-                    // デバイスタイプ選択をリセット
+                    // Reset device type selection
                     state.create_device_form.selected_device_type_index = 0;
                     if !state.create_device_form.available_device_types.is_empty() {
                         let (id, display) =
@@ -2367,17 +2438,17 @@ impl App {
         Ok(())
     }
 
-    /// バックグラウンドでデバイス情報キャッシュを開始
+    /// Start background device info cache loading
     fn start_background_cache_loading(&mut self) {
         let state_clone = Arc::clone(&self.state);
 
-        // 真のバックグラウンドタスクとして実行（UIブロックなし）
+        // Run as true background task (non-blocking UI)
         tokio::spawn(async move {
-            // 即座に開始（待機なし）
+            // Start immediately (no waiting)
 
-            // ここで新しいマネージャーインスタンスを作成（起動時のブロッキングを回避）
+            // Create new manager instance here (avoid startup blocking)
             if let Ok(android_manager) = crate::managers::AndroidManager::new() {
-                // Android キャッシュを更新
+                // Update Android cache
                 if let Ok(device_types) = android_manager.list_available_devices().await {
                     if let Ok(api_levels) = android_manager.list_available_targets().await {
                         let state = state_clone.lock().await;
@@ -2389,7 +2460,7 @@ impl App {
                 }
             }
 
-            // iOS キャッシュを更新 (macOS のみ)
+            // Update iOS cache (macOS only)
             #[cfg(target_os = "macos")]
             if let Ok(ios_manager) = crate::managers::IosManager::new() {
                 if let Ok(device_types) = ios_manager.list_device_types_with_names().await {
@@ -2404,7 +2475,7 @@ impl App {
         });
     }
 
-    /// バックグラウンドでデバイス一覧を読み込み（起動速度を向上）
+    /// Load device list in background (improve startup speed)
     fn start_background_device_loading(&mut self) {
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
@@ -2423,14 +2494,14 @@ impl App {
                     state.is_loading = false;
                     state.mark_refreshed();
 
-                    // 最初のデバイスが選択されている場合、その詳細を取得
+                    // Get details for first device if selected
                     let should_update_details = state.active_panel == Panel::Android
                         && !state.android_devices.is_empty()
                         && state.cached_device_details.is_none();
                     drop(state);
 
                     if should_update_details {
-                        // デバイス詳細を非同期で更新
+                        // Update device details asynchronously
                         let state_clone2 = Arc::clone(&state_clone);
                         let android_manager_clone = android_manager.clone();
                         tokio::spawn(async move {
@@ -2461,21 +2532,21 @@ impl App {
                 }
             }
 
-            // iOSデバイス一覧を読み込み (macOS のみ)
+            // Load iOS device list (macOS only)
             if let Some(ios_manager) = ios_manager {
                 match ios_manager.list_devices().await {
                     Ok(ios_devices) => {
                         let mut state = state_clone.lock().await;
                         state.ios_devices = ios_devices;
 
-                        // 最初のデバイスが選択されている場合、その詳細を取得
+                        // Get details for first device if selected
                         let should_update_details = state.active_panel == Panel::Ios
                             && !state.ios_devices.is_empty()
                             && state.cached_device_details.is_none();
                         drop(state);
 
                         if should_update_details {
-                            // デバイス詳細を非同期で更新
+                            // Update device details asynchronously
                             let state_clone2 = Arc::clone(&state_clone);
                             let _ios_manager_clone = ios_manager.clone();
                             tokio::spawn(async move {
@@ -2483,7 +2554,7 @@ impl App {
                                     let state = state_clone2.lock().await;
                                     if let Some(device) = state.ios_devices.get(state.selected_ios)
                                     {
-                                        // iOS デバイスの詳細は基本情報から生成
+                                        // Generate iOS device details from basic info
                                         let details = crate::app::state::DeviceDetails {
                                             name: device.name.clone(),
                                             status: if device.is_running {

@@ -11,6 +11,10 @@
 //! State updates are performed through methods that ensure consistency and thread safety.
 //! Background operations use async tasks with proper synchronization through RwLock.
 
+use crate::constants::{
+    android::{DEFAULT_RAM_STRING, DEFAULT_STORAGE_STRING},
+    MAX_LOG_ENTRIES,
+};
 use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
 use std::collections::VecDeque;
@@ -380,8 +384,8 @@ impl Default for CreateDeviceForm {
             device_type_id: String::new(),
             version: String::new(),
             version_display: String::new(),
-            ram_size: "2048".to_string(),
-            storage_size: "8192".to_string(),
+            ram_size: DEFAULT_RAM_STRING.to_string(),
+            storage_size: DEFAULT_STORAGE_STRING.to_string(),
             available_device_types: vec![],
             available_versions: vec![],
             selected_api_level_index: 0,
@@ -667,7 +671,7 @@ impl Default for AppState {
             selected_ios: 0,
             is_loading: true, // Start in loading state
             device_logs: VecDeque::new(),
-            max_log_entries: 1000,
+            max_log_entries: MAX_LOG_ENTRIES,
             create_device_form: CreateDeviceForm::default(),
             confirm_delete_dialog: None,
             confirm_wipe_dialog: None,

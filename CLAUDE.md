@@ -52,6 +52,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - Device type selection (iPhone, iPad models)
 - Runtime version selection
 - Basic device operations with status monitoring
+- Automatic Simulator.app lifecycle management (opens on start, quits when last device stops)
 
 ### User Interface
 - **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
@@ -153,6 +154,12 @@ cargo test startup_performance_test -- --nocapture
 - ✅ Device details with MB units and full paths
 - ✅ Comprehensive test suite
 - ✅ Operation status tracking and notifications
+- ✅ API level management with real-time installation
+- ✅ Device creation cache system (5-minute expiration)
+- ✅ Modular constants architecture (`src/constants/`)
+- ✅ Form validation framework (`src/utils/validation.rs`)
+- ✅ Enhanced command execution utilities with retry and error ignoring
+- ✅ iOS Simulator.app automatic lifecycle management
 
 ### Known Issues & Limitations
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved but not perfect)
@@ -188,6 +195,18 @@ cargo test startup_performance_test -- --nocapture
 - `src/models/device.rs` - `AndroidDevice`, `IosDevice`, `DeviceStatus` definitions
 - `src/models/error.rs` - Error types and user-friendly formatting
 - `src/models/platform.rs` - Platform enums and device configurations
+
+### Constants & Utilities
+- `src/constants/` - Modular constants system
+  - `commands.rs` - CLI tool names and arguments
+  - `defaults.rs` - Default values and configurations
+  - `env_vars.rs` - Environment variable names
+  - `files.rs` - File paths and extensions
+  - `messages.rs` - User-facing strings
+  - `patterns.rs` - Regular expressions
+  - `performance.rs` - Performance tuning parameters
+- `src/utils/validation.rs` - Form field validation framework
+- `src/utils/command.rs` - Enhanced command execution with retry and error handling
 
 ## Code Conventions
 

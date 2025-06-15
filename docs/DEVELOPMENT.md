@@ -135,7 +135,15 @@ src/
 │   ├── command.rs      # Command execution
 │   ├── logger.rs       # Logging utilities
 │   └── mod.rs          # Module exports
-├── constants.rs        # Application constants
+├── constants/          # Modular constants system
+│   ├── mod.rs         # Module exports
+│   ├── commands.rs    # CLI tool names and arguments
+│   ├── defaults.rs    # Default values and configurations
+│   ├── env_vars.rs    # Environment variable names
+│   ├── files.rs       # File paths and extensions
+│   ├── messages.rs    # User-facing strings
+│   ├── patterns.rs    # Regular expressions
+│   └── performance.rs # Performance tuning parameters
 ├── lib.rs             # Library root
 └── main.rs            # Application entry point
 ```
@@ -652,6 +660,128 @@ cargo publish
 1. **Update documentation**: Ensure docs reflect new version
 2. **Monitor issues**: Watch for bug reports
 3. **Plan next release**: Update development roadmap
+
+## Constants Architecture
+
+### Overview
+The application uses a modular constants system to eliminate hardcoded strings and improve maintainability. Constants are organized by category in the `src/constants/` directory.
+
+### Module Structure
+
+```rust
+// src/constants/mod.rs - Public API
+pub mod commands;
+pub mod defaults;
+pub mod env_vars;
+pub mod files;
+pub mod messages;
+pub mod patterns;
+pub mod performance;
+
+// Usage example
+use crate::constants::{
+    commands::ANDROID_COMMANDS,
+    defaults::DEFAULT_RAM_SIZE,
+    messages::MSG_DEVICE_CREATED,
+};
+```
+
+### Categories
+
+#### Commands (`commands.rs`)
+- CLI tool names and paths
+- Command arguments
+- Platform-specific commands
+
+```rust
+pub const ADB: &str = "adb";
+pub const EMULATOR: &str = "emulator";
+pub const AVDMANAGER: &str = "avdmanager";
+```
+
+#### Defaults (`defaults.rs`)
+- Default configuration values
+- UI dimensions
+- Resource limits
+
+```rust
+pub const DEFAULT_RAM_SIZE: u32 = 2048; // MB
+pub const DEFAULT_STORAGE_SIZE: u32 = 8192; // MB
+pub const MAX_LOG_ENTRIES: usize = 1000;
+```
+
+#### Environment Variables (`env_vars.rs`)
+- System environment variable names
+- Configuration paths
+
+```rust
+pub const ANDROID_HOME: &str = "ANDROID_HOME";
+pub const RUST_LOG: &str = "RUST_LOG";
+```
+
+#### Files (`files.rs`)
+- File paths and extensions
+- Configuration file names
+
+```rust
+pub const AVD_CONFIG_FILE: &str = "config.ini";
+pub const HARDWARE_QEMU_INI: &str = "hardware-qemu.ini";
+```
+
+#### Messages (`messages.rs`)
+- User-facing strings
+- Error messages
+- Status notifications
+
+```rust
+pub const MSG_DEVICE_CREATED: &str = "Device created successfully";
+pub const MSG_LOADING_DEVICES: &str = "Loading devices...";
+```
+
+#### Patterns (`patterns.rs`)
+- Regular expressions
+- Parsing patterns
+
+```rust
+pub const DEVICE_NAME_PATTERN: &str = r"^[a-zA-Z0-9_.-]+$";
+pub const API_LEVEL_PATTERN: &str = r"API (\d+)";
+```
+
+#### Performance (`performance.rs`)
+- Timing constants
+- Debounce delays
+- Cache durations
+
+```rust
+pub const STARTUP_MAX_TIME_MS: u64 = 150;
+pub const UI_DEBOUNCE_MS: u64 = 50;
+pub const CACHE_EXPIRY_SECS: u64 = 300; // 5 minutes
+```
+
+### Best Practices
+
+1. **Naming Convention**: Use SCREAMING_SNAKE_CASE for constants
+2. **Documentation**: Add doc comments explaining usage
+3. **Organization**: Group related constants together
+4. **Type Safety**: Use appropriate types (not just `&str`)
+5. **Visibility**: Only export what's needed
+
+### Adding New Constants
+
+1. Determine the appropriate module based on category
+2. Add the constant with documentation
+3. Update module exports if needed
+4. Replace hardcoded values throughout codebase
+
+Example:
+```rust
+// In messages.rs
+/// Message shown when device deletion is confirmed
+pub const MSG_DEVICE_DELETED: &str = "Device deleted successfully";
+
+// Usage
+state.add_notification(MSG_DEVICE_DELETED, NotificationType::Success);
+```
 
 ## Best Practices Summary
 

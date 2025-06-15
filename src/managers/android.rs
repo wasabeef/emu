@@ -278,7 +278,7 @@
 //!
 
 use crate::{
-    constants::{adb_commands, android_paths, android_version_to_api_level, commands, env_vars},
+    constants::{commands, defaults, env_vars, files},
     managers::common::{DeviceConfig, DeviceManager},
     models::device_info::{
         ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
@@ -408,10 +408,10 @@ impl AndroidManager {
     fn find_tool(android_home: &Path, tool: &str) -> Result<PathBuf> {
         let paths = [
             android_home
-                .join(android_paths::CMDLINE_TOOLS_LATEST_BIN)
+                .join(files::android::CMDLINE_TOOLS_LATEST_BIN)
                 .join(tool),
-            android_home.join(android_paths::TOOLS_BIN).join(tool),
-            android_home.join(android_paths::EMULATOR_DIR).join(tool),
+            android_home.join(files::android::TOOLS_BIN).join(tool),
+            android_home.join(files::android::EMULATOR_DIR).join(tool),
         ];
 
         for path in &paths {
@@ -447,7 +447,7 @@ impl AndroidManager {
         // Get list of running emulators
         let adb_output = self
             .command_runner
-            .run(commands::ADB, &[adb_commands::DEVICES])
+            .run(commands::ADB, &[commands::adb::DEVICES])
             .await
             .unwrap_or_default();
 
@@ -570,7 +570,22 @@ impl AndroidManager {
             .and_then(|v| v.parse::<u32>().ok())
             .unwrap_or(0);
 
-        android_version_to_api_level(major_version)
+        // Map Android version to API level
+        match major_version {
+            15 => 35,
+            14 => 34,
+            13 => 33,
+            12 => 32,
+            11 => 30,
+            10 => 29,
+            9 => 28,
+            8 => 26,
+            7 => 24,
+            6 => 23,
+            5 => 21,
+            4 => 15,
+            _ => major_version, // Fallback to version number
+        }
     }
 
     /// List available Android targets (API levels) based on installed system images
@@ -603,7 +618,7 @@ impl AndroidManager {
                     let api_num: u32 = api_level.parse().unwrap_or(0);
                     let android_version = self.get_android_version_name(api_num);
 
-                    let display = format!("API {api_level} - Android {android_version}");
+                    let display = format!("API {api_level} - {android_version}");
                     targets.insert(api_level.to_string(), display);
                 }
             }
@@ -701,7 +716,7 @@ impl AndroidManager {
         Ok(devices)
     }
 
-    /// デバイスカテゴリを動的に判定
+    /// Dynamically determine device category
     pub fn get_device_category(&self, device_id: &str, device_display: &str) -> String {
         let combined = format!(
             "{} {}",
@@ -709,13 +724,13 @@ impl AndroidManager {
             device_display.to_lowercase()
         );
 
-        // Phone - 最も一般的なデバイス
+        // Phone - most common device type
         if combined.contains("phone") || 
            combined.contains("pixel") && !combined.contains("fold") && !combined.contains("tablet") ||
            combined.contains("galaxy") && !combined.contains("fold") && !combined.contains("tablet") ||
            combined.contains("oneplus") ||
            combined.contains("iphone") ||
-           // 画面サイズでの判定（スマートフォン範囲）
+           // Determine by screen size (smartphone range)
            (combined.contains("5") && combined.contains("inch")) ||
            (combined.contains("6") && combined.contains("inch")) ||
            (combined.contains("pro") && !combined.contains("tablet") && !combined.contains("fold"))
@@ -723,7 +738,7 @@ impl AndroidManager {
             return "phone".to_string();
         }
 
-        // Tablet - タブレットデバイス
+        // Tablet - tablet devices
         if combined.contains("tablet")
             || combined.contains("pad")
             || (combined.contains("10") && combined.contains("inch"))
@@ -734,7 +749,7 @@ impl AndroidManager {
             return "tablet".to_string();
         }
 
-        // Wear - ウェアラブルデバイス
+        // Wear - wearable devices
         if combined.contains("wear")
             || combined.contains("watch")
             || combined.contains("round") && !combined.contains("tablet")
@@ -743,7 +758,7 @@ impl AndroidManager {
             return "wear".to_string();
         }
 
-        // TV - テレビデバイス
+        // TV - television devices
         if combined.contains("tv")
             || combined.contains("1080p")
             || combined.contains("4k")
@@ -752,13 +767,13 @@ impl AndroidManager {
             return "tv".to_string();
         }
 
-        // Automotive - 自動車デバイス
+        // Automotive - automotive devices
         if combined.contains("auto") || combined.contains("car") || combined.contains("automotive")
         {
             return "automotive".to_string();
         }
 
-        // Desktop - デスクトップ/大画面デバイス
+        // Desktop - desktop/large screen devices
         if combined.contains("desktop")
             || combined.contains("foldable") && combined.contains("large")
             || (combined.contains("15") && combined.contains("inch"))
@@ -767,11 +782,11 @@ impl AndroidManager {
             return "desktop".to_string();
         }
 
-        // デフォルトはphone（最も一般的）
+        // Default is phone (most common)
         "phone".to_string()
     }
 
-    /// カテゴリでフィルターされたデバイス一覧を取得
+    /// Get device list filtered by category
     pub async fn list_devices_by_category(
         &self,
         category: Option<&str>,
@@ -1100,7 +1115,7 @@ impl AndroidManager {
                     // Fall back to hardcoded values
                     self.get_android_version_name(device.api_level)
                 };
-                format!("API {} ({})", device.api_level, version_name)
+                format!("API {} (Android {})", device.api_level, version_name)
             },
             ram_size: None,
             storage_size: None,
@@ -1195,6 +1210,7 @@ impl AndroidManager {
     /// Get Android version name from API level (with accurate mapping)
     fn get_android_version_name(&self, api_level: u32) -> String {
         match api_level {
+            36 => "Android 16 Preview".to_string(), // Preview/Beta version
             35 => "Android 15".to_string(),
             34 => "Android 14".to_string(),
             33 => "Android 13".to_string(),
@@ -1217,7 +1233,7 @@ impl AndroidManager {
             16 => "Android 4.1".to_string(),
             15 => "Android 4.0.3".to_string(),
             14 => "Android 4.0".to_string(),
-            _ => format!("Android {}", api_level),
+            _ => format!("API {}", api_level), // For unknown versions, just show API level
         }
     }
 
@@ -1279,24 +1295,24 @@ impl AndroidManager {
             return None;
         }
 
-        // まず、デバイスIDをそのままスキン名として試す（最も一般的）
+        // First, try using the device ID directly as the skin name (most common case)
         let primary_skin = device_id.to_string();
 
-        // 利用可能なスキンをSDKから動的に取得
+        // Dynamically get available skins from SDK
         let available_skins = self
             .get_available_skins_from_sdk(device_id)
             .await
             .unwrap_or_default();
 
-        // 1. デバイスIDと完全一致するスキンがある場合
+        // 1. If there's a skin that exactly matches the device ID
         if available_skins.iter().any(|skin| skin == &primary_skin) {
             return Some(primary_skin);
         }
 
-        // 2. デバイス表示名から候補を生成してチェック
+        // 2. Generate candidates from device display name and check
         let display_based_skin = device_display
             .split('(')
-            .next() // 括弧以前の部分のみ
+            .next() // Only the part before parentheses
             .unwrap_or(device_display)
             .trim()
             .replace(' ', "_")
@@ -1309,11 +1325,11 @@ impl AndroidManager {
             return Some(display_based_skin);
         }
 
-        // 3. 部分一致でスキンを探す
+        // 3. Search for skins with partial match
         let device_lower = device_id.to_lowercase();
         for skin in &available_skins {
             let skin_lower = skin.to_lowercase();
-            // デバイスIDの主要部分がスキン名に含まれている、またはその逆
+            // Main part of device ID is contained in skin name, or vice versa
             if (device_lower.len() > 3 && skin_lower.contains(&device_lower))
                 || (skin_lower.len() > 3 && device_lower.contains(&skin_lower))
             {
@@ -1321,15 +1337,15 @@ impl AndroidManager {
             }
         }
 
-        // 4. すべて失敗した場合はデバイスIDをそのまま返す（フォールバック戦略で処理）
+        // 4. If all fail, return device ID as-is (handled by fallback strategy)
         Some(primary_skin)
     }
 
-    /// SDKからデバイスの利用可能なスキンを動的に取得
+    /// Dynamically get available skins for device from SDK
     async fn get_available_skins_from_sdk(&self, _device_id: &str) -> Result<Vec<String>> {
         let mut skins = Vec::new();
 
-        // Android SDKのスキンディレクトリを動的にスキャン
+        // Dynamically scan Android SDK skin directories
         if let Ok(android_home) = std::env::var(env_vars::ANDROID_HOME) {
             let android_path = std::path::PathBuf::from(&android_home);
 
@@ -1366,21 +1382,21 @@ impl AndroidManager {
             }
         }
 
-        // 4. avdmanager から利用可能なデバイスIDを取得（これらもスキン候補）
+        // 4. Get available device IDs from avdmanager (these are also skin candidates)
         if let Ok(available_devices) = self.list_available_devices().await {
             for (id, _display) in available_devices {
                 skins.push(id);
             }
         }
 
-        // 重複を除去してソート
+        // Remove duplicates and sort
         skins.sort();
         skins.dedup();
 
         Ok(skins)
     }
 
-    /// スキンディレクトリをスキャンしてスキン名を収集
+    /// Scan skin directory and collect skin names
     async fn scan_skin_directory(&self, skin_dir: &std::path::Path, skins: &mut Vec<String>) {
         if let Ok(mut entries) = fs::read_dir(skin_dir).await {
             while let Some(entry) = entries.next_entry().await.ok().flatten() {
@@ -1395,7 +1411,7 @@ impl AndroidManager {
         }
     }
 
-    /// システムイメージディレクトリを再帰的にスキャンしてスキンを探す
+    /// Recursively scan system image directories to find skins
     async fn scan_system_images_for_skins(
         &self,
         system_images_dir: &std::path::Path,
@@ -1507,7 +1523,7 @@ impl DynamicDeviceProvider for AndroidManager {
     }
 
     async fn get_available_skins(&self, device_id: &str) -> Result<Vec<String>> {
-        // 動的にスキンを取得
+        // Dynamically get skins
         self.get_available_skins_from_sdk(device_id).await
     }
 
@@ -1578,7 +1594,7 @@ impl AndroidManager {
         } else {
             (
                 "google_apis_playstore".to_string(),
-                crate::constants::android_packages::default_abi().to_string(),
+                defaults::default_abi().to_string(),
             )
         };
 
@@ -1638,7 +1654,7 @@ impl AndroidManager {
             .collect::<String>()
             .to_lowercase();
 
-        // より柔軟なマッチング
+        // More flexible matching
         available_devices.iter().find_map(|(id, display)| {
             let cleaned_display = display
                 .chars()
@@ -1646,20 +1662,20 @@ impl AndroidManager {
                 .collect::<String>()
                 .to_lowercase();
 
-            // 完全一致
+            // Exact match
             if cleaned_config == cleaned_display {
                 return Some(id.clone());
             }
 
-            // デバイスタイプ名に含まれる主要キーワードでマッチング
+            // Match by main keywords contained in device type name
             let config_words: Vec<&str> = cleaned_config.split_whitespace().collect();
             let display_words: Vec<&str> = cleaned_display.split_whitespace().collect();
 
-            // 主要キーワードが一致するかチェック（例: "Galaxy", "Pixel", "Nexus"）
+            // Check if main keywords match (e.g., "Galaxy", "Pixel", "Nexus")
             let important_words = ["galaxy", "pixel", "nexus", "tv", "wear", "automotive"];
             for word in &important_words {
                 if cleaned_config.contains(word) && cleaned_display.contains(word) {
-                    // さらに詳細チェック（例: "Galaxy S24" vs "Galaxy Nexus"）
+                    // Further detailed check (e.g., "Galaxy S24" vs "Galaxy Nexus")
                     let config_specific: Vec<&str> = config_words
                         .iter()
                         .filter(|w| w.chars().any(|c| c.is_ascii_digit()) || w.len() > 4)
@@ -1672,12 +1688,12 @@ impl AndroidManager {
                         .collect();
 
                     if !config_specific.is_empty() && !display_specific.is_empty() {
-                        // 特定的なキーワードが一致する場合のみ
+                        // Only when specific keywords match
                         if config_specific.iter().any(|w| display_specific.contains(w)) {
                             return Some(id.clone());
                         }
                     } else if config_specific.is_empty() && display_specific.is_empty() {
-                        // 両方とも一般的な名前の場合は基本マッチング
+                        // Basic matching when both have generic names
                         return Some(id.clone());
                     }
                 }
@@ -2125,9 +2141,7 @@ impl DeviceManager for AndroidManager {
             let default_abi = config
                 .additional_options
                 .get("abi")
-                .map_or(crate::constants::android_packages::default_abi(), |s| {
-                    s.as_str()
-                });
+                .map_or(defaults::default_abi(), |s| s.as_str());
             (default_tag.to_string(), default_abi.to_string())
         };
 
@@ -2164,19 +2178,19 @@ impl DeviceManager for AndroidManager {
                 None
             };
 
-        // デバイスパラメータが見つからない場合はデフォルトを使用
+        // Use default if device parameter is not found
         if let Some(ref device_id) = device_param {
             args.push("--device");
             args.push(device_id);
         } else {
-            // デバイスパラメータを省略 - avdmanager がデフォルトデバイスを使用
+            // Omit device parameter - avdmanager will use default device
             log::warn!(
                 "Device type '{}' not found, using default device",
                 config.device_type
             );
         }
 
-        // スキンを動的に取得して指定（エラー時はフォールバック戦略を使用）
+        // Dynamically get and specify skin (use fallback strategy on error)
         let skin_name = if let Some(ref device_id) = device_param {
             self.get_appropriate_skin(device_id, &config.device_type)
                 .await
@@ -2192,7 +2206,7 @@ impl DeviceManager for AndroidManager {
 
         let result = self.command_runner.run(&self.avdmanager_path, &args).await;
 
-        // スキンエラーの場合はスキンなしで再試行
+        // Retry without skin if skin error occurs
         let result = if result.is_err() && skin_name.is_some() {
             let error_str = result.as_ref().unwrap_err().to_string();
             if error_str.to_lowercase().contains("skin") {
@@ -2200,7 +2214,7 @@ impl DeviceManager for AndroidManager {
                     "Skin '{}' failed, retrying without skin",
                     skin_name.as_ref().unwrap()
                 );
-                // スキンパラメータを除去して再試行
+                // Retry after removing skin parameter
                 let mut fallback_args =
                     vec!["create", "avd", "-n", &safe_name, "-k", &package_path];
                 if let Some(ref device_id) = device_param {
@@ -2238,7 +2252,7 @@ impl DeviceManager for AndroidManager {
 
                 // Create ultra-compact diagnostic info for UI
                 let mut diagnostic_info = Vec::new();
-                // 短縮された名前（最大20文字）
+                // Shortened name (max 20 characters)
                 let short_name = if safe_name.len() > 20 {
                     format!("{}...", &safe_name[..17])
                 } else {
@@ -2247,7 +2261,7 @@ impl DeviceManager for AndroidManager {
                 diagnostic_info.push(format!("AVD: {}", short_name));
                 diagnostic_info.push(format!("API: {}", config.version));
 
-                // 重要な情報を先頭に、簡潔なエラーメッセージを作成
+                // Create concise error message with important information at the beginning
                 if error_str.contains("system image")
                     || error_str.contains("package path")
                     || error_str.contains("not installed")
@@ -2272,7 +2286,7 @@ impl DeviceManager for AndroidManager {
                         config.device_type
                     ))
                 } else {
-                    // 汎用エラー - 最も重要な情報のみ
+                    // Generic error - only the most important information
                     let key_error = if error_str.contains("Error:") {
                         error_str
                             .split("Error:")

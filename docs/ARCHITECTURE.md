@@ -84,6 +84,10 @@ pub struct AppState {
     pub active_panel: Panel,
     pub selected_android: usize,
     pub selected_ios: usize,
+    pub mode: Mode,
+    
+    // API Level Management (New in v2.0)
+    pub api_level_management: Option<ApiLevelManagementState>,
     
     // Background operations
     pub is_loading: bool,
@@ -96,6 +100,11 @@ pub struct AppState {
     // Logging and notifications
     pub device_logs: VecDeque<LogEntry>,
     pub notifications: VecDeque<Notification>,
+    
+    // Dialogs
+    pub create_device_form: CreateDeviceForm,
+    pub confirm_delete_dialog: Option<ConfirmDeleteDialog>,
+    pub confirm_wipe_dialog: Option<ConfirmWipeDialog>,
 }
 ```
 
@@ -179,7 +188,27 @@ impl DeviceManager for IosManager {
 - Easy testing with mock implementations
 - Clear separation of platform-specific logic
 
-### 2. Async State Management
+### 2. API Level Management System (New)
+
+**Purpose**: Dynamic system image management for Android devices.
+
+```rust
+pub struct ApiLevelManagementState {
+    pub api_levels: Vec<ApiLevel>,
+    pub selected_index: usize,
+    pub is_loading: bool,
+    pub install_progress: Option<InstallProgress>,
+    pub scroll_offset: usize,
+}
+```
+
+**Features**:
+- Real-time installation progress tracking
+- Scrollable UI with keyboard navigation
+- Automatic cache invalidation on changes
+- Background installation with progress callbacks
+
+### 3. Async State Management
 
 **Purpose**: Provide thread-safe state access with non-blocking operations.
 
@@ -312,7 +341,7 @@ App::new() → tokio::spawn() → list_devices() → state.devices = ... → ren
 1. **Immediate UI Rendering**: Show interface within ~50ms
 2. **Background Data Loading**: Load device lists asynchronously
 3. **Progressive Enhancement**: Add features as data becomes available
-4. **Cache Utilization**: Use cached data when available
+4. **Cache Preloading**: Preload device types and API levels at startup
 5. **Target Performance**: Startup time < 150ms (typical: ~104ms)
 
 ### Runtime Optimization
@@ -465,5 +494,45 @@ async fn test_startup_performance() {
 - **assert_cmd**: Command-line interface testing
 - **predicates**: Complex assertion conditions
 - **Custom Assertions**: Domain-specific test helpers
+
+## New Features in v2.0
+
+### API Level Management
+- **Dynamic System Image Discovery**: Real-time detection of available system images
+- **Installation Progress Tracking**: Live progress updates during installation
+- **Smart Cache Invalidation**: Automatic cache refresh on system image changes
+- **Architecture Detection**: Automatic selection of optimal architecture (x86_64/arm64)
+
+### Enhanced Caching System
+- **Device Creation Cache**: Pre-loaded device types and API levels
+- **Background Refresh**: Automatic cache updates without blocking UI
+- **Context-Aware Invalidation**: Cache cleared on relevant operations
+
+### Improved User Experience
+- **Scrollable Dialogs**: Better handling of long lists
+- **Loading Indicators**: Clear feedback during async operations
+- **Keyboard Navigation**: Circular navigation in device lists
+- **Real-time Status Updates**: Live device status monitoring
+
+### iOS Simulator Integration
+- **Automatic App Lifecycle**: Simulator.app opens automatically when starting devices
+- **Smart Cleanup**: Simulator.app quits automatically when last device stops
+- **Graceful Shutdown**: Uses AppleScript for clean app termination with fallback
+- **Dock Management**: Prevents Simulator.app icon from lingering in Dock
+
+## Constants Architecture
+
+The application uses a modular constants system (`constants/`):
+
+```
+constants/
+├── commands.rs     # CLI tool names and arguments
+├── defaults.rs     # Default values and configurations
+├── env_vars.rs     # Environment variable names
+├── files.rs        # File paths and extensions
+├── messages.rs     # User-facing strings and messages
+├── patterns.rs     # Regular expressions for parsing
+└── performance.rs  # Performance tuning parameters
+```
 
 This architecture provides a solid foundation for building a responsive, maintainable, and cross-platform terminal application while ensuring reliability through comprehensive testing.

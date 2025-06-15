@@ -100,9 +100,9 @@ fn test_fallback_when_preferred_arch_not_available() {
 
 #[test]
 fn test_default_abi_function() {
-    use emu::constants::android_packages;
+    use emu::constants::defaults;
 
-    let default_abi = android_packages::default_abi();
+    let default_abi = defaults::default_abi();
 
     #[cfg(target_arch = "aarch64")]
     assert_eq!(default_abi, "arm64-v8a");

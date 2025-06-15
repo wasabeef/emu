@@ -48,7 +48,7 @@ pub struct InstallProgress {
 impl ApiLevel {
     /// Creates a new API level entry.
     pub fn new(api: u32, version: String, system_image_id: String) -> Self {
-        let display_name = format!("{} (API {})", version, api);
+        let display_name = format!("API {} ({})", api, version);
         Self {
             api,
             version,
