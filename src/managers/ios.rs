@@ -194,7 +194,12 @@
 //! - Non-macOS platforms get stub implementations that return appropriate errors
 //! - The `which` crate is used to verify `xcrun` availability at runtime
 
-use crate::constants::ios::*;
+use crate::constants::ios::{
+    IOS_ALREADY_BOOTED_ERROR, IOS_ALREADY_SHUTDOWN_ERROR, IOS_DEVICE_STATUS_BOOTED,
+    IOS_DEVICE_STATUS_CREATING, IOS_DEVICE_STATUS_SHUTDOWN, IOS_DEVICE_TYPE_PREFIX,
+    IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT, IOS_RUNTIME_PREFIX, SIMULATOR_APP_NAME,
+    SIMULATOR_OPEN_FLAG, SIMULATOR_QUIT_COMMAND,
+};
 use crate::managers::common::{DeviceConfig, DeviceManager};
 #[cfg(target_os = "macos")]
 use crate::models::device_info::DynamicDeviceConfig;
@@ -796,46 +801,31 @@ impl IosManager {
 impl DeviceManager for IosManager {
     type Device = IosDevice; // This will use the potentially simplified IosDevice from models.rs for non-macOS
 
-    fn list_devices(&self) -> impl std::future::Future<Output = Result<Vec<Self::Device>>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn list_devices(&self) -> Result<Vec<Self::Device>> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn start_device(
-        &self,
-        _identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn start_device(&self, _identifier: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn stop_device(
-        &self,
-        _identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn stop_device(&self, _identifier: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn create_device(
-        &self,
-        _config: &DeviceConfig,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn create_device(&self, _config: &DeviceConfig) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn delete_device(
-        &self,
-        _identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn delete_device(&self, _identifier: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn wipe_device(
-        &self,
-        _identifier: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send {
-        async { bail!("iOS simulator management is only available on macOS") }
+    async fn wipe_device(&self, _identifier: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
     }
 
-    fn is_available(&self) -> impl std::future::Future<Output = bool> + Send {
-        async { false } // Not available on non-macOS
+    async fn is_available(&self) -> bool {
+        false // Not available on non-macOS
     }
 }
