@@ -11,8 +11,12 @@
 //! State updates are performed through methods that ensure consistency and thread safety.
 //! Background operations use async tasks with proper synchronization through RwLock.
 
+use crate::constants::{
+    android::{DEFAULT_RAM_STRING, DEFAULT_STORAGE_STRING},
+    MAX_LOG_ENTRIES,
+};
 use crate::models::device_info::DynamicDeviceConfig;
-use crate::models::{AndroidDevice, IosDevice};
+use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -60,6 +64,8 @@ pub enum Mode {
     ConfirmDelete,
     /// Wipe data confirmation dialog is active
     ConfirmWipe,
+    /// API level management dialog is active
+    ManageApiLevels,
     /// Help screen is displayed
     Help,
 }
@@ -199,6 +205,20 @@ impl DeviceCache {
         self.ios_runtimes = runtimes;
         self.last_updated = std::time::Instant::now();
         self.is_loading = false;
+    }
+
+    /// Invalidates the Android cache by clearing API levels and marking as stale.
+    /// This forces a cache refresh on the next device creation.
+    pub fn invalidate_android_cache(&mut self) {
+        self.android_api_levels.clear();
+        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
+    }
+
+    /// Invalidates the iOS cache by clearing runtimes and marking as stale.
+    /// This forces a cache refresh on the next device creation.
+    pub fn invalidate_ios_cache(&mut self) {
+        self.ios_runtimes.clear();
+        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
     }
 }
 
@@ -351,6 +371,8 @@ pub struct AppState {
     pub android_scroll_offset: usize,
     /// Scroll offset for iOS device list
     pub ios_scroll_offset: usize,
+    /// API level management dialog state (when dialog is open)
+    pub api_level_management: Option<ApiLevelManagementState>,
 }
 
 impl Default for CreateDeviceForm {
@@ -362,8 +384,8 @@ impl Default for CreateDeviceForm {
             device_type_id: String::new(),
             version: String::new(),
             version_display: String::new(),
-            ram_size: "2048".to_string(),
-            storage_size: "8192".to_string(),
+            ram_size: DEFAULT_RAM_STRING.to_string(),
+            storage_size: DEFAULT_STORAGE_STRING.to_string(),
             available_device_types: vec![],
             available_versions: vec![],
             selected_api_level_index: 0,
@@ -649,7 +671,7 @@ impl Default for AppState {
             selected_ios: 0,
             is_loading: true, // Start in loading state
             device_logs: VecDeque::new(),
-            max_log_entries: 1000,
+            max_log_entries: MAX_LOG_ENTRIES,
             create_device_form: CreateDeviceForm::default(),
             confirm_delete_dialog: None,
             confirm_wipe_dialog: None,
@@ -671,6 +693,7 @@ impl Default for AppState {
             cached_device_details: None,
             android_scroll_offset: 0,
             ios_scroll_offset: 0,
+            api_level_management: None,
         }
     }
 }
@@ -747,6 +770,70 @@ impl AppState {
                     // Update scroll offset to keep selection visible
                     self.update_ios_scroll_offset();
                 }
+            }
+        }
+    }
+
+    /// Moves device selection by a specified number of steps.
+    /// Positive steps move down/right, negative steps move up/left.
+    /// Handles wrapping at list boundaries.
+    pub fn move_by_steps(&mut self, steps: i32) {
+        if steps == 0 {
+            return;
+        }
+
+        match self.active_panel {
+            Panel::Android => {
+                let device_count = self.android_devices.len();
+                if device_count == 0 {
+                    return;
+                }
+
+                // Calculate new position with wrapping
+                let current = self.selected_android as i32;
+                let new_pos = if steps > 0 {
+                    // Moving down
+                    let raw_pos = current + steps;
+                    (raw_pos % device_count as i32) as usize
+                } else {
+                    // Moving up
+                    let raw_pos = current + steps;
+                    if raw_pos < 0 {
+                        let wrapped = device_count as i32 + (raw_pos % device_count as i32);
+                        (wrapped % device_count as i32) as usize
+                    } else {
+                        raw_pos as usize
+                    }
+                };
+
+                self.selected_android = new_pos;
+                self.update_android_scroll_offset();
+            }
+            Panel::Ios => {
+                let device_count = self.ios_devices.len();
+                if device_count == 0 {
+                    return;
+                }
+
+                // Calculate new position with wrapping
+                let current = self.selected_ios as i32;
+                let new_pos = if steps > 0 {
+                    // Moving down
+                    let raw_pos = current + steps;
+                    (raw_pos % device_count as i32) as usize
+                } else {
+                    // Moving up
+                    let raw_pos = current + steps;
+                    if raw_pos < 0 {
+                        let wrapped = device_count as i32 + (raw_pos % device_count as i32);
+                        (wrapped % device_count as i32) as usize
+                    } else {
+                        raw_pos as usize
+                    }
+                };
+
+                self.selected_ios = new_pos;
+                self.update_ios_scroll_offset();
             }
         }
     }
@@ -1236,5 +1323,84 @@ impl AppState {
             }
             Panel::Ios => !cache.ios_device_types.is_empty() && !cache.ios_runtimes.is_empty(),
         }
+    }
+}
+
+/// State for API level management dialog.
+#[derive(Debug, Clone)]
+pub struct ApiLevelManagementState {
+    /// List of available API levels
+    pub api_levels: Vec<ApiLevel>,
+    /// Currently selected API level index
+    pub selected_index: usize,
+    /// Whether data is being loaded
+    pub is_loading: bool,
+    /// Current installation progress
+    pub install_progress: Option<InstallProgress>,
+    /// Package ID being installed/uninstalled
+    pub installing_package: Option<String>,
+    /// Error message to display
+    pub error_message: Option<String>,
+    /// Scroll offset for the API level list
+    pub scroll_offset: usize,
+}
+
+impl Default for ApiLevelManagementState {
+    fn default() -> Self {
+        Self {
+            api_levels: Vec::new(),
+            selected_index: 0,
+            is_loading: true,
+            install_progress: None,
+            installing_package: None,
+            error_message: None,
+            scroll_offset: 0,
+        }
+    }
+}
+
+impl ApiLevelManagementState {
+    /// Creates a new API level management state.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Moves selection up.
+    pub fn move_up(&mut self) {
+        if !self.api_levels.is_empty() {
+            if self.selected_index == 0 {
+                self.selected_index = self.api_levels.len() - 1;
+            } else {
+                self.selected_index -= 1;
+            }
+        }
+    }
+
+    /// Moves selection down.
+    pub fn move_down(&mut self) {
+        if !self.api_levels.is_empty() {
+            self.selected_index = (self.selected_index + 1) % self.api_levels.len();
+        }
+    }
+
+    /// Gets the currently selected API level.
+    pub fn get_selected_api_level(&self) -> Option<&ApiLevel> {
+        self.api_levels.get(self.selected_index)
+    }
+
+    /// Calculates scroll offset to keep selected item visible.
+    pub fn get_scroll_offset(&self, available_height: usize) -> usize {
+        if self.api_levels.is_empty() || available_height == 0 {
+            return 0;
+        }
+
+        let total_items = self.api_levels.len();
+        let selected = self.selected_index;
+
+        // Keep selected item in the middle of the visible area when possible
+        let preferred_offset = selected.saturating_sub(available_height / 2);
+        let max_offset = total_items.saturating_sub(available_height);
+
+        preferred_offset.min(max_offset)
     }
 }

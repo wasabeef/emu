@@ -15,6 +15,7 @@ https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
   - Support for Phone, Tablet, TV, Wear OS, Automotive, Desktop device types
   - Advanced configuration: RAM (512MB-8GB), Storage (1GB-64GB)
   - Automatic placeholder naming (e.g., "Pixel 9 Pro Fold API 36")
+  - Real-time system image installation with progress tracking
 - 🍎 **iOS Simulator Management** (macOS only): Manage simulators via `xcrun simctl`
   - Device type selection (iPhone, iPad models)
   - Runtime version selection with dynamic detection
@@ -28,6 +29,7 @@ https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
 - 🔍 **Comprehensive Details**: Device specifications, status, RAM/Storage in MB, full paths
 - 🧠 **Smart Caching**: Platform-aware cache invalidation and background loading
 - 📝 **Robust Testing**: 15 test files with 31+ test functions ensuring reliability
+- 📦 **API Level Management**: Install/uninstall system images directly from TUI
 
 ## Installation
 
@@ -72,6 +74,7 @@ emu --debug
 | `j`/`k` | Navigate devices (vim-style) |
 | `Enter` | Start/Stop device |
 | `c` | Create new device |
+| `i` | Manage API levels (Android) |
 | `d` | Delete device |
 | `w` | Wipe device |
 | `r` | Refresh |

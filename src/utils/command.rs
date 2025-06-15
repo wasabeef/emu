@@ -172,4 +172,122 @@ impl CommandRunner {
 
         Ok(child.id().unwrap_or(0))
     }
+
+    /// Executes a command ignoring specific error patterns (useful for "already in state" errors).
+    ///
+    /// This method runs a command and only returns an error if it doesn't match
+    /// any of the provided ignore patterns. This is particularly useful for
+    /// platform commands that return errors when a device is already in the
+    /// requested state.
+    ///
+    /// # Arguments
+    /// * `program` - The command/program to execute
+    /// * `args` - Iterator of arguments to pass to the command
+    /// * `ignore_patterns` - Patterns to ignore in error messages
+    ///
+    /// # Returns
+    /// * `Ok(String)` - Command stdout if execution succeeds or error is ignored
+    /// * `Err(anyhow::Error)` - If command fails with an error not in ignore patterns
+    ///
+    /// # Examples
+    /// ```rust
+    /// let runner = CommandRunner::new();
+    /// // Ignore "already booted" errors when starting iOS simulator
+    /// runner.run_ignoring_errors(
+    ///     "xcrun",
+    ///     &["simctl", "boot", device_id],
+    ///     &["Unable to boot device in current state: Booted"]
+    /// ).await?;
+    /// ```
+    pub async fn run_ignoring_errors<S, I, A>(
+        &self,
+        program: S,
+        args: I,
+        ignore_patterns: &[&str],
+    ) -> Result<String>
+    where
+        S: AsRef<OsStr>,
+        I: IntoIterator<Item = A>,
+        A: AsRef<OsStr>,
+    {
+        match self.run(program, args).await {
+            Ok(output) => Ok(output),
+            Err(e) => {
+                let error_msg = e.to_string();
+
+                // Check if error matches any ignore pattern
+                for pattern in ignore_patterns {
+                    if error_msg.contains(pattern) {
+                        // Log that we're ignoring this error
+                        log::info!("Ignoring expected error: {}", error_msg);
+                        return Ok(String::new());
+                    }
+                }
+
+                // Re-throw the error if it doesn't match any pattern
+                Err(e)
+            }
+        }
+    }
+
+    /// Executes a command with retry logic for transient failures.
+    ///
+    /// This method attempts to run a command multiple times with exponential
+    /// backoff between attempts. Useful for commands that may fail due to
+    /// temporary resource contention or network issues.
+    ///
+    /// # Arguments
+    /// * `program` - The command/program to execute
+    /// * `args` - Iterator of arguments to pass to the command
+    /// * `max_retries` - Maximum number of retry attempts (0 = no retries)
+    ///
+    /// # Returns
+    /// * `Ok(String)` - Command stdout if any attempt succeeds
+    /// * `Err(anyhow::Error)` - If all attempts fail
+    ///
+    /// # Examples
+    /// ```rust
+    /// let runner = CommandRunner::new();
+    /// // Try up to 3 times to list devices
+    /// let devices = runner.run_with_retry("adb", &["devices"], 2).await?;
+    /// ```
+    pub async fn run_with_retry<S, I, A>(
+        &self,
+        program: S,
+        args: I,
+        max_retries: u32,
+    ) -> Result<String>
+    where
+        S: AsRef<OsStr>,
+        I: IntoIterator<Item = A> + Clone,
+        A: AsRef<OsStr>,
+    {
+        let mut last_error = None;
+        let mut delay = std::time::Duration::from_millis(100);
+
+        for attempt in 0..=max_retries {
+            match self.run(program.as_ref(), args.clone()).await {
+                Ok(output) => return Ok(output),
+                Err(e) => {
+                    last_error = Some(e);
+
+                    if attempt < max_retries {
+                        log::warn!(
+                            "Command failed (attempt {}/{}), retrying after {:?}",
+                            attempt + 1,
+                            max_retries + 1,
+                            delay
+                        );
+                        tokio::time::sleep(delay).await;
+
+                        // Exponential backoff with max delay of 2 seconds
+                        delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(2));
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap())
+            .context(format!("Command failed after {} attempts", max_retries + 1))
+    }
 }

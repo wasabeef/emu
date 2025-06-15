@@ -10,12 +10,14 @@
 //! - `error` - Custom error types and error handling utilities
 //! - `platform` - Platform definitions and platform-specific information
 
+pub mod api_level;
 pub mod device;
 pub mod device_info;
 pub mod error;
 pub mod platform;
 
 // Re-export commonly used types for convenience
+pub use api_level::{ApiLevel, InstallProgress, SystemImageVariant};
 pub use device::{AndroidDevice, DeviceStatus, IosDevice};
 pub use error::DeviceError;
 pub use platform::Platform;

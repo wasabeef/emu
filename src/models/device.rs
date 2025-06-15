@@ -4,6 +4,7 @@
 //! in the application. Each platform has its own device type with platform-specific
 //! fields, while sharing common status enumerations.
 
+use crate::constants::android::{DEFAULT_RAM_STRING, DEFAULT_STORAGE_FALLBACK};
 use serde::{Deserialize, Serialize};
 
 /// Represents an Android Virtual Device (AVD).
@@ -82,8 +83,8 @@ impl Default for AndroidDevice {
             api_level: 0,
             status: DeviceStatus::Stopped,
             is_running: false,
-            ram_size: "2048".to_string(),
-            storage_size: "512M".to_string(),
+            ram_size: DEFAULT_RAM_STRING.to_string(),
+            storage_size: DEFAULT_STORAGE_FALLBACK.to_string(),
         }
     }
 }
