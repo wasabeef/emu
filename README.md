@@ -5,7 +5,7 @@
 
 A TUI for managing Android emulators and iOS simulators.
 
-https://github.com/user-attachments/assets/0ff745ce-7329-4af8-b529-6c5b30d3c48e
+https://github.com/user-attachments/assets/3f4bfde6-6e54-45bd-9a7c-0cb2eeb2f861
 
 ## Features
 
