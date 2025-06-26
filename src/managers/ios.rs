@@ -531,7 +531,7 @@ impl IosManager {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Called automatically after device shutdown
     /// self.quit_simulator_if_no_running_devices().await;
     /// ```

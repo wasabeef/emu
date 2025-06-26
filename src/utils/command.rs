@@ -15,10 +15,15 @@ use tokio::process::Command;
 /// It handles output capture, error propagation, and optional debug logging.
 ///
 /// # Examples
-/// ```rust
+/// ```rust,no_run
+/// use emu::utils::CommandRunner;
+///
+/// # async fn example() -> anyhow::Result<()> {
 /// let runner = CommandRunner::new();
 /// let output = runner.run("adb", &["devices"]).await?;
 /// println!("Connected devices: {}", output);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct CommandRunner;
@@ -56,10 +61,15 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If command fails or cannot be executed
     ///
     /// # Examples
-    /// ```rust
+    /// ```rust,no_run
+    /// use emu::utils::CommandRunner;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
     /// let runner = CommandRunner::new();
     /// let devices = runner.run("adb", &["devices"]).await?;
     /// let avds = runner.run("avdmanager", &["list", "avd"]).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Error Handling
@@ -146,10 +156,15 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If the command cannot be spawned
     ///
     /// # Examples
-    /// ```rust
+    /// ```rust,no_run
+    /// use emu::utils::CommandRunner;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
     /// let runner = CommandRunner::new();
     /// let pid = runner.spawn("open", &["-a", "Simulator"]).await?;
     /// println!("Launched Simulator with PID: {}", pid);
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Note
@@ -190,14 +205,20 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If command fails with an error not in ignore patterns
     ///
     /// # Examples
-    /// ```rust
+    /// ```rust,no_run
+    /// use emu::utils::CommandRunner;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
     /// let runner = CommandRunner::new();
+    /// let device_id = "12345-6789";
     /// // Ignore "already booted" errors when starting iOS simulator
     /// runner.run_ignoring_errors(
     ///     "xcrun",
     ///     &["simctl", "boot", device_id],
     ///     &["Unable to boot device in current state: Booted"]
     /// ).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn run_ignoring_errors<S, I, A>(
         &self,
@@ -246,10 +267,15 @@ impl CommandRunner {
     /// * `Err(anyhow::Error)` - If all attempts fail
     ///
     /// # Examples
-    /// ```rust
+    /// ```rust,no_run
+    /// use emu::utils::CommandRunner;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
     /// let runner = CommandRunner::new();
     /// // Try up to 3 times to list devices
     /// let devices = runner.run_with_retry("adb", &["devices"], 2).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn run_with_retry<S, I, A>(
         &self,

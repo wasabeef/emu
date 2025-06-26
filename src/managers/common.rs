@@ -137,6 +137,8 @@ pub trait DeviceManager {
 ///
 /// # Examples
 /// ```rust
+/// use emu::managers::common::DeviceConfig;
+///
 /// // Basic device configuration
 /// let config = DeviceConfig::new(
 ///     "My Device".to_string(),
@@ -145,6 +147,9 @@ pub trait DeviceManager {
 /// );
 ///
 /// // Android device with custom RAM and storage
+/// let name = "My Phone".to_string();
+/// let device_type = "pixel_7".to_string();
+/// let version = "android-34".to_string();
 /// let android_config = DeviceConfig::new(name, device_type, version)
 ///     .with_ram("4096".to_string())
 ///     .with_storage("8192".to_string());
@@ -242,7 +247,11 @@ impl DeviceConfig {
 ///
 /// # Examples
 /// ```rust
+/// use emu::managers::common::parse_json_devices;
+/// # fn main() -> anyhow::Result<()> {
 /// let json = parse_json_devices(r#"{"devices": []}"#)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn parse_json_devices(output: &str) -> Result<Value> {
     let json: Value = serde_json::from_str(output)?;
@@ -264,7 +273,11 @@ pub fn parse_json_devices(output: &str) -> Result<Value> {
 ///
 /// # Examples
 /// ```rust
-/// let devices = extract_device_list(&json, &["devices", "android"])?;
+/// use emu::managers::common::extract_device_list;
+/// use serde_json::json;
+///
+/// let json = json!({"devices": {"android": []}});
+/// let devices = extract_device_list(&json, &["devices", "android"]);
 /// ```
 pub fn extract_device_list<'a>(json: &'a Value, path: &[&str]) -> Option<&'a Value> {
     let mut current = json;
@@ -288,6 +301,8 @@ pub fn extract_device_list<'a>(json: &'a Value, path: &[&str]) -> Option<&'a Val
 ///
 /// # Examples
 /// ```rust
+/// use emu::managers::common::format_device_name;
+///
 /// assert_eq!(format_device_name("Long Device Name", 10), "Long De...");
 /// assert_eq!(format_device_name("Short", 10), "Short");
 /// ```
@@ -312,6 +327,8 @@ pub fn format_device_name(name: &str, max_length: usize) -> String {
 ///
 /// # Examples
 /// ```rust
+/// use emu::managers::common::sanitize_device_name;
+///
 /// assert_eq!(sanitize_device_name("My Device!"), "My_Device_");
 /// assert_eq!(sanitize_device_name("Test-Device_123"), "Test-Device_123");
 /// ```
@@ -348,6 +365,8 @@ pub fn sanitize_device_name(name: &str) -> String {
 ///
 /// # Examples
 /// ```rust
+/// use emu::managers::common::sanitize_device_name_for_command;
+///
 /// assert_eq!(sanitize_device_name_for_command("2.7\" QVGA API 36"), "2.7QVGAAPI36");
 /// assert_eq!(sanitize_device_name_for_command("My Device"), "MyDevice");
 /// assert_eq!(sanitize_device_name_for_command("'Test'"), "Test");

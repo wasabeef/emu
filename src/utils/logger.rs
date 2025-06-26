@@ -22,9 +22,15 @@ use std::str::FromStr;
 /// * `Err(anyhow::Error)` - If logger is already initialized or setup fails
 ///
 /// # Examples
-/// ```rust
+/// ```rust,no_run
+/// use emu::utils::setup_logger;
+///
+/// # fn main() -> anyhow::Result<()> {
 /// setup_logger("info")?;  // Set to info level
-/// setup_logger("debug")?; // Enable debug output
+/// // Note: Can't call setup_logger twice in same process
+/// // setup_logger("debug")?; // Would fail - already initialized
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Environment Variables
@@ -58,7 +64,13 @@ pub fn setup_logger(level: &str) -> Result<()> {
 ///
 /// # Examples
 /// ```rust
+/// use emu::debug;
+///
+/// let device_name = "Pixel 7";
 /// debug!("Processing device: {}", device_name);
+///
+/// let cmd = "adb";
+/// let args = vec!["devices"];
 /// debug!("Command executed: {} {}", cmd, args.join(" "));
 /// ```
 #[macro_export]
@@ -75,7 +87,11 @@ macro_rules! debug {
 ///
 /// # Examples
 /// ```rust
+/// use emu::info;
+///
 /// info!("Starting device manager");
+///
+/// let device_name = "Pixel 7";
 /// info!("Device '{}' started successfully", device_name);
 /// ```
 #[macro_export]
@@ -92,6 +108,9 @@ macro_rules! info {
 ///
 /// # Examples
 /// ```rust
+/// use emu::warn;
+///
+/// let device_name = "Pixel 7";
 /// warn!("Device '{}' not responding, retrying...", device_name);
 /// warn!("Using fallback configuration due to missing file");
 /// ```
@@ -109,7 +128,13 @@ macro_rules! warn {
 ///
 /// # Examples
 /// ```rust
+/// use emu::error;
+///
+/// let device_name = "Pixel 7";
+/// let error = "Connection timeout";
 /// error!("Failed to start device '{}': {}", device_name, error);
+///
+/// let sdk_path = "/usr/local/android-sdk";
 /// error!("SDK not found at path: {}", sdk_path);
 /// ```
 #[macro_export]
