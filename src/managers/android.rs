@@ -2083,10 +2083,45 @@ impl DeviceManager for AndroidManager {
 
         if let Some(emulator_id) = running_avds.get(identifier) {
             // log::info!("Found emulator {} for AVD {}, stopping it", emulator_id, identifier);
-            self.command_runner
-                .run("adb", &["-s", emulator_id, "emu", "kill"])
-                .await
-                .context(format!("Failed to stop emulator {}", emulator_id))?;
+
+            // Use a graceful shutdown method instead of killing the emulator process
+            // This sends a shutdown command to the Android OS, not the emulator itself
+            // Important: This approach allows the emulator process to remain running
+            // even when the emu TUI application exits, preventing accidental data loss
+            // First try to send a shutdown broadcast to Android
+            let shutdown_result = self
+                .command_runner
+                .run(
+                    "adb",
+                    &[
+                        "-s",
+                        emulator_id,
+                        "shell",
+                        "am",
+                        "broadcast",
+                        "-a",
+                        "android.intent.action.ACTION_SHUTDOWN",
+                    ],
+                )
+                .await;
+
+            if shutdown_result.is_ok() {
+                // Give the OS a moment to process the shutdown
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                // Then use reboot -p as a fallback to power off
+                let _ = self
+                    .command_runner
+                    .run("adb", &["-s", emulator_id, "shell", "reboot", "-p"])
+                    .await;
+            } else {
+                // If the graceful shutdown failed, fall back to emu kill
+                // but only as a last resort
+                self.command_runner
+                    .run("adb", &["-s", emulator_id, "emu", "kill"])
+                    .await
+                    .context(format!("Failed to stop emulator {}", emulator_id))?;
+            }
         } else {
             // log::warn!("AVD '{}' is not currently running", identifier);
         }
