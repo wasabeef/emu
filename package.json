@@ -1,6 +1,5 @@
 {
   "name": "emu",
-  "version": "0.2.0",
   "description": "A lazygit-inspired TUI for managing Android emulators and iOS simulators",
   "repository": {
     "type": "git",
