@@ -98,7 +98,7 @@ impl std::str::FromStr for Platform {
         match s.to_lowercase().as_str() {
             "android" => Ok(Platform::Android),
             "ios" => Ok(Platform::Ios),
-            _ => Err(format!("Unknown platform: {}", s)),
+            _ => Err(format!("Unknown platform: {s}")),
         }
     }
 }

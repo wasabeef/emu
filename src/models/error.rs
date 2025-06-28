@@ -102,39 +102,39 @@ impl DeviceError {
     /// Convert an anyhow error to a user-friendly message for TUI display
     pub fn user_friendly_message(&self) -> String {
         match self {
-            Self::NotFound { name } => format!("Device '{}' not found", name),
-            Self::AlreadyRunning { name } => format!("Device '{}' is already running", name),
-            Self::NotRunning { name } => format!("Device '{}' is not running", name),
+            Self::NotFound { name } => format!("Device '{name}' not found"),
+            Self::AlreadyRunning { name } => format!("Device '{name}' is already running"),
+            Self::NotRunning { name } => format!("Device '{name}' is not running"),
             Self::StartFailed { name, reason } => {
                 if reason.contains("licenses") {
                     "Android SDK licenses not accepted. Run 'sdkmanager --licenses'".to_string()
                 } else if reason.contains("system image") || reason.contains("not installed") {
                     "Required system image not installed".to_string()
                 } else {
-                    format!("Failed to start device '{}'", name)
+                    format!("Failed to start device '{name}'")
                 }
             }
-            Self::StopFailed { name, .. } => format!("Failed to stop device '{}'", name),
+            Self::StopFailed { name, .. } => format!("Failed to stop device '{name}'"),
             Self::CreateFailed { name, reason } => {
                 if reason.contains("licenses") {
                     "Android SDK licenses not accepted. Run 'sdkmanager --licenses'".to_string()
                 } else if reason.contains("system image") || reason.contains("not installed") {
                     "Required system image not installed".to_string()
                 } else if reason.contains("already exists") {
-                    format!("Device '{}' already exists", name)
+                    format!("Device '{name}' already exists")
                 } else if reason.contains("device") && reason.contains("not found") {
                     "Specified device type not found".to_string()
                 } else {
-                    format!("Failed to create device '{}'", name)
+                    format!("Failed to create device '{name}'")
                 }
             }
-            Self::DeleteFailed { name, .. } => format!("Failed to delete device '{}'", name),
+            Self::DeleteFailed { name, .. } => format!("Failed to delete device '{name}'"),
             Self::CommandFailed { .. } => "Command execution failed".to_string(),
             Self::PlatformNotSupported { platform } => {
-                format!("Platform '{}' not supported", platform)
+                format!("Platform '{platform}' not supported")
             }
             Self::SdkNotFound { sdk } => {
-                format!("{} SDK not found. Check environment variables", sdk)
+                format!("{sdk} SDK not found. Check environment variables")
             }
             Self::InvalidConfig { message } => format!("Configuration error: {message}"),
             Self::Io(_) => "File access error occurred".to_string(),

@@ -353,7 +353,7 @@ impl IosManager {
         self.command_runner
             .run("xcrun", &["simctl", "erase", udid])
             .await
-            .context(format!("Failed to erase iOS device {}", udid))?;
+            .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
     }
 
@@ -484,7 +484,7 @@ impl IosManager {
                                 runtime_json.get("version").and_then(|v| v.as_str())
                             {
                                 // Use version if name is not available
-                                format!("iOS {}", version)
+                                format!("iOS {version}")
                             } else {
                                 // Fallback: parse from identifier
                                 // com.apple.CoreSimulator.SimRuntime.iOS-17-0 -> iOS 17.0
@@ -550,7 +550,7 @@ impl IosManager {
                         .run("osascript", &["-e", SIMULATOR_QUIT_COMMAND])
                         .await
                     {
-                        log::warn!("Failed to quit Simulator.app gracefully: {}", e);
+                        log::warn!("Failed to quit Simulator.app gracefully: {e}");
 
                         // Fallback: Force quit using killall
                         if let Err(e2) = self
@@ -558,7 +558,7 @@ impl IosManager {
                             .run("killall", &[SIMULATOR_APP_NAME])
                             .await
                         {
-                            log::warn!("Failed to force quit Simulator.app: {}", e2);
+                            log::warn!("Failed to force quit Simulator.app: {e2}");
                         }
                     }
                 } else {
@@ -566,10 +566,7 @@ impl IosManager {
                 }
             }
             Err(e) => {
-                log::warn!(
-                    "Failed to check device status before quitting Simulator.app: {}",
-                    e
-                );
+                log::warn!("Failed to check device status before quitting Simulator.app: {e}");
             }
         }
     }
@@ -607,7 +604,7 @@ impl DeviceManager for IosManager {
     }
 
     async fn start_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to start iOS device: {}", identifier);
+        log::info!("Attempting to start iOS device: {identifier}");
 
         // Check if device is already booted
         let status_output = self
@@ -640,7 +637,7 @@ impl DeviceManager for IosManager {
         }
 
         if is_already_booted {
-            log::info!("Device {} is already booted", identifier);
+            log::info!("Device {identifier} is already booted");
         } else {
             // Boot the device
             let boot_result = self
@@ -649,16 +646,13 @@ impl DeviceManager for IosManager {
                 .await;
 
             match boot_result {
-                Ok(_) => log::info!("Successfully booted iOS device {}", identifier),
+                Ok(_) => log::info!("Successfully booted iOS device {identifier}"),
                 Err(e) => {
                     let error_msg = e.to_string();
                     if error_msg.contains(IOS_ALREADY_BOOTED_ERROR) {
-                        log::info!(
-                            "Device {} was already in the process of booting",
-                            identifier
-                        );
+                        log::info!("Device {identifier} was already in the process of booting");
                     } else {
-                        return Err(e).context(format!("Failed to boot iOS device {}", identifier));
+                        return Err(e).context(format!("Failed to boot iOS device {identifier}"));
                     }
                 }
             }
@@ -670,13 +664,13 @@ impl DeviceManager for IosManager {
             .spawn("open", &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME])
             .await
         {
-            log::warn!("Failed to open Simulator app: {}. Device might be booting in headless mode or Simulator app needs to be opened manually.", e);
+            log::warn!("Failed to open Simulator app: {e}. Device might be booting in headless mode or Simulator app needs to be opened manually.");
         }
         Ok(())
     }
 
     async fn stop_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to stop iOS device: {}", identifier);
+        log::info!("Attempting to stop iOS device: {identifier}");
 
         let shutdown_result = self
             .command_runner
@@ -685,7 +679,7 @@ impl DeviceManager for IosManager {
 
         match shutdown_result {
             Ok(_) => {
-                log::info!("Successfully shut down iOS device {}", identifier);
+                log::info!("Successfully shut down iOS device {identifier}");
 
                 // Check if all devices are now stopped, and if so, quit Simulator.app
                 // This prevents the Simulator icon from lingering in the Dock
@@ -696,14 +690,14 @@ impl DeviceManager for IosManager {
             Err(e) => {
                 let error_msg = e.to_string();
                 if error_msg.contains(IOS_ALREADY_SHUTDOWN_ERROR) {
-                    log::info!("Device {} was already shut down", identifier);
+                    log::info!("Device {identifier} was already shut down");
 
                     // Even if device was already stopped, check if we should quit Simulator.app
                     self.quit_simulator_if_no_running_devices().await;
 
                     Ok(())
                 } else {
-                    Err(e).context(format!("Failed to shutdown iOS device {}", identifier))
+                    Err(e).context(format!("Failed to shutdown iOS device {identifier}"))
                 }
             }
         }
@@ -740,7 +734,7 @@ impl DeviceManager for IosManager {
     }
 
     async fn delete_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to delete iOS device: {}", identifier);
+        log::info!("Attempting to delete iOS device: {identifier}");
 
         // First try to shutdown the device if it's running
         let _ = self
@@ -753,16 +747,15 @@ impl DeviceManager for IosManager {
             .run("xcrun", &["simctl", "delete", identifier])
             .await
             .context(format!(
-                "Failed to delete iOS device {}. Make sure the device exists and is not in use.",
-                identifier
+                "Failed to delete iOS device {identifier}. Make sure the device exists and is not in use."
             ))?;
 
-        log::info!("Successfully deleted iOS device {}", identifier);
+        log::info!("Successfully deleted iOS device {identifier}");
         Ok(())
     }
 
     async fn wipe_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to wipe iOS device: {}", identifier);
+        log::info!("Attempting to wipe iOS device: {identifier}");
         // For iOS, we use the erase command which wipes all content and settings
         self.erase_device(identifier).await
     }

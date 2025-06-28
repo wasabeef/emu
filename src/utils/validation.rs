@@ -198,7 +198,7 @@ pub fn validate_field(
 ) -> Result<(), String> {
     validator
         .validate(value)
-        .map_err(|e| format!("{}: {}", field_name, e))
+        .map_err(|e| format!("{field_name}: {e}"))
 }
 
 #[cfg(test)]

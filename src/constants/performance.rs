@@ -43,3 +43,10 @@ pub const FRAME_TIME_MS: u64 = 1000 / TARGET_FPS as u64;
 
 /// Frame duration as Duration
 pub const FRAME_DURATION: Duration = Duration::from_millis(FRAME_TIME_MS);
+
+/// Fast panel switching optimization delays
+/// Device detail update debounce for fast panel switching (25ms)
+pub const FAST_DETAIL_UPDATE_DEBOUNCE: Duration = Duration::from_millis(25);
+
+/// Log update debounce for fast panel switching (50ms)
+pub const FAST_LOG_UPDATE_DEBOUNCE: Duration = Duration::from_millis(50);

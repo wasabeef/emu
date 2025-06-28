@@ -18,7 +18,7 @@ pub mod event_processing;
 use crate::{
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
-    models::error::format_user_error,
+    models::{error::format_user_error, AndroidDevice, IosDevice},
     ui,
 };
 use anyhow::Result;
@@ -37,7 +37,7 @@ pub use self::state::{ApiLevelManagementState, AppState, FocusedPanel, Mode, Pan
 /// Main application controller that coordinates all components.
 ///
 /// The `App` struct is responsible for:
-/// - Managing application state through an Arc<Mutex<AppState>>
+/// - Managing application state through an `Arc<Mutex<AppState>>`
 /// - Coordinating platform-specific device managers
 /// - Handling background tasks for non-blocking operations
 /// - Processing user input and updating the UI
@@ -70,6 +70,11 @@ pub struct App {
 }
 
 impl App {
+    /// Refresh devices using incremental update for optimal performance
+    async fn refresh_devices_smart(&mut self) -> Result<()> {
+        self.refresh_devices_incremental().await
+    }
+
     /// Creates a new application instance with initialized managers and state.
     ///
     /// This function:
@@ -170,7 +175,7 @@ impl App {
 
                 // Only refresh if we have devices loaded (not during initial loading)
                 if should_refresh && has_devices {
-                    self.refresh_devices().await?;
+                    self.refresh_devices_smart().await?;
                 }
                 last_auto_refresh_check = std::time::Instant::now();
             }
@@ -229,7 +234,7 @@ impl App {
                                         }
                                         KeyCode::Char('r') => {
                                             drop(state);
-                                            self.refresh_devices().await?;
+                                            self.refresh_devices_smart().await?;
                                         }
                                         KeyCode::Tab => {
                                             // Tab: Switch focus between panels (android -> ios -> android)
@@ -237,9 +242,9 @@ impl App {
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
                                             drop(state);
-                                            // Speed up panel switching: Delay log stream and device detail updates
-                                            self.schedule_log_stream_update().await;
-                                            self.schedule_device_details_update().await;
+
+                                            // Optimized panel switching with parallel execution
+                                            self.schedule_panel_switch_updates_parallel().await;
                                         }
                                         KeyCode::BackTab => {
                                             // Shift+Tab: Switch focus in reverse order (android -> ios -> android)
@@ -247,9 +252,9 @@ impl App {
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
                                             drop(state);
-                                            // Speed up panel switching: Delay log stream and device detail updates
-                                            self.schedule_log_stream_update().await;
-                                            self.schedule_device_details_update().await;
+
+                                            // Optimized panel switching with parallel execution
+                                            self.schedule_panel_switch_updates_parallel().await;
                                         }
                                         KeyCode::Char('h')
                                         | KeyCode::Char('l')
@@ -260,9 +265,9 @@ impl App {
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
                                             drop(state);
-                                            // Speed up panel switching: Delay log stream and device detail updates
-                                            self.schedule_log_stream_update().await;
-                                            self.schedule_device_details_update().await;
+
+                                            // Optimized panel switching with parallel execution
+                                            self.schedule_panel_switch_updates_parallel().await;
                                         }
                                         KeyCode::Up | KeyCode::Char('k') => {
                                             state.move_up();
@@ -943,6 +948,14 @@ impl App {
                                 }
                                 Mode::ConfirmDelete => match key.code {
                                     KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                        // Immediately close dialog for instant feedback
+                                        state.mode = Mode::Normal;
+                                        if let Some(dialog) = state.confirm_delete_dialog.clone() {
+                                            state.set_device_operation_status(format!(
+                                                "Deleting device '{}'...",
+                                                dialog.device_name
+                                            ));
+                                        }
                                         drop(state);
                                         self.execute_delete_device().await?;
                                     }
@@ -954,6 +967,14 @@ impl App {
                                 },
                                 Mode::ConfirmWipe => match key.code {
                                     KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                        // Immediately close dialog and show status for instant feedback
+                                        state.mode = Mode::Normal;
+                                        if let Some(dialog) = state.confirm_wipe_dialog.clone() {
+                                            state.set_device_operation_status(format!(
+                                                "Wiping device '{}'...",
+                                                dialog.device_name
+                                            ));
+                                        }
                                         drop(state);
                                         self.execute_wipe_device().await?;
                                     }
@@ -1059,8 +1080,7 @@ impl App {
                                                                 {
                                                                     api_mgmt.error_message =
                                                                         Some(format!(
-                                                                            "Failed to install: {}",
-                                                                            e
+                                                                            "Failed to install: {e}"
                                                                         ));
                                                                 }
                                                             } else {
@@ -1283,14 +1303,32 @@ impl App {
         }
     }
 
-    async fn refresh_devices(&mut self) -> Result<()> {
+    /// Incrementally refresh device lists by only updating changed devices
+    /// This is more efficient than full refresh for large device counts
+    async fn refresh_devices_incremental(&mut self) -> Result<()> {
+        use std::collections::HashMap;
+
         let mut state = self.state.lock().await;
         state.is_loading = true;
         let pending_device = state.get_pending_device_start().cloned();
+
+        // Create maps of existing devices for efficient lookup
+        let existing_android: HashMap<String, AndroidDevice> = state
+            .android_devices
+            .iter()
+            .map(|d| (d.name.clone(), d.clone()))
+            .collect();
+        let existing_ios: HashMap<String, IosDevice> = state
+            .ios_devices
+            .iter()
+            .map(|d| (d.name.clone(), d.clone()))
+            .collect();
+
         drop(state);
 
-        let android_devices = self.android_manager.list_devices().await?;
-        let ios_devices = if let Some(ref ios_manager) = self.ios_manager {
+        // Fetch new device lists
+        let new_android_devices = self.android_manager.list_devices().await?;
+        let new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
             ios_manager.list_devices().await?
         } else {
             Vec::new()
@@ -1298,32 +1336,76 @@ impl App {
 
         let mut state = self.state.lock().await;
 
+        // Update Android devices incrementally
+        let mut updated_android = Vec::with_capacity(new_android_devices.len());
+        for new_device in new_android_devices {
+            if let Some(existing) = existing_android.get(&new_device.name) {
+                // Check if only status changed
+                if existing.status != new_device.status
+                    || existing.is_running != new_device.is_running
+                {
+                    // Keep existing device but update status
+                    let mut updated = existing.clone();
+                    updated.status = new_device.status;
+                    updated.is_running = new_device.is_running;
+                    updated_android.push(updated);
+                } else {
+                    // No change, keep existing
+                    updated_android.push(existing.clone());
+                }
+            } else {
+                // New device
+                updated_android.push(new_device);
+            }
+        }
+
+        // Update iOS devices incrementally
+        let mut updated_ios = Vec::with_capacity(new_ios_devices.len());
+        for new_device in new_ios_devices {
+            if let Some(existing) = existing_ios.get(&new_device.name) {
+                // Check if only status changed
+                if existing.status != new_device.status
+                    || existing.is_running != new_device.is_running
+                {
+                    // Keep existing device but update status
+                    let mut updated = existing.clone();
+                    updated.status = new_device.status;
+                    updated.is_running = new_device.is_running;
+                    updated_ios.push(updated);
+                } else {
+                    // No change, keep existing
+                    updated_ios.push(existing.clone());
+                }
+            } else {
+                // New device
+                updated_ios.push(new_device);
+            }
+        }
+
         // Check if pending device is now running
         let mut device_started = None;
         if let Some(ref pending_name) = pending_device {
-            let device_running = android_devices
+            let device_running = updated_android
                 .iter()
                 .any(|d| &d.name == pending_name && d.is_running)
-                || ios_devices
+                || updated_ios
                     .iter()
                     .any(|d| &d.name == pending_name && d.is_running);
 
             if device_running {
-                state
-                    .add_success_notification(format!("Device '{}' is now running!", pending_name));
+                state.add_success_notification(format!("Device '{pending_name}' is now running!"));
                 state.clear_pending_device_start();
                 device_started = Some(pending_name.clone());
             }
         }
 
-        state.android_devices = android_devices;
-        state.ios_devices = ios_devices;
+        state.android_devices = updated_android;
+        state.ios_devices = updated_ios;
         state.is_loading = false;
         state.mark_refreshed();
 
         // Check if we need to update device details for started device
         let need_detail_update = if let Some(ref started_name) = device_started {
-            // Check if the started device is currently selected and displayed
             match state.active_panel {
                 Panel::Android => state
                     .android_devices
@@ -1342,10 +1424,6 @@ impl App {
 
         drop(state);
 
-        // Update log stream for currently selected device
-        self.update_log_stream().await?;
-
-        // Update device details if the started device is currently selected
         if need_detail_update {
             self.update_device_details().await;
         }
@@ -1376,8 +1454,7 @@ impl App {
                         {
                             let mut state = self.state.lock().await;
                             state.set_device_operation_status(format!(
-                                "Stopping device '{}'...",
-                                name
+                                "Stopping device '{name}'..."
                             ));
                         }
 
@@ -1385,8 +1462,11 @@ impl App {
                             Ok(()) => {
                                 let mut state = self.state.lock().await;
                                 state.clear_device_operation_status();
-                                state
-                                    .add_success_notification(format!("Device '{}' stopped", name));
+                                state.add_success_notification(format!("Device '{name}' stopped"));
+
+                                // Immediate UI update for optimal responsiveness
+                                state.update_single_android_device_status(&name, false);
+
                                 // Clear device details cache since device status changed
                                 if let Some(ref cached) = state.cached_device_details {
                                     if cached.identifier == name {
@@ -1399,8 +1479,7 @@ impl App {
                                 let mut state = self.state.lock().await;
                                 state.clear_device_operation_status();
                                 state.add_error_notification(format!(
-                                    "Failed to stop device '{}': {}",
-                                    name,
+                                    "Failed to stop device '{name}': {}",
                                     format_user_error(&e)
                                 ));
                                 Err(e)
@@ -1409,17 +1488,18 @@ impl App {
                     } else {
                         let mut state = self.state.lock().await;
                         state.set_pending_device_start(name.clone());
-                        state.set_device_operation_status(format!("Starting device '{}'...", name));
+                        state.set_device_operation_status(format!("Starting device '{name}'..."));
                         drop(state);
 
                         match self.android_manager.start_device(&name).await {
                             Ok(()) => {
                                 let mut state = self.state.lock().await;
                                 state.clear_device_operation_status();
-                                state.add_info_notification(format!(
-                                    "Starting device '{}'...",
-                                    name
-                                ));
+                                state.add_info_notification(format!("Starting device '{name}'..."));
+
+                                // Immediate UI update for optimal responsiveness
+                                state.update_single_android_device_status(&name, true);
+
                                 // Clear device details cache since device status is changing
                                 if let Some(ref cached) = state.cached_device_details {
                                     if cached.identifier == name {
@@ -1433,8 +1513,7 @@ impl App {
                                 state.clear_pending_device_start();
                                 state.clear_device_operation_status();
                                 state.add_error_notification(format!(
-                                    "Failed to start device '{}': {}",
-                                    name,
+                                    "Failed to start device '{name}': {}",
                                     format_user_error(&e)
                                 ));
                                 Err(e)
@@ -1457,8 +1536,7 @@ impl App {
                             {
                                 let mut state = self.state.lock().await;
                                 state.set_device_operation_status(format!(
-                                    "Stopping device '{}'...",
-                                    name
+                                    "Stopping device '{name}'..."
                                 ));
                             }
 
@@ -1467,9 +1545,12 @@ impl App {
                                     let mut state = self.state.lock().await;
                                     state.clear_device_operation_status();
                                     state.add_success_notification(format!(
-                                        "Device '{}' stopped",
-                                        name
+                                        "Device '{name}' stopped"
                                     ));
+
+                                    // Immediate UI update for optimal responsiveness
+                                    state.update_single_ios_device_status(&udid, false);
+
                                     // Clear device details cache since device status changed
                                     if let Some(ref cached) = state.cached_device_details {
                                         if cached.identifier == udid {
@@ -1482,8 +1563,7 @@ impl App {
                                     let mut state = self.state.lock().await;
                                     state.clear_device_operation_status();
                                     state.add_error_notification(format!(
-                                        "Failed to stop device '{}': {}",
-                                        name, e
+                                        "Failed to stop device '{name}': {e}"
                                     ));
                                     Err(e)
                                 }
@@ -1492,8 +1572,7 @@ impl App {
                             let mut state = self.state.lock().await;
                             state.set_pending_device_start(name.clone());
                             state.set_device_operation_status(format!(
-                                "Starting device '{}'...",
-                                name
+                                "Starting device '{name}'..."
                             ));
                             drop(state);
 
@@ -1502,9 +1581,12 @@ impl App {
                                     let mut state = self.state.lock().await;
                                     state.clear_device_operation_status();
                                     state.add_info_notification(format!(
-                                        "Starting device '{}'...",
-                                        name
+                                        "Starting device '{name}'..."
                                     ));
+
+                                    // Immediate UI update for optimal responsiveness
+                                    state.update_single_ios_device_status(&udid, true);
+
                                     // Clear device details cache since device status is changing
                                     if let Some(ref cached) = state.cached_device_details {
                                         if cached.identifier == udid {
@@ -1518,8 +1600,7 @@ impl App {
                                     state.clear_pending_device_start();
                                     state.clear_device_operation_status();
                                     state.add_error_notification(format!(
-                                        "Failed to start device '{}': {}",
-                                        name, e
+                                        "Failed to start device '{name}': {e}"
                                     ));
                                     Err(e)
                                 }
@@ -1535,7 +1616,10 @@ impl App {
         };
 
         if result.is_ok() {
-            self.refresh_devices().await?;
+            // Optimized refresh strategy: immediate UI update with background verification
+            // We already updated the device status in the operation,
+            // so we only need to schedule a background status check for accuracy
+            self.schedule_background_device_status_check().await;
         }
         Ok(())
     }
@@ -1549,30 +1633,6 @@ impl App {
         // Execute the log update immediately (no delay)
         Self::update_log_stream_internal(state_clone, android_manager, ios_manager).await;
         Ok(())
-    }
-
-    /// Schedule log stream update with delay (for panel switching)
-    async fn schedule_log_stream_update(&mut self) {
-        // Cancel any pending log update
-        if let Some(handle) = self.log_update_handle.take() {
-            handle.abort();
-        }
-
-        // Clone necessary data for the delayed task
-        let state_clone = Arc::clone(&self.state);
-        let android_manager = self.android_manager.clone();
-        let ios_manager = self.ios_manager.clone();
-
-        // Create a delayed task to update logs (shorter delay for panel switching)
-        let update_handle = tokio::spawn(async move {
-            // Wait for 100ms before updating logs (faster for panel switching)
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-            // After delay, execute the log update
-            Self::update_log_stream_internal(state_clone, android_manager, ios_manager).await;
-        });
-
-        self.log_update_handle = Some(update_handle);
     }
 
     async fn update_log_stream_internal(
@@ -2212,7 +2272,7 @@ impl App {
             {
                 let mut state = state_clone.lock().await;
                 state.create_device_form.creation_status =
-                    Some(format!("Creating device '{}'...", device_name_for_display));
+                    Some(format!("Creating device '{device_name_for_display}'..."));
             }
 
             // Perform the actual creation
@@ -2252,8 +2312,7 @@ impl App {
                                 state.create_device_form.is_creating = false;
                                 state.create_device_form.creation_status = None;
                                 state.add_success_notification(format!(
-                                    "Device '{}' created successfully",
-                                    device_name_for_display
+                                    "Device '{device_name_for_display}' created successfully"
                                 ));
                             } else {
                                 let mut state = state_clone.lock().await;
@@ -2261,8 +2320,7 @@ impl App {
                                 state.create_device_form.is_creating = false;
                                 state.create_device_form.creation_status = None;
                                 state.add_success_notification(format!(
-                                    "Device '{}' created successfully",
-                                    device_name_for_display
+                                    "Device '{device_name_for_display}' created successfully"
                                 ));
                             }
                         }
@@ -2275,8 +2333,7 @@ impl App {
                                     state.create_device_form.is_creating = false;
                                     state.create_device_form.creation_status = None;
                                     state.add_success_notification(format!(
-                                        "Device '{}' created successfully",
-                                        device_name_for_display
+                                        "Device '{device_name_for_display}' created successfully"
                                     ));
                                 } else {
                                     let mut state = state_clone.lock().await;
@@ -2284,8 +2341,7 @@ impl App {
                                     state.create_device_form.is_creating = false;
                                     state.create_device_form.creation_status = None;
                                     state.add_success_notification(format!(
-                                        "Device '{}' created successfully",
-                                        device_name_for_display
+                                        "Device '{device_name_for_display}' created successfully"
                                     ));
                                 }
                             } else {
@@ -2323,9 +2379,7 @@ impl App {
 
         let dialog_info = {
             let mut state = self.state.lock().await;
-            let dialog = state.confirm_delete_dialog.take();
-            state.mode = Mode::Normal;
-            dialog
+            state.confirm_delete_dialog.take()
         };
 
         if let Some(dialog) = dialog_info {
@@ -2394,21 +2448,10 @@ impl App {
 
         let dialog_info = {
             let mut state = self.state.lock().await;
-            let dialog = state.confirm_wipe_dialog.take();
-            state.mode = Mode::Normal;
-            dialog
+            state.confirm_wipe_dialog.take()
         };
 
         if let Some(dialog) = dialog_info {
-            // Set wiping status
-            {
-                let mut state = self.state.lock().await;
-                state.set_device_operation_status(format!(
-                    "Wiping device '{}'...",
-                    dialog.device_name
-                ));
-            }
-
             let result = match dialog.platform {
                 Panel::Android => {
                     self.android_manager
@@ -2435,9 +2478,19 @@ impl App {
                         dialog.device_name
                     ));
 
-                    // Refresh devices to update status
-                    drop(state);
-                    self.refresh_devices().await?;
+                    // Update only the specific device status instead of full refresh
+                    match dialog.platform {
+                        Panel::Android => {
+                            drop(state);
+                            self.update_single_android_device_status(&dialog.device_identifier)
+                                .await;
+                        }
+                        Panel::Ios => {
+                            drop(state);
+                            self.update_single_ios_device_status(&dialog.device_identifier)
+                                .await;
+                        }
+                    }
                     self.update_device_details().await;
                 }
                 Err(e) => {
@@ -2625,7 +2678,7 @@ impl App {
                 Err(e) => {
                     let mut state = state_clone.lock().await;
                     state.is_loading = false;
-                    state.add_error_notification(format!("Failed to load Android devices: {}", e));
+                    state.add_error_notification(format!("Failed to load Android devices: {e}"));
                     drop(state);
                 }
             }
@@ -2685,7 +2738,7 @@ impl App {
                     }
                     Err(e) => {
                         let mut state = state_clone.lock().await;
-                        state.add_error_notification(format!("Failed to load iOS devices: {}", e));
+                        state.add_error_notification(format!("Failed to load iOS devices: {e}"));
                         drop(state);
                     }
                 }
@@ -2740,16 +2793,139 @@ impl App {
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();
 
+        // Use optimized delay for fast panel switching
+        let delay = crate::constants::performance::FAST_DETAIL_UPDATE_DEBOUNCE;
+
         // Create a delayed task to update device details
         let update_handle = tokio::spawn(async move {
-            // Wait for 50ms before updating details (ultra-fast for device switching)
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-            // After delay, execute the detail update
+            tokio::time::sleep(delay).await;
             Self::update_device_details_internal(state_clone, android_manager, ios_manager).await;
         });
 
         self.detail_update_handle = Some(update_handle);
+    }
+
+    /// Schedule both log stream and device details updates in parallel for fast panel switching
+    async fn schedule_panel_switch_updates_parallel(&mut self) {
+        // Cancel any pending updates
+        if let Some(handle) = self.log_update_handle.take() {
+            handle.abort();
+        }
+        if let Some(handle) = self.detail_update_handle.take() {
+            handle.abort();
+        }
+
+        // Clone necessary data for the parallel task
+        let state_clone = Arc::clone(&self.state);
+        let android_manager = self.android_manager.clone();
+        let ios_manager = self.ios_manager.clone();
+
+        // Use optimized delays for fast switching
+        let log_delay = crate::constants::performance::FAST_LOG_UPDATE_DEBOUNCE;
+        let detail_delay = crate::constants::performance::FAST_DETAIL_UPDATE_DEBOUNCE;
+
+        // Launch parallel tasks
+        let state_clone_log = Arc::clone(&state_clone);
+        let android_manager_log = android_manager.clone();
+        let ios_manager_log = ios_manager.clone();
+
+        let log_handle = tokio::spawn(async move {
+            tokio::time::sleep(log_delay).await;
+            Self::update_log_stream_internal(state_clone_log, android_manager_log, ios_manager_log)
+                .await;
+        });
+
+        let detail_handle = tokio::spawn(async move {
+            tokio::time::sleep(detail_delay).await;
+            Self::update_device_details_internal(state_clone, android_manager, ios_manager).await;
+        });
+
+        // Store handles for potential cancellation
+        self.log_update_handle = Some(log_handle);
+        self.detail_update_handle = Some(detail_handle);
+    }
+
+    /// Schedule background device status check for smart device start mode.
+    /// This performs a lightweight status check after a delay to ensure accuracy.
+    async fn update_single_android_device_status(&mut self, device_name: &str) {
+        // Get actual device status from manager
+        if let Ok(devices) = self.android_manager.list_devices().await {
+            if let Some(device) = devices.iter().find(|d| d.name == device_name) {
+                let mut state = self.state.lock().await;
+                state.update_single_android_device_status(device_name, device.is_running);
+            }
+        }
+    }
+
+    async fn update_single_ios_device_status(&mut self, device_udid: &str) {
+        // Get actual device status from manager
+        if let Some(ref ios_manager) = self.ios_manager {
+            if let Ok(devices) = ios_manager.list_devices().await {
+                if let Some(device) = devices.iter().find(|d| d.udid == device_udid) {
+                    let mut state = self.state.lock().await;
+                    state.update_single_ios_device_status(device_udid, device.is_running);
+                }
+            }
+        }
+    }
+
+    async fn schedule_background_device_status_check(&mut self) {
+        let state_clone = Arc::clone(&self.state);
+        let android_manager = self.android_manager.clone();
+        let ios_manager = self.ios_manager.clone();
+
+        tokio::spawn(async move {
+            // Wait a bit for device to fully start/stop
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+
+            // Get current active device
+            let (active_panel, device_identifier) = {
+                let state = state_clone.lock().await;
+                let identifier = match state.active_panel {
+                    Panel::Android => state
+                        .android_devices
+                        .get(state.selected_android)
+                        .map(|d| d.name.clone()),
+                    Panel::Ios => state
+                        .ios_devices
+                        .get(state.selected_ios)
+                        .map(|d| d.udid.clone()),
+                };
+                (state.active_panel, identifier)
+            };
+
+            if let Some(identifier) = device_identifier {
+                match active_panel {
+                    Panel::Android => {
+                        // Check actual Android device status
+                        if let Ok(devices) = android_manager.list_devices().await {
+                            if let Some(device) = devices.iter().find(|d| d.name == identifier) {
+                                let mut state = state_clone.lock().await;
+                                state.update_single_android_device_status(
+                                    &identifier,
+                                    device.is_running,
+                                );
+                            }
+                        }
+                    }
+                    Panel::Ios => {
+                        // Check actual iOS device status
+                        if let Some(ios_manager) = ios_manager {
+                            if let Ok(devices) = ios_manager.list_devices().await {
+                                if let Some(device) = devices.iter().find(|d| d.udid == identifier)
+                                {
+                                    let mut state = state_clone.lock().await;
+                                    state.update_single_ios_device_status(
+                                        &identifier,
+                                        device.is_running,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     async fn update_device_details_internal(

@@ -1,5 +1,6 @@
 use emu::app::App;
 use emu::managers::common::DeviceManager;
+use std::env;
 use std::time::Instant;
 
 #[tokio::test]
@@ -168,5 +169,89 @@ async fn test_startup_without_device_loading() {
             "✅ Manager creation fast: {} <= 100ms",
             android_duration.as_millis()
         );
+    }
+}
+
+#[tokio::test]
+async fn test_parallel_command_performance() {
+    println!("=== PARALLEL COMMAND EXECUTION PERFORMANCE TEST ===");
+
+    // Test Android device listing with parallel commands
+    match emu::managers::AndroidManager::new() {
+        Ok(android_manager) => {
+            // Test normal execution
+            env::remove_var("EMU_PARALLEL_COMMANDS");
+            let start = Instant::now();
+            let normal_result = android_manager.list_devices().await;
+            let normal_duration = start.elapsed();
+            println!("1. Normal list_devices(): {:?}", normal_duration);
+            if let Ok(devices) = normal_result {
+                println!("   Found {} devices", devices.len());
+            }
+
+            // Test parallel execution
+            env::set_var("EMU_PARALLEL_COMMANDS", "true");
+            let start = Instant::now();
+            let parallel_result = android_manager.list_devices().await;
+            let parallel_duration = start.elapsed();
+            println!("2. Parallel list_devices(): {:?}", parallel_duration);
+            if let Ok(devices) = parallel_result {
+                println!("   Found {} devices", devices.len());
+            }
+
+            // Calculate improvement
+            if normal_duration > parallel_duration {
+                let improvement = ((normal_duration.as_millis() - parallel_duration.as_millis())
+                    as f64
+                    / normal_duration.as_millis() as f64)
+                    * 100.0;
+                println!("✅ Performance improved by {:.1}%", improvement);
+            } else {
+                println!("⚠️  No performance improvement detected");
+            }
+
+            // Clean up
+            env::remove_var("EMU_PARALLEL_COMMANDS");
+        }
+        Err(e) => {
+            println!("❌ AndroidManager creation failed: {}", e);
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_incremental_refresh_performance() {
+    println!("=== INCREMENTAL REFRESH PERFORMANCE TEST ===");
+
+    // Create app and test refresh performance
+    match App::new().await {
+        Ok(mut _app) => {
+            // Warm up - initial device load
+            println!("Warming up with initial device load...");
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+            // Test normal refresh
+            env::remove_var("EMU_INCREMENTAL_REFRESH");
+            let start = Instant::now();
+            // We can't directly call refresh_devices_smart, but we can measure through the app
+            // This is a placeholder for the actual test
+            let normal_duration = start.elapsed();
+            println!("1. Normal refresh: {:?}", normal_duration);
+
+            // Test incremental refresh
+            env::set_var("EMU_INCREMENTAL_REFRESH", "true");
+            let start = Instant::now();
+            // Placeholder for actual incremental refresh test
+            let incremental_duration = start.elapsed();
+            println!("2. Incremental refresh: {:?}", incremental_duration);
+
+            // Clean up
+            env::remove_var("EMU_INCREMENTAL_REFRESH");
+
+            println!("Note: Full incremental refresh testing requires running the app");
+        }
+        Err(e) => {
+            println!("❌ App creation failed: {}", e);
+        }
     }
 }

@@ -48,7 +48,7 @@ pub struct InstallProgress {
 impl ApiLevel {
     /// Creates a new API level entry.
     pub fn new(api: u32, version: String, system_image_id: String) -> Self {
-        let display_name = format!("API {} ({})", api, version);
+        let display_name = format!("API {api} ({version})");
         Self {
             api,
             version,
@@ -119,10 +119,10 @@ impl SystemImageVariant {
     /// Creates a new system image variant.
     pub fn new(variant: String, architecture: String, package_id: String) -> Self {
         let display_name = match variant.as_str() {
-            "google_apis_playstore" => format!("Google Play ({})", architecture),
-            "google_apis" => format!("Google APIs ({})", architecture),
-            "default" => format!("Default ({})", architecture),
-            _ => format!("{} ({})", variant, architecture),
+            "google_apis_playstore" => format!("Google Play ({architecture})"),
+            "google_apis" => format!("Google APIs ({architecture})"),
+            "default" => format!("Default ({architecture})"),
+            _ => format!("{variant} ({architecture})"),
         };
 
         Self {

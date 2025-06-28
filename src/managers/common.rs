@@ -426,7 +426,7 @@ pub fn find_tools_in_paths(tool_name: &str, search_paths: &[std::path::PathBuf])
         // Also check with .exe extension on Windows
         #[cfg(windows)]
         {
-            let exe_path = path.join(format!("{}.exe", tool_name));
+            let exe_path = path.join(format!("{tool_name}.exe"));
             if exe_path.exists() {
                 tools.push(ToolPath::new(tool_name.to_string(), exe_path));
             }

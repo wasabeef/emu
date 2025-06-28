@@ -104,7 +104,7 @@ impl CommandRunner {
                     .collect::<Vec<_>>()
                     .join(" ")
             );
-            eprintln!("[DEBUG] Executing command: {}", command_str);
+            eprintln!("[DEBUG] Executing command: {command_str}");
         }
 
         let output = Command::new(program_ref)
@@ -122,8 +122,8 @@ impl CommandRunner {
             .contains("debug")
         {
             eprintln!("[DEBUG] Command exit code: {:?}", output.status.code());
-            eprintln!("[DEBUG] Command stdout: {}", stdout);
-            eprintln!("[DEBUG] Command stderr: {}", stderr);
+            eprintln!("[DEBUG] Command stdout: {stdout}");
+            eprintln!("[DEBUG] Command stderr: {stderr}");
         }
 
         if !output.status.success() {
@@ -240,7 +240,7 @@ impl CommandRunner {
                 for pattern in ignore_patterns {
                     if error_msg.contains(pattern) {
                         // Log that we're ignoring this error
-                        log::info!("Ignoring expected error: {}", error_msg);
+                        log::info!("Ignoring expected error: {error_msg}");
                         return Ok(String::new());
                     }
                 }
