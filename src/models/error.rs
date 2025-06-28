@@ -102,9 +102,9 @@ impl DeviceError {
     /// Convert an anyhow error to a user-friendly message for TUI display
     pub fn user_friendly_message(&self) -> String {
         match self {
-            Self::NotFound { name } => format!("Device '{}' not found", name),
-            Self::AlreadyRunning { name } => format!("Device '{}' is already running", name),
-            Self::NotRunning { name } => format!("Device '{}' is not running", name),
+            Self::NotFound { name } => format!("Device '{name}' not found"),
+            Self::AlreadyRunning { name } => format!("Device '{name}' is already running"),
+            Self::NotRunning { name } => format!("Device '{name}' is not running"),
             Self::StartFailed { name, reason } => {
                 if reason.contains("licenses") {
                     "Android SDK licenses not accepted. Run 'sdkmanager --licenses'".to_string()

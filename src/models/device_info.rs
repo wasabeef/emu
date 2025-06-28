@@ -522,7 +522,7 @@ impl DynamicDeviceConfig {
 
     /// Extract device version from string
     fn extract_device_version(device_id: &str, display_name: &str) -> u32 {
-        let combined = format!("{} {}", device_id, display_name).to_lowercase();
+        let combined = format!("{device_id} {display_name}").to_lowercase();
 
         // First, try to extract numbers that appear after known device names
         // This makes it future-proof for Pixel 10, 11, etc.
@@ -646,7 +646,7 @@ impl DynamicDeviceConfig {
         if let Some(api_info) = self.api_cache.get(&api_level) {
             api_info.version_name.clone()
         } else {
-            format!("API {}", api_level) // Fallback
+            format!("API {api_level}") // Fallback
         }
     }
 
@@ -681,7 +681,7 @@ impl DynamicDeviceConfig {
 
     fn extract_version_number(&self, device_id: &str, display_name: &str) -> Option<u32> {
         // Try to extract numbers from device ID or display name
-        let combined = format!("{} {}", device_id, display_name);
+        let combined = format!("{device_id} {display_name}");
 
         for part in combined.split_whitespace() {
             if let Ok(num) = part.parse::<u32>() {
