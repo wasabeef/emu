@@ -2381,7 +2381,7 @@ impl AndroidManager {
                             ApiLevel::new(
                                 api_level,
                                 version_name,
-                                format!("system-images;android-{};google_apis;x86_64", api_level),
+                                format!("system-images;android-{api_level};google_apis;x86_64"),
                             )
                         });
 
@@ -2407,7 +2407,7 @@ impl AndroidManager {
                 let api_level = ApiLevel::new(
                     api,
                     version_name,
-                    format!("system-images;android-{};google_apis;x86_64", api),
+                    format!("system-images;android-{api};google_apis;x86_64"),
                 );
                 api_levels_map.insert(api, api_level);
             }

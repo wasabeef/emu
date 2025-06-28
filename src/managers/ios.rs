@@ -566,10 +566,7 @@ impl IosManager {
                 }
             }
             Err(e) => {
-                log::warn!(
-                    "Failed to check device status before quitting Simulator.app: {}",
-                    e
-                );
+                log::warn!("Failed to check device status before quitting Simulator.app: {e}");
             }
         }
     }
@@ -653,10 +650,7 @@ impl DeviceManager for IosManager {
                 Err(e) => {
                     let error_msg = e.to_string();
                     if error_msg.contains(IOS_ALREADY_BOOTED_ERROR) {
-                        log::info!(
-                            "Device {} was already in the process of booting",
-                            identifier
-                        );
+                        log::info!("Device {identifier} was already in the process of booting");
                     } else {
                         return Err(e).context(format!("Failed to boot iOS device {identifier}"));
                     }
@@ -670,7 +664,7 @@ impl DeviceManager for IosManager {
             .spawn("open", &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME])
             .await
         {
-            log::warn!("Failed to open Simulator app: {}. Device might be booting in headless mode or Simulator app needs to be opened manually.", e);
+            log::warn!("Failed to open Simulator app: {e}. Device might be booting in headless mode or Simulator app needs to be opened manually.");
         }
         Ok(())
     }
