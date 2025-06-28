@@ -595,7 +595,7 @@ impl CreateDeviceForm {
         };
 
         // Generate the full name with spaces preserved for display
-        let full_name = format!("{} {}", device_part, api_part);
+        let full_name = format!("{device_part} {api_part}");
         self.name = full_name;
 
         // If name is empty, provide a fallback
@@ -1229,6 +1229,48 @@ impl AppState {
     /// Gets the current device operation status message.
     pub fn get_device_operation_status(&self) -> Option<&String> {
         self.device_operation_status.as_ref()
+    }
+
+    /// Updates the status of a specific Android device without full refresh.
+    /// Used for optimized device state updates during start/stop operations.
+    pub fn update_single_android_device_status(&mut self, device_name: &str, is_running: bool) {
+        if let Some(device) = self
+            .android_devices
+            .iter_mut()
+            .find(|d| d.name == device_name)
+        {
+            device.is_running = is_running;
+
+            // Update cached device details if they match this device
+            if let Some(ref mut cached) = self.cached_device_details {
+                if cached.identifier == device_name {
+                    cached.status = if is_running {
+                        "Running".to_string()
+                    } else {
+                        "Stopped".to_string()
+                    };
+                }
+            }
+        }
+    }
+
+    /// Updates the status of a specific iOS device without full refresh.
+    /// Used for optimized device state updates during start/stop operations.
+    pub fn update_single_ios_device_status(&mut self, device_udid: &str, is_running: bool) {
+        if let Some(device) = self.ios_devices.iter_mut().find(|d| d.udid == device_udid) {
+            device.is_running = is_running;
+
+            // Update cached device details if they match this device
+            if let Some(ref mut cached) = self.cached_device_details {
+                if cached.identifier == device_udid {
+                    cached.status = if is_running {
+                        "Booted".to_string()
+                    } else {
+                        "Shutdown".to_string()
+                    };
+                }
+            }
+        }
     }
 
     /// Initiates background cache update if cache is stale or empty.

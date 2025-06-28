@@ -11,7 +11,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -25,8 +25,8 @@ fn render_confirmation_dialog(
     border_color: Color,
     theme: &Theme,
 ) {
-    let dialog_width = 50.min(area.width - 4);
-    let dialog_height = 8.min(area.height - 4);
+    let dialog_width = 60.min(area.width - 4);
+    let dialog_height = 10.min(area.height - 4);
     let x = (area.width.saturating_sub(dialog_width)) / 2;
     let y = (area.height.saturating_sub(dialog_height)) / 2;
 
@@ -39,7 +39,7 @@ fn render_confirmation_dialog(
     let background_block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
-        .title(format!("{} {}", icon, title))
+        .title(format!("{icon} {title}"))
         .style(Style::default().bg(Color::Black));
     frame.render_widget(background_block, dialog_area);
 
@@ -63,7 +63,8 @@ fn render_confirmation_dialog(
     // Message
     let message_text = Paragraph::new(message)
         .style(Style::default().fg(theme.text))
-        .alignment(Alignment::Center);
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
     frame.render_widget(message_text, inner_chunks[0]);
 
     // Shortcuts
@@ -206,8 +207,8 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
 
     // Status bar without borders, smaller text
     let status_with_icon = match state.mode {
-        crate::app::Mode::Normal => format!("🚪 {}", status_text),
-        crate::app::Mode::CreateDevice => format!("📝 {}", status_text),
+        crate::app::Mode::Normal => format!("🚪 {status_text}"),
+        crate::app::Mode::CreateDevice => format!("📝 {status_text}"),
         crate::app::Mode::ConfirmDelete => status_text.to_string(),
         crate::app::Mode::ConfirmWipe => status_text.to_string(),
         _ => status_text.to_string(),
@@ -277,7 +278,7 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         .map(|(i, device)| {
             let selected = i == state.selected_android && is_active;
             let status_indicator = if device.is_running { "●" } else { "○" };
-            let text = format!("{} {}", status_indicator, device.name.replace('_', " "));
+            let text = format!("{status_indicator} {}", device.name.replace('_', " "));
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(Color::Black)
@@ -293,7 +294,7 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
 
     // Add scroll indicators to title if needed
     let title = if is_active && !state.android_devices.is_empty() {
-        let position_info = format!("{}/{}", state.selected_android + 1, total_devices);
+        let position_info = format!("{}/{total_devices}", state.selected_android + 1);
         let scroll_indicator = if total_devices > available_height {
             if scroll_offset > 0 && scroll_offset + available_height < total_devices {
                 " [↕]" // Can scroll both ways
@@ -307,9 +308,9 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         } else {
             ""
         };
-        format!("🤖 Android ({}){}", position_info, scroll_indicator)
+        format!("🤖 Android ({position_info}){scroll_indicator}")
     } else {
-        format!("🤖 Android ({})", total_devices)
+        format!("🤖 Android ({total_devices})")
     };
 
     // Use focused background color for active panel
@@ -370,7 +371,7 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             } else {
                 " (unavailable)"
             };
-            let text = format!("{} {}{}", status_indicator, device.name, availability);
+            let text = format!("{status_indicator} {}{availability}", device.name);
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(Color::Black)
@@ -389,7 +390,7 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
     // Add scroll indicators to title if needed
     let title = if cfg!(target_os = "macos") {
         if is_active && !state.ios_devices.is_empty() {
-            let position_info = format!("{}/{}", state.selected_ios + 1, total_devices);
+            let position_info = format!("{}/{total_devices}", state.selected_ios + 1);
             let scroll_indicator = if total_devices > available_height {
                 if scroll_offset > 0 && scroll_offset + available_height < total_devices {
                     " [↕]" // Can scroll both ways
@@ -403,9 +404,9 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             } else {
                 ""
             };
-            format!("🍎 iOS ({}){}", position_info, scroll_indicator)
+            format!("🍎 iOS ({position_info}){scroll_indicator}")
         } else {
-            format!("🍎 iOS ({})", total_devices)
+            format!("🍎 iOS ({total_devices})")
         }
     } else {
         "🍎 iOS (macOS only)".to_string()
@@ -432,7 +433,7 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
 fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
     // Get device name that is actually streaming logs
     let log_device_name = if let Some((panel, device_name)) = &state.current_log_device {
-        format!("{:?} - {}", panel, device_name)
+        format!("{panel:?} - {device_name}")
     } else {
         match state.active_panel {
             Panel::Android => state
@@ -524,7 +525,7 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
             let message = if entry.message.chars().count() > message_width && message_width > 3 {
                 let truncate_len = message_width.saturating_sub(3);
                 let truncated: String = entry.message.chars().take(truncate_len).collect();
-                format!("{}...", truncated)
+                format!("{truncated}...")
             } else {
                 entry.message.clone()
             };
@@ -758,7 +759,7 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
     if form.is_creating {
         // Show creation progress with moon animation
         let progress_msg = if let Some(ref status) = form.creation_status {
-            format!("{} {}", get_animated_moon(), status)
+            format!("{} {status}", get_animated_moon())
         } else {
             format!("{} Creating device... Please wait...", get_animated_moon())
         };
@@ -814,7 +815,7 @@ fn render_input_field(
     };
 
     let display_value = if is_active {
-        format!("{}_", value)
+        format!("{value}_")
     } else {
         value.to_string()
     };
@@ -854,7 +855,7 @@ fn render_select_field(
 
     // Only show < > brackets if there are multiple options and field is active
     let display_value = if is_active && options.len() > 1 {
-        format!("< {} >", value)
+        format!("< {value} >")
     } else {
         value.to_string()
     };
@@ -977,12 +978,12 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
             let dpi_info = details
                 .dpi
                 .as_ref()
-                .map(|d| format!(" ({})", d))
+                .map(|d| format!(" ({d})"))
                 .unwrap_or_default();
             lines.push(Line::from(vec![
                 Span::raw("📱 Display: "),
                 Span::styled(
-                    format!("{}{}", resolution, dpi_info),
+                    format!("{resolution}{dpi_info}"),
                     Style::default().fg(Color::Yellow),
                 ),
             ]));
@@ -1073,7 +1074,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         if is_loading {
             let moon_icon = get_animated_moon();
-            let loading_text = format!("{} Loading", moon_icon);
+            let loading_text = format!("{moon_icon} Loading");
             let loading_width = "🌙 Loading".len() as u16; // Use fixed width for consistent positioning
             let loading_area = Rect::new(
                 area.x + area.width.saturating_sub(loading_width + 3),
@@ -1201,7 +1202,7 @@ fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &
                 )
             } else if let Some(ref operation) = state.device_operation_status {
                 (
-                    format!("{} {}...", get_animated_moon(), operation),
+                    format!("{} {operation}...", get_animated_moon()),
                     Style::default()
                         .fg(theme.primary)
                         .add_modifier(Modifier::BOLD),
@@ -1254,10 +1255,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
         .filter(|api| api.is_installed)
         .count();
     let total_count = api_mgmt.api_levels.len();
-    let title = format!(
-        "📦 Android System Images ({}/{} installed)",
-        installed_count, total_count
-    );
+    let title = format!("📦 Android System Images ({installed_count}/{total_count} installed)");
 
     let dialog_block = Block::default()
         .title(title)
@@ -1340,7 +1338,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
                     String::new()
                 };
 
-                let text = format!("{} {}{}", status_icon, api.display_name, variant_info);
+                let text = format!("{status_icon} {}{variant_info}", api.display_name);
 
                 let style = if selected {
                     // Selected item: use theme primary background with contrasting text
@@ -1372,7 +1370,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
 
         // Add scroll indicators to title if needed
         let list_title = if total_items > available_height {
-            let position_info = format!("{}/{}", api_mgmt.selected_index + 1, total_items);
+            let position_info = format!("{}/{total_items}", api_mgmt.selected_index + 1);
             let scroll_indicator =
                 if scroll_offset > 0 && scroll_offset + available_height < total_items {
                     " [↕]" // Can scroll both ways
@@ -1383,9 +1381,9 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
                 } else {
                     ""
                 };
-            format!("API Levels ({}){}", position_info, scroll_indicator)
+            format!("API Levels ({position_info}){scroll_indicator}")
         } else {
-            format!("API Levels ({})", total_items)
+            format!("API Levels ({total_items})")
         };
 
         let list = List::new(items).block(
@@ -1431,7 +1429,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
         frame.render_widget(progress_widget, chunks[3]);
     } else if let Some(ref package) = api_mgmt.installing_package {
         let installing_msg =
-            Paragraph::new(format!("{} Processing: {}", get_animated_moon(), package))
+            Paragraph::new(format!("{} Processing: {package}", get_animated_moon()))
                 .style(
                     Style::default()
                         .fg(Color::Yellow)

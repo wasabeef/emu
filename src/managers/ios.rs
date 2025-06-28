@@ -353,7 +353,7 @@ impl IosManager {
         self.command_runner
             .run("xcrun", &["simctl", "erase", udid])
             .await
-            .context(format!("Failed to erase iOS device {}", udid))?;
+            .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
     }
 
@@ -484,7 +484,7 @@ impl IosManager {
                                 runtime_json.get("version").and_then(|v| v.as_str())
                             {
                                 // Use version if name is not available
-                                format!("iOS {}", version)
+                                format!("iOS {version}")
                             } else {
                                 // Fallback: parse from identifier
                                 // com.apple.CoreSimulator.SimRuntime.iOS-17-0 -> iOS 17.0
