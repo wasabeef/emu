@@ -114,6 +114,9 @@ cargo fmt
 # Lint code
 cargo clippy
 
+# Lint with CI-level strictness (treats warnings as errors)
+cargo clippy --all-targets --all-features -- -D warnings
+
 # Build optimized release binary
 cargo build --release
 ```
@@ -234,6 +237,24 @@ cargo test startup_performance_test -- --nocapture
 - Provide user-friendly error messages via `format_user_error`
 - Never use `.unwrap()` or `.expect()` in user-facing code
 
+### String Formatting
+- **ALWAYS use inline variable syntax in format! macros**: `format!("{variable}")` instead of `format!("{}", variable)`
+- This applies to ALL format-like macros: `format!`, `println!`, `eprintln!`, `log::info!`, `log::warn!`, `log::error!`, etc.
+- Examples:
+  ```rust
+  // ✅ Correct
+  format!("Device {name} created successfully")
+  println!("Found {count} devices")
+  log::info!("Starting device {identifier}")
+  
+  // ❌ Incorrect
+  format!("Device {} created successfully", name)
+  println!("Found {} devices", count)
+  log::info!("Starting device {}", identifier)
+  ```
+- This rule is enforced by `clippy::uninlined_format_args` which treats violations as errors in CI
+- Apply this consistently across ALL files including main source, tests, examples, and binary targets
+
 ### Async Patterns
 - Use `impl Future + Send` for trait methods to avoid async trait limitations
 - Background tasks with `tokio::spawn` and proper cancellation
@@ -270,6 +291,12 @@ cargo test startup_performance_test -- --nocapture
 - Test error conditions and edge cases
 - Validate UI state management
 - Ensure async operations work correctly
+
+### Code Quality Requirements
+- **ALL code must pass `cargo clippy --all-targets --all-features -- -D warnings`**
+- Use inline variable syntax in ALL format! macros: `format!("{variable}")` not `format!("{}", variable)`
+- Run `cargo fmt` before committing to maintain consistent formatting
+- Ensure all tests pass with `cargo test --bins --tests`
 
 ### Performance Considerations
 - Keep startup time under 150ms

@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
             manager
         }
         Err(e) => {
-            eprintln!("✗ Failed to initialize Android Manager: {}", e);
+            eprintln!("✗ Failed to initialize Android Manager: {e}");
             return Err(e);
         }
     };
@@ -36,12 +36,12 @@ async fn main() -> Result<()> {
             } else {
                 println!("✓ Found {} system images:", images.len());
                 for image in &images {
-                    println!("  - {}", image);
+                    println!("  - {image}");
                 }
             }
         }
         Err(e) => {
-            eprintln!("✗ Failed to list system images: {}", e);
+            eprintln!("✗ Failed to list system images: {e}");
         }
     }
 
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
             }
         }
         Err(e) => {
-            eprintln!("✗ Failed to list AVDs: {}", e);
+            eprintln!("✗ Failed to list AVDs: {e}");
         }
     }
 
@@ -87,11 +87,11 @@ async fn main() -> Result<()> {
             println!("\n5. Cleaning up test device...");
             match android_manager.delete_device(&test_config.name).await {
                 Ok(()) => println!("✓ Test device cleaned up successfully"),
-                Err(e) => eprintln!("⚠ Failed to clean up test device: {}", e),
+                Err(e) => eprintln!("⚠ Failed to clean up test device: {e}"),
             }
         }
         Err(e) => {
-            eprintln!("✗ Failed to create test AVD: {}", e);
+            eprintln!("✗ Failed to create test AVD: {e}");
 
             // Try with a different API level
             println!("\n   Trying with API level 33 (Android 13)...");
@@ -108,11 +108,11 @@ async fn main() -> Result<()> {
                     // Clean up
                     match android_manager.delete_device(&test_config_33.name).await {
                         Ok(()) => println!("✓ Test device cleaned up successfully"),
-                        Err(e) => eprintln!("⚠ Failed to clean up test device: {}", e),
+                        Err(e) => eprintln!("⚠ Failed to clean up test device: {e}"),
                     }
                 }
                 Err(e) => {
-                    eprintln!("✗ Failed to create test AVD with API 33: {}", e);
+                    eprintln!("✗ Failed to create test AVD with API 33: {e}");
                 }
             }
         }

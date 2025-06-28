@@ -2333,8 +2333,7 @@ impl App {
                                     state.create_device_form.is_creating = false;
                                     state.create_device_form.creation_status = None;
                                     state.add_success_notification(format!(
-                                        "Device '{}' created successfully",
-                                        device_name_for_display
+                                        "Device '{device_name_for_display}' created successfully"
                                     ));
                                 } else {
                                     let mut state = state_clone.lock().await;
@@ -2342,8 +2341,7 @@ impl App {
                                     state.create_device_form.is_creating = false;
                                     state.create_device_form.creation_status = None;
                                     state.add_success_notification(format!(
-                                        "Device '{}' created successfully",
-                                        device_name_for_display
+                                        "Device '{device_name_for_display}' created successfully"
                                     ));
                                 }
                             } else {

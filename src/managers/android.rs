@@ -1019,8 +1019,7 @@ impl AndroidManager {
                     } else {
                         // Add at the beginning
                         config_content = format!(
-                            "avd.ini.displayname={}\navd.ini.encoding=UTF-8\n{}",
-                            device_display_name, config_content
+                            "avd.ini.displayname={device_display_name}\navd.ini.encoding=UTF-8\n{config_content}"
                         );
                     }
                 }
@@ -1144,7 +1143,7 @@ impl AndroidManager {
             let config_path = std::path::PathBuf::from(home_dir)
                 .join(".android")
                 .join("avd")
-                .join(format!("{}.avd", avd_name))
+                .join(format!("{avd_name}.avd"))
                 .join("config.ini");
 
             if config_path.exists() {
@@ -1155,7 +1154,7 @@ impl AndroidManager {
                             match key.trim() {
                                 "hw.ramSize" => {
                                     if let Ok(ram_mb) = value.trim().parse::<u64>() {
-                                        details.ram_size = Some(format!("{} MB", ram_mb));
+                                        details.ram_size = Some(format!("{ram_mb} MB"));
                                     }
                                 }
                                 "disk.dataPartition.size" => {
@@ -1163,7 +1162,7 @@ impl AndroidManager {
                                     let value = value.trim();
                                     if let Some(size_str) = value.strip_suffix('M') {
                                         if let Ok(size_mb) = size_str.parse::<u64>() {
-                                            details.storage_size = Some(format!("{} MB", size_mb));
+                                            details.storage_size = Some(format!("{size_mb} MB"));
                                         }
                                     } else if let Some(size_str) = value.strip_suffix('G') {
                                         if let Ok(size_gb) = size_str.parse::<u64>() {
@@ -1175,7 +1174,7 @@ impl AndroidManager {
                                 "hw.lcd.width" => {
                                     if let Ok(width) = value.trim().parse::<u32>() {
                                         // Need to also get height to form resolution
-                                        details.resolution = Some(format!("{}x?", width));
+                                        details.resolution = Some(format!("{width}x?"));
                                     }
                                 }
                                 "hw.lcd.height" => {
@@ -1185,10 +1184,10 @@ impl AndroidManager {
                                             if res.contains("x?") {
                                                 let width = res.replace("x?", "");
                                                 details.resolution =
-                                                    Some(format!("{}x{}", width, height));
+                                                    Some(format!("{width}x{height}"));
                                             }
                                         } else {
-                                            details.resolution = Some(format!("?x{}", height));
+                                            details.resolution = Some(format!("?x{height}"));
                                         }
                                     }
                                 }
@@ -1246,7 +1245,7 @@ impl AndroidManager {
             16 => "Android 4.1".to_string(),
             15 => "Android 4.0.3".to_string(),
             14 => "Android 4.0".to_string(),
-            _ => format!("API {}", api_level), // For unknown versions, just show API level
+            _ => format!("API {api_level}"), // For unknown versions, just show API level
         }
     }
 
@@ -1271,14 +1270,13 @@ impl AndroidManager {
             if let Ok(output) = self.command_runner.run(&sdkmanager_path, &["--list"]).await {
                 // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
                 let pattern = format!(
-                    r"platforms;android-{}\s*\|\s*\d+\s*\|\s*Android SDK Platform",
-                    api_level
+                    r"platforms;android-{api_level}\s*\|\s*\d+\s*\|\s*Android SDK Platform"
                 );
                 if let Ok(regex) = Regex::new(&pattern) {
                     if regex.is_match(&output) {
                         // Try to extract more detailed version info from subsequent lines
                         for line in output.lines() {
-                            if line.contains(&format!("android-{}", api_level))
+                            if line.contains(&format!("android-{api_level}"))
                                 && line.contains("Android")
                             {
                                 // Extract version number if present
@@ -1512,7 +1510,7 @@ impl DynamicDeviceProvider for AndroidManager {
                 } else {
                     self.get_dynamic_android_version_name(level)
                         .await
-                        .unwrap_or_else(|| format!("API {}", level))
+                        .unwrap_or_else(|| format!("API {level}"))
                 };
 
                 // Get available tags for this API level
@@ -1592,7 +1590,7 @@ impl AndroidManager {
                 available_devices
                     .iter()
                     .take(3)
-                    .map(|(id, display)| format!("{} ({})", display, id))
+                    .map(|(id, display)| format!("{display} ({id})"))
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -1622,7 +1620,7 @@ impl AndroidManager {
             diagnosis.push("✅ Required system image is available".to_string());
         } else {
             diagnosis.push("❌ Required system image NOT available".to_string());
-            diagnosis.push(format!("Install with: sdkmanager \"{}\"", package_path));
+            diagnosis.push(format!("Install with: sdkmanager \"{package_path}\""));
         }
 
         // Check 5: Device type availability
@@ -1859,7 +1857,7 @@ impl AndroidManager {
             let config_path = PathBuf::from(home)
                 .join(".android")
                 .join("avd")
-                .join(format!("{}.avd", name))
+                .join(format!("{name}.avd"))
                 .join("config.ini");
 
             if let Ok(config_content) = fs::read_to_string(&config_path).await {
@@ -1977,7 +1975,7 @@ impl DeviceManager for AndroidManager {
                 self.command_runner
                     .run("adb", &["-s", emulator_id, "emu", "kill"])
                     .await
-                    .context(format!("Failed to stop emulator {}", emulator_id))?;
+                    .context(format!("Failed to stop emulator {emulator_id}"))?;
             }
         } else {
             // log::warn!("AVD '{}' is not currently running", identifier);
@@ -2133,7 +2131,7 @@ impl DeviceManager for AndroidManager {
                     .await
                 {
                     // Log warning but don't fail the entire operation
-                    eprintln!("Warning: Failed to fine-tune AVD configuration: {}", e);
+                    eprintln!("Warning: Failed to fine-tune AVD configuration: {e}");
                 }
 
                 Ok(())
@@ -2150,7 +2148,7 @@ impl DeviceManager for AndroidManager {
                 } else {
                     safe_name.clone()
                 };
-                diagnostic_info.push(format!("AVD: {}", short_name));
+                diagnostic_info.push(format!("AVD: {short_name}"));
                 diagnostic_info.push(format!("API: {}", config.version));
 
                 // Create concise error message with important information at the beginning
@@ -2216,16 +2214,9 @@ impl DeviceManager for AndroidManager {
         // Check if device is running and stop it first
         let running_avds = self.get_running_avd_names().await.unwrap_or_default();
         if running_avds.contains_key(identifier) {
-            log::info!(
-                "Device '{}' is running, stopping before deletion",
-                identifier
-            );
+            log::info!("Device '{identifier}' is running, stopping before deletion");
             if let Err(e) = self.stop_device(identifier).await {
-                log::warn!(
-                    "Failed to stop device '{}' before deletion: {}",
-                    identifier,
-                    e
-                );
+                log::warn!("Failed to stop device '{identifier}' before deletion: {e}");
                 // Continue with deletion even if stop fails
             }
 
@@ -2237,7 +2228,7 @@ impl DeviceManager for AndroidManager {
         self.command_runner
             .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
             .await
-            .context(format!("Failed to delete Android AVD '{}'", identifier))?;
+            .context(format!("Failed to delete Android AVD '{identifier}'"))?;
         Ok(())
     }
 
@@ -2246,7 +2237,7 @@ impl DeviceManager for AndroidManager {
         // First, stop the device if it's running
         let running_avds = self.get_running_avd_names().await?;
         if running_avds.contains_key(identifier) {
-            log::info!("Device '{}' is running, stopping before wipe", identifier);
+            log::info!("Device '{identifier}' is running, stopping before wipe");
             self.stop_device(identifier).await?;
             // Wait briefly for the emulator to shut down
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -2257,7 +2248,7 @@ impl DeviceManager for AndroidManager {
             let avd_path = std::path::PathBuf::from(home_dir)
                 .join(".android")
                 .join("avd")
-                .join(format!("{}.avd", identifier));
+                .join(format!("{identifier}.avd"));
 
             if avd_path.exists() {
                 // Delete user data files that get recreated on next boot
@@ -2287,13 +2278,13 @@ impl DeviceManager for AndroidManager {
                 let snapshots_dir = avd_path.join("snapshots");
                 if snapshots_dir.exists() {
                     if let Err(e) = tokio::fs::remove_dir_all(&snapshots_dir).await {
-                        log::warn!("Failed to remove snapshots directory: {}", e);
+                        log::warn!("Failed to remove snapshots directory: {e}");
                     } else {
                         log::debug!("Removed snapshots directory");
                     }
                 }
 
-                log::info!("Successfully wiped user data for device '{}'", identifier);
+                log::info!("Successfully wiped user data for device '{identifier}'");
             } else {
                 return Err(anyhow::anyhow!(
                     "AVD directory not found: {}",
