@@ -888,7 +888,7 @@ fn render_confirm_delete_dialog(frame: &mut Frame, state: &AppState, theme: &The
             frame.area(),
             "Confirm Delete",
             &message,
-            "⚠️",
+            "🗑",
             Color::Red,
             theme,
         );

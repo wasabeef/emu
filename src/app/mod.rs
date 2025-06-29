@@ -2425,6 +2425,7 @@ impl App {
                         }
                     }
 
+                    state.clear_device_operation_status();
                     state.add_success_notification(format!(
                         "Device '{}' deleted successfully",
                         dialog.device_name
@@ -2432,6 +2433,7 @@ impl App {
                 }
                 Err(e) => {
                     let mut state = self.state.lock().await;
+                    state.clear_device_operation_status();
                     state.add_error_notification(format!(
                         "Failed to delete device '{}': {}",
                         dialog.device_name, e
