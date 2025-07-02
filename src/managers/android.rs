@@ -363,8 +363,18 @@ impl AndroidManager {
     /// 2. `ANDROID_SDK_ROOT` - Alternative SDK location
     pub fn new() -> Result<Self> {
         let android_home = Self::find_android_home()?;
-        let avdmanager_path = Self::find_tool(&android_home, commands::AVDMANAGER)?;
-        let emulator_path = Self::find_tool(&android_home, commands::EMULATOR)?;
+
+        // Find tools in parallel for faster initialization
+        let android_home_clone = android_home.clone();
+        let (avdmanager_result, emulator_result) = std::thread::scope(|s| {
+            let avd_handle = s.spawn(|| Self::find_tool(&android_home, commands::AVDMANAGER));
+            let emu_handle = s.spawn(|| Self::find_tool(&android_home_clone, commands::EMULATOR));
+
+            (avd_handle.join().unwrap(), emu_handle.join().unwrap())
+        });
+
+        let avdmanager_path = avdmanager_result?;
+        let emulator_path = emulator_result?;
 
         Ok(Self {
             command_runner: CommandRunner::new(),
@@ -1360,13 +1370,13 @@ impl AndroidManager {
         if let Ok(android_home) = std::env::var(env_vars::ANDROID_HOME) {
             let android_path = std::path::PathBuf::from(&android_home);
 
-            // 1. 標準スキンディレクトリ
+            // 1. Standard skin directory
             let standard_skins = android_path.join("skins");
             if standard_skins.exists() {
                 self.scan_skin_directory(&standard_skins, &mut skins).await;
             }
 
-            // 2. プラットフォーム別スキンディレクトリを動的にスキャン
+            // 2. Dynamically scan platform-specific skin directories
             let platforms_dir = android_path.join("platforms");
             if platforms_dir.exists() {
                 if let Ok(mut platform_entries) = fs::read_dir(&platforms_dir).await {
@@ -1385,7 +1395,7 @@ impl AndroidManager {
                 }
             }
 
-            // 3. システムイメージ別スキンディレクトリを動的にスキャン
+            // 3. Dynamically scan system image-specific skin directories
             let system_images_dir = android_path.join("system-images");
             if system_images_dir.exists() {
                 self.scan_system_images_for_skins(&system_images_dir, &mut skins)
@@ -1841,6 +1851,32 @@ impl AndroidManager {
                     }
                 }
             }
+        }
+
+        // Process the last device if there's one remaining
+        if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
+            if !current_target_full.is_empty() {
+                target.push_str(&current_target_full);
+            }
+
+            let is_running = running_avds.contains_key(&name);
+            let api_level = self.detect_api_level_for_device(&name, &target).await;
+            let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
+            let storage_size = format!("{}M", defaults::DEFAULT_STORAGE_MB / 1024);
+
+            devices.push(AndroidDevice {
+                name,
+                device_type: device,
+                api_level,
+                status: if is_running {
+                    DeviceStatus::Running
+                } else {
+                    DeviceStatus::Stopped
+                },
+                is_running,
+                ram_size,
+                storage_size,
+            });
         }
 
         // Sort devices by type for consistent ordering
