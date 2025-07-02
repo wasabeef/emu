@@ -278,7 +278,11 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         .map(|(i, device)| {
             let selected = i == state.selected_android && is_active;
             let status_indicator = if device.is_running { "●" } else { "○" };
-            let text = format!("{status_indicator} {}", device.name.replace('_', " "));
+            let text = format!(
+                "{status_indicator} {} - API {}",
+                device.name.replace('_', " "),
+                device.api_level
+            );
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(Color::Black)
@@ -371,7 +375,11 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             } else {
                 " (unavailable)"
             };
-            let text = format!("{status_indicator} {}{availability}", device.name);
+            let version_info = device.ios_version.clone();
+            let text = format!(
+                "{status_indicator} {} - iOS {version_info}{availability}",
+                device.name
+            );
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(Color::Black)
