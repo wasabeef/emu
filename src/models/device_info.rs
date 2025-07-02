@@ -345,20 +345,29 @@ impl DynamicDeviceConfig {
 
         // iPhone priorities (0-99)
         if name_lower.contains("iphone") {
+            let version = Self::extract_ios_version(&name_lower);
+
             if name_lower.contains("pro max") {
-                return 0;
+                // iPhone 16 Pro Max gets priority 0, iPhone 15 Pro Max gets priority 1, etc.
+                return if version > 0 { 20 - version.min(19) } else { 0 };
             } else if name_lower.contains("pro") {
-                return 10;
+                // iPhone 16 Pro gets priority 10, iPhone 15 Pro gets priority 11, etc.
+                return 10 + if version > 0 { 20 - version.min(19) } else { 0 };
             } else if name_lower.contains("plus") || name_lower.contains("max") {
-                return 20;
+                // iPhone 16 Plus gets priority 20, iPhone 15 Plus gets priority 21, etc.
+                return 20 + if version > 0 { 20 - version.min(19) } else { 0 };
             } else if name_lower.contains("mini") {
-                return 30;
+                // iPhone mini models (less common, lower priority)
+                return 30 + if version > 0 { 20 - version.min(19) } else { 0 };
             } else if name_lower.contains("se") {
-                return 40;
+                // iPhone SE models
+                return 40 + if version > 0 { 10 - version.min(9) } else { 0 };
             } else {
-                let version = Self::extract_ios_version(&name_lower);
+                // Regular iPhone models (including iPhone 16e, 16, etc.)
                 if version > 0 {
-                    return 50 - version.min(30);
+                    // iPhone 16e, iPhone 16 get priority 30-33 (20 - 16 = 4, plus base 30)
+                    // iPhone 15 gets priority 35 (20 - 15 = 5, plus base 30)
+                    return 30 + (20 - version.min(19));
                 }
                 return 50;
             }
@@ -366,20 +375,37 @@ impl DynamicDeviceConfig {
 
         // iPad priorities (100-199)
         if name_lower.contains("ipad") {
+            let version = Self::extract_ios_version(&name_lower);
+            let version_bonus = if version > 0 { 20 - version.min(19) } else { 0 };
+
             if name_lower.contains("pro") {
-                if name_lower.contains("12.9") {
-                    return 100;
+                if name_lower.contains("13") || name_lower.contains("12.9") {
+                    // iPad Pro 13-inch/12.9-inch models
+                    return 100 + version_bonus;
                 } else if name_lower.contains("11") {
-                    return 110;
+                    // iPad Pro 11-inch models
+                    return 110 + version_bonus;
                 } else {
-                    return 120;
+                    // Other iPad Pro models
+                    return 120 + version_bonus;
                 }
             } else if name_lower.contains("air") {
-                return 130;
+                if name_lower.contains("13") {
+                    // iPad Air 13-inch models (newer, higher priority)
+                    return 125 + version_bonus;
+                } else if name_lower.contains("11") {
+                    // iPad Air 11-inch models
+                    return 130 + version_bonus;
+                } else {
+                    // Legacy iPad Air models
+                    return 135 + version_bonus;
+                }
             } else if name_lower.contains("mini") {
-                return 140;
+                // iPad mini models
+                return 140 + version_bonus;
             } else {
-                return 150;
+                // Regular iPad models
+                return 150 + version_bonus;
             }
         }
 
@@ -399,7 +425,7 @@ impl DynamicDeviceConfig {
             } else if name_lower.contains("series") {
                 let version = Self::extract_ios_version(&name_lower);
                 if version > 0 {
-                    return 310 - version.min(10);
+                    return 310 + (20 - version.min(19));
                 }
                 return 320;
             } else if name_lower.contains("se") {
@@ -578,20 +604,42 @@ impl DynamicDeviceConfig {
 
     /// Extract iOS device version
     fn extract_ios_version(device_name: &str) -> u32 {
-        // Try to extract number from patterns like "iPhone 15", "Series 9", etc.
+        // Try to extract number from patterns like "iPhone 15", "iPhone 16e", "Series 9", etc.
         let parts: Vec<&str> = device_name.split_whitespace().collect();
 
         for part in parts {
+            // First try to parse the part as a direct number
             if let Ok(num) = part.parse::<u32>() {
                 if num > 0 && num <= 50 {
                     return num;
                 }
             }
 
+            // Handle versions with letter suffixes like "16e"
+            if let Some(first_char) = part.chars().next() {
+                if first_char.is_ascii_digit() {
+                    // Extract the numeric prefix from "16e", "15pro", etc.
+                    let numeric_part: String =
+                        part.chars().take_while(|c| c.is_ascii_digit()).collect();
+
+                    if let Ok(num) = numeric_part.parse::<u32>() {
+                        if num > 0 && num <= 50 {
+                            return num;
+                        }
+                    }
+                }
+            }
+
             // Handle hyphenated versions like "iPhone-15"
             if part.contains('-') {
                 if let Some(num_part) = part.split('-').next_back() {
-                    if let Ok(num) = num_part.parse::<u32>() {
+                    // Handle both "15" and "16e" in hyphenated form
+                    let numeric_part: String = num_part
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect();
+
+                    if let Ok(num) = numeric_part.parse::<u32>() {
                         if num > 0 && num <= 50 {
                             return num;
                         }
