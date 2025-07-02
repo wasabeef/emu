@@ -532,10 +532,11 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
 
             // Calculate padding to fill the rest of the line (use char counts for display width)
             // Account for: timestamp + space + [LEVEL] + space + message
+            let level_display = format!("[{}]", &entry.level);
             let used_width = entry.timestamp.chars().count()
                 + 1
-                + entry.level.chars().count()
-                + 3
+                + level_display.chars().count()
+                + 1
                 + message.chars().count();
             let padding = if used_width < available_width {
                 " ".repeat(available_width - used_width)
@@ -549,7 +550,7 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
                     Style::default().fg(Color::DarkGray),
                 ),
                 Span::raw(" "),
-                Span::styled(format!("[{}]", &entry.level), level_style),
+                Span::styled(level_display, level_style),
                 Span::raw(" "),
                 Span::raw(message),
                 // Add padding spaces to fill the rest of the line
