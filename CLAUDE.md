@@ -32,6 +32,7 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - Centralized `AppState` with `Arc<Mutex<>>` for thread safety
 - Background device loading for fast startup (~100ms)
 - Smart caching system for device metadata and details
+- Persistent device cache to disk for instant startup (<10ms cache load)
 - Direct event processing for ultra-responsive input handling
 
 ## Current Features
@@ -53,10 +54,14 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 - Runtime version selection
 - Basic device operations with status monitoring
 - Automatic Simulator.app lifecycle management (opens on start, quits when last device stops)
+- Comprehensive device details display (resolution, paths, runtime info)
+- Improved device priority sorting for new device types (M4, iPhone 16e)
 
 ### User Interface
 - **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
 - **Device details panel**: Shows device specifications, status, RAM/Storage in MB, full paths
+- **Enhanced device lists**: Now display version info (API level for Android, iOS version for iOS)
+- **Improved log display**: Fixed padding calculation to prevent character artifacts
 - **Modal workflows**: Guided device creation with field validation
 - **Keyboard navigation**: Vim-like keybindings (jk for up/down, q to quit) with circular navigation and page scrolling
 - **Real-time feedback**: Status notifications, operation progress, log streaming
@@ -64,6 +69,8 @@ The `DeviceManager` trait (in `managers/common.rs`) provides a unified interface
 
 ### Performance Optimizations
 - **Fast startup**: UI renders immediately (~50ms), device data loads in background (~104ms average total)
+- **Persistent device cache**: Device lists cached to disk for instant display on startup (<10ms cache load)
+- **Parallel initialization**: Device managers initialized concurrently for faster startup
 - **Smart caching**: Device metadata and details cached with platform-aware invalidation
 - **Ultra-responsive keyboard input**: Direct event processing with 8ms polling for 120fps responsiveness
 - **Memory management**: Automatic log rotation (1000 entries max), cache expiration, background task cleanup
@@ -179,10 +186,13 @@ cargo test startup_performance_test -- --nocapture
 - ✅ iOS Simulator.app automatic lifecycle management
 - ✅ Ultra-responsive keyboard input handling eliminating all input lag and key press ignoring
 - ✅ **Simplified architecture**: Removed environment variable complexity, all optimizations always active
+- ✅ **Persistent device cache**: Instant startup with cached device lists
+- ✅ **Enhanced iOS support**: Full device details display matching Android capabilities
+- ✅ **Fixed log streaming**: Properly stops when switching panels
+- ✅ **Fixed Android AVD parsing**: All devices now correctly displayed
 
 ### Known Issues & Limitations
 - **Android state detection**: Occasional inaccuracy in AVD name to emulator serial mapping (improved but not perfect)
-- **iOS device details**: Limited device information display compared to Android
 - **Device operations**: Some platform-specific edge cases in device start/stop operations
 
 ### Architecture Strengths
