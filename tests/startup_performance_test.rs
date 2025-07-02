@@ -2,6 +2,7 @@ use emu::app::App;
 use emu::managers::common::DeviceManager;
 use std::env;
 use std::time::Instant;
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_startup_performance() {
@@ -37,6 +38,61 @@ async fn test_startup_performance() {
             "✅ Startup performance acceptable: {} <= 500ms",
             total_time.as_millis()
         );
+    }
+}
+
+#[tokio::test]
+async fn test_startup_with_cache_comparison() {
+    println!("\n=== CACHE PERFORMANCE COMPARISON TEST ===");
+
+    // Create temporary cache directory
+    let temp_dir = TempDir::new().unwrap();
+    let cache_path = temp_dir.path().join("perf_test_cache.json");
+
+    // Set cache path environment variable
+    env::set_var("EMU_CACHE_PATH", cache_path.to_str().unwrap());
+
+    // First startup - no cache
+    println!("\n1️⃣  First startup (no cache):");
+    let start = Instant::now();
+    let _app1 = App::new().await.expect("First app creation should succeed");
+    let first_startup = start.elapsed();
+    println!("   Time: {:?}", first_startup);
+
+    // Wait a bit to ensure cache is written
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Second startup - with cache
+    println!("\n2️⃣  Second startup (with cache):");
+    let start = Instant::now();
+    let _app2 = App::new()
+        .await
+        .expect("Second app creation should succeed");
+    let second_startup = start.elapsed();
+    println!("   Time: {:?}", second_startup);
+
+    // Calculate improvement
+    let improvement_ms = first_startup
+        .as_millis()
+        .saturating_sub(second_startup.as_millis());
+    let improvement_pct = if first_startup.as_millis() > 0 {
+        (improvement_ms as f64 / first_startup.as_millis() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    println!("\n📊 Cache Performance Impact:");
+    println!("   First startup:  {:?}", first_startup);
+    println!("   Second startup: {:?}", second_startup);
+    println!(
+        "   Improvement:    {}ms ({:.1}%)",
+        improvement_ms, improvement_pct
+    );
+
+    if improvement_pct > 10.0 {
+        println!("   ✅ Cache provides significant performance improvement!");
+    } else {
+        println!("   ℹ️  Cache impact minimal (system may already be fast)");
     }
 }
 
