@@ -349,6 +349,144 @@ impl IosManager {
 
     // These helper methods remain in the inherent impl block as they are specific to IosManager's way of handling things
     // and not directly part of the DeviceManager trait's public API contract for all managers.
+
+    /// Get detailed device information for an iOS simulator
+    pub async fn get_device_details(&self, udid: &str) -> Result<crate::app::state::DeviceDetails> {
+        // Get device information
+        let device_output = self
+            .command_runner
+            .run("xcrun", &["simctl", "list", "devices", "-j"])
+            .await
+            .context("Failed to get device list")?;
+
+        let json: Value =
+            serde_json::from_str(&device_output).context("Failed to parse device JSON")?;
+
+        let mut device_details = None;
+
+        // Find the specific device
+        if let Some(devices) = json.get("devices").and_then(|v| v.as_object()) {
+            for (runtime, device_list) in devices {
+                if let Some(devices_array) = device_list.as_array() {
+                    for device in devices_array {
+                        if let Some(device_udid) = device.get("udid").and_then(|v| v.as_str()) {
+                            if device_udid == udid {
+                                // Extract device information
+                                let name = device
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string();
+
+                                let state = device
+                                    .get("state")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string();
+
+                                // Extract runtime version
+                                let version = runtime
+                                    .replace("com.apple.CoreSimulator.SimRuntime.iOS-", "")
+                                    .replace("-", ".");
+
+                                let device_type = device
+                                    .get("deviceTypeIdentifier")
+                                    .and_then(|v| v.as_str())
+                                    .map(Self::parse_device_type_display_name)
+                                    .unwrap_or_else(|| "Unknown".to_string());
+
+                                // Storage information
+                                let storage_size = device
+                                    .get("dataPathSize")
+                                    .and_then(|v| v.as_u64())
+                                    .map(|size| format!("{} MB", size / (1024 * 1024)));
+
+                                // Paths
+                                let device_path = device
+                                    .get("dataPath")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+
+                                // Get screen resolution from device type if possible
+                                let resolution = self.get_device_resolution(&device_type);
+
+                                device_details = Some(crate::app::state::DeviceDetails {
+                                    name: name.clone(),
+                                    status: state,
+                                    platform: crate::app::state::Panel::Ios,
+                                    device_type,
+                                    api_level_or_version: format!("iOS {}", version),
+                                    ram_size: None, // iOS simulators don't have configurable RAM
+                                    storage_size,
+                                    resolution,
+                                    dpi: Some("Retina".to_string()), // iOS uses Retina display
+                                    device_path,
+                                    system_image: None, // Not applicable for iOS
+                                    identifier: udid.to_string(),
+                                });
+
+                                break;
+                            }
+                        }
+                    }
+                    if device_details.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        device_details.ok_or_else(|| anyhow::anyhow!("Device with UDID {} not found", udid))
+    }
+
+    /// Get approximate resolution for known iOS device types
+    fn get_device_resolution(&self, device_type: &str) -> Option<String> {
+        let device_lower = device_type.to_lowercase();
+
+        // iPhone resolutions
+        if device_lower.contains("iphone") {
+            if device_lower.contains("16")
+                || device_lower.contains("15")
+                || device_lower.contains("14")
+            {
+                if device_lower.contains("pro max") {
+                    return Some("1290x2796".to_string());
+                } else if device_lower.contains("pro") {
+                    return Some("1179x2556".to_string());
+                } else if device_lower.contains("plus") {
+                    return Some("1290x2796".to_string());
+                } else {
+                    return Some("1170x2532".to_string());
+                }
+            } else if device_lower.contains("se") {
+                return Some("750x1334".to_string());
+            }
+        }
+
+        // iPad resolutions
+        if device_lower.contains("ipad") {
+            if device_lower.contains("pro") {
+                if device_lower.contains("13") || device_lower.contains("12.9") {
+                    return Some("2048x2732".to_string());
+                } else if device_lower.contains("11") {
+                    return Some("1668x2388".to_string());
+                }
+            } else if device_lower.contains("air") {
+                if device_lower.contains("13") {
+                    return Some("2048x2732".to_string());
+                } else {
+                    return Some("1640x2360".to_string());
+                }
+            } else if device_lower.contains("mini") {
+                return Some("1488x2266".to_string());
+            } else {
+                return Some("1620x2160".to_string()); // Regular iPad
+            }
+        }
+
+        None
+    }
+
     pub async fn erase_device(&self, udid: &str) -> Result<()> {
         self.command_runner
             .run("xcrun", &["simctl", "erase", udid])
@@ -430,24 +568,49 @@ impl IosManager {
             .replace("-", " ")
             .replace("_", " ");
 
-        // Special case handling
-        let display = cleaned.replace(IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT); // 12.9 inch -> 12.9"
+        // Special case handling for inch sizes and technical specifications
+        let mut display = cleaned.replace(IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT); // 12.9 inch -> 12.9"
 
-        // Capitalize properly
+        // Handle additional inch sizes that might not be covered by the pattern
+        display = display.replace("13 inch", "13\"");
+        display = display.replace("11 inch", "11\"");
+
+        // Handle memory specifications
+        display = display.replace("8GB", "(8GB)");
+        display = display.replace("16GB", "(16GB)");
+
+        // Capitalize properly with enhanced special case handling
         display
             .split_whitespace()
             .map(|word| {
-                if word == "inch"
-                    || word == "se"
-                    || word == "mini"
-                    || (word.starts_with("i")
-                        && (word.starts_with("iPhone")
-                            || word.starts_with("iPad")
-                            || word.starts_with("iPod")))
+                let word_lower = word.to_lowercase();
+
+                // Preserve special cases exactly as they should appear
+                if word_lower == "inch"
+                    || word_lower == "se"
+                    || word_lower == "mini"
+                    || word_lower == "max"
+                    || word_lower == "plus"
+                    || word_lower == "pro"
+                    || word_lower == "air"
+                    || word_lower == "ultra"
+                    || word.contains("\"") // Inch measurements like 12.9"
+                    || word.contains("(") || word.contains(")") // Memory specs like (8GB)
+                    || (word.starts_with("i") && 
+                        (word.starts_with("iPhone") || word.starts_with("iPad") || word.starts_with("iPod")))
+                    || word_lower.starts_with("m") && word.len() <= 3 // M4, M3, M2, M1 chips
+                    || word_lower.starts_with("a") && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) // A17, A16 chips
                 {
+                    // For chip names, ensure proper capitalization
+                    if word_lower.starts_with("m") && word.len() <= 3 {
+                        return word.to_uppercase(); // m4 -> M4
+                    } else if word_lower.starts_with("a") && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+                        return word.to_uppercase(); // a17 -> A17
+                    }
+
                     word.to_string() // Preserve these special cases as-is
                 } else {
-                    // Capitalize first letter
+                    // Capitalize first letter for regular words
                     let mut chars = word.chars();
                     match chars.next() {
                         None => String::new(),
@@ -584,22 +747,43 @@ impl DeviceManager for IosManager {
             .context("Failed to list iOS devices")?;
         let json: Value =
             serde_json::from_str(&output).context("Failed to parse simctl JSON output")?;
+
         let mut devices = Vec::new();
         if let Some(devices_obj) = json.get("devices") {
             if let Some(devices_map) = devices_obj.as_object() {
+                // Process devices more efficiently with batch parsing
+                let mut raw_devices = Vec::new();
+
+                // First, collect all device data without complex async operations
                 for (runtime, device_list_json) in devices_map {
                     if let Some(device_array_json) = device_list_json.as_array() {
                         for device_json_val in device_array_json {
-                            if let Some(parsed_device) =
-                                self.parse_device_from_json(device_json_val, runtime)?
-                            {
-                                devices.push(parsed_device);
-                            }
+                            raw_devices.push((device_json_val, runtime));
+                        }
+                    }
+                }
+
+                // Parse devices in batches to improve performance
+                const BATCH_SIZE: usize = 10;
+                for batch in raw_devices.chunks(BATCH_SIZE) {
+                    for (device_json_val, runtime) in batch {
+                        if let Some(parsed_device) =
+                            self.parse_device_from_json(device_json_val, runtime)?
+                        {
+                            devices.push(parsed_device);
                         }
                     }
                 }
             }
         }
+
+        // Sort devices by priority after parsing for consistent ordering
+        devices.sort_by(|a, b| {
+            let priority_a = DynamicDeviceConfig::calculate_ios_device_priority(&a.name);
+            let priority_b = DynamicDeviceConfig::calculate_ios_device_priority(&b.name);
+            priority_a.cmp(&priority_b)
+        });
+
         Ok(devices)
     }
 
