@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Contains all information needed to display and manage an Android emulator
 /// instance, including its configuration and current runtime status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AndroidDevice {
     /// AVD name (unique identifier)
     pub name: String,
@@ -33,7 +33,7 @@ pub struct AndroidDevice {
 ///
 /// Contains all information needed to display and manage an iOS simulator
 /// instance, including its unique identifier and runtime configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IosDevice {
     /// Display name of the simulator
     pub name: String,
