@@ -241,6 +241,14 @@ impl App {
                                             let new_panel = state.active_panel.toggle();
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
+
+                                            // Stop log streaming when switching panels
+                                            if let Some(handle) = state.log_task_handle.take() {
+                                                handle.abort();
+                                            }
+                                            state.current_log_device = None;
+                                            state.clear_logs();
+
                                             drop(state);
 
                                             // Optimized panel switching with parallel execution
@@ -251,6 +259,14 @@ impl App {
                                             let new_panel = state.active_panel.toggle();
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
+
+                                            // Stop log streaming when switching panels
+                                            if let Some(handle) = state.log_task_handle.take() {
+                                                handle.abort();
+                                            }
+                                            state.current_log_device = None;
+                                            state.clear_logs();
+
                                             drop(state);
 
                                             // Optimized panel switching with parallel execution
@@ -264,6 +280,14 @@ impl App {
                                             let new_panel = state.active_panel.toggle();
                                             state.smart_clear_cached_device_details(new_panel); // Smart cache clearing
                                             state.active_panel = new_panel;
+
+                                            // Stop log streaming when switching panels
+                                            if let Some(handle) = state.log_task_handle.take() {
+                                                handle.abort();
+                                            }
+                                            state.current_log_device = None;
+                                            state.clear_logs();
+
                                             drop(state);
 
                                             // Optimized panel switching with parallel execution
