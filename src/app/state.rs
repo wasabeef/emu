@@ -17,6 +17,7 @@ use crate::constants::{
 };
 use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
+use crate::utils::cache_manager::CacheManager;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -373,6 +374,8 @@ pub struct AppState {
     pub ios_scroll_offset: usize,
     /// API level management dialog state (when dialog is open)
     pub api_level_management: Option<ApiLevelManagementState>,
+    /// Cache manager for persistent device storage
+    pub cache_manager: Arc<CacheManager>,
 }
 
 impl Default for CreateDeviceForm {
@@ -694,6 +697,7 @@ impl Default for AppState {
             android_scroll_offset: 0,
             ios_scroll_offset: 0,
             api_level_management: None,
+            cache_manager: Arc::new(CacheManager::new()),
         }
     }
 }

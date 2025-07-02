@@ -9,6 +9,7 @@
 //! - `logger` - Application logging setup and configuration
 //! - `validation` - Form field validation framework
 
+pub mod cache_manager;
 pub mod command;
 pub mod logger;
 pub mod validation;

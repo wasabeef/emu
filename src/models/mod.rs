@@ -11,6 +11,7 @@
 //! - `platform` - Platform definitions and platform-specific information
 
 pub mod api_level;
+pub mod cache;
 pub mod device;
 pub mod device_info;
 pub mod error;
