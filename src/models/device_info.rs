@@ -1,4 +1,20 @@
 use anyhow::Result;
+
+use crate::constants::{
+    keywords::*,
+    limits::{MAX_DEVICE_NAME_PARTS_DISPLAY, MAX_VERSION_NUMBER},
+    priorities::{
+        IOS_IPAD_AIR_PRIORITY_VALUE, IOS_IPAD_DEFAULT_PRIORITY, IOS_IPAD_MINI_PRIORITY_CALC,
+        IOS_IPAD_PRO_11_PRIORITY_VALUE, IOS_IPAD_PRO_12_9_PRIORITY, IOS_IPAD_PRO_OTHER_PRIORITY,
+        IOS_IPHONE_DEFAULT_BASE, IOS_IPHONE_MINI_PRIORITY_CALC, IOS_IPHONE_PLUS_MAX_PRIORITY,
+        IOS_IPHONE_PRO_MAX_PRIORITY_VALUE, IOS_IPHONE_PRO_PRIORITY_VALUE,
+        IOS_IPHONE_SE_PRIORITY_CALC, IOS_IPHONE_VERSION_OFFSET, IOS_TV_4K_PRIORITY,
+        IOS_TV_DEFAULT_PRIORITY, IOS_UNKNOWN_DEVICE_PRIORITY, IOS_WATCH_DEFAULT_PRIORITY,
+        IOS_WATCH_OTHER_PRIORITY, IOS_WATCH_SERIES_BASE, IOS_WATCH_SERIES_OFFSET,
+        IOS_WATCH_SE_PRIORITY, IOS_WATCH_ULTRA_PRIORITY, PHONE_CATEGORY_BASE_PRIORITY,
+        PIXEL_PRIORITY_MAX_BONUS, PIXEL_PRIORITY_OFFSET, PIXEL_UNVERSIONED_PRIORITY,
+    },
+};
 /// Dynamic device information structures
 ///
 /// This module provides completely dynamic device management for Android and iOS platforms.
@@ -309,18 +325,20 @@ impl DynamicDeviceConfig {
         );
 
         // Special handling for Pixel devices - they get highest priority
-        if combined.contains("pixel") && !combined.contains("nexus") {
+        if combined.contains(DEVICE_KEYWORD_PIXEL) && !combined.contains(DEVICE_KEYWORD_NEXUS) {
             let version_bonus = Self::extract_device_version(device_id, display_name);
 
             // Check if this device has a version number
             // extract_device_version returns 100-version for versioned devices, 50 for unversioned
-            if version_bonus != 50 {
+            if version_bonus != MAX_VERSION_NUMBER {
                 // Versioned Pixel devices: priority 0-19
-                let final_priority = version_bonus.saturating_sub(80).min(19);
+                let final_priority = version_bonus
+                    .saturating_sub(PIXEL_PRIORITY_OFFSET)
+                    .min(PIXEL_PRIORITY_MAX_BONUS);
                 return final_priority;
             } else {
                 // Unversioned Pixel devices: priority 20-29 (lower than versioned Pixels)
-                return 25; // Fixed priority for unversioned Pixel devices
+                return PIXEL_UNVERSIONED_PRIORITY; // Fixed priority for unversioned Pixel devices
             }
         }
 
@@ -332,7 +350,7 @@ impl DynamicDeviceConfig {
         // This ensures newer devices come before older devices in the same category
         if category_priority == 0 {
             // Start from 30 to leave room for Pixel devices (0-20)
-            return 30 + version_bonus + (oem_bonus / 2);
+            return PHONE_CATEGORY_BASE_PRIORITY + version_bonus + (oem_bonus / 2);
         }
 
         // For other categories, maintain manufacturer preference
@@ -344,72 +362,74 @@ impl DynamicDeviceConfig {
         let name_lower = display_name.to_lowercase();
 
         // iPhone priorities (0-99)
-        if name_lower.contains("iphone") {
+        if name_lower.contains(DEVICE_KEYWORD_IPHONE) {
             if name_lower.contains("pro max") {
-                return 0;
-            } else if name_lower.contains("pro") {
-                return 10;
-            } else if name_lower.contains("plus") || name_lower.contains("max") {
-                return 20;
-            } else if name_lower.contains("mini") {
-                return 30;
-            } else if name_lower.contains("se") {
-                return 40;
+                return IOS_IPHONE_PRO_MAX_PRIORITY_VALUE;
+            } else if name_lower.contains(DEVICE_KEYWORD_PRO) {
+                return IOS_IPHONE_PRO_PRIORITY_VALUE;
+            } else if name_lower.contains(DEVICE_KEYWORD_PLUS)
+                || name_lower.contains(DEVICE_KEYWORD_MAX)
+            {
+                return IOS_IPHONE_PLUS_MAX_PRIORITY;
+            } else if name_lower.contains(DEVICE_KEYWORD_MINI) {
+                return IOS_IPHONE_MINI_PRIORITY_CALC;
+            } else if name_lower.contains(DEVICE_KEYWORD_SE) {
+                return IOS_IPHONE_SE_PRIORITY_CALC;
             } else {
                 let version = Self::extract_ios_version(&name_lower);
                 if version > 0 {
-                    return 50 - version.min(30);
+                    return IOS_IPHONE_DEFAULT_BASE - version.min(IOS_IPHONE_VERSION_OFFSET);
                 }
-                return 50;
+                return MAX_VERSION_NUMBER;
             }
         }
 
         // iPad priorities (100-199)
-        if name_lower.contains("ipad") {
-            if name_lower.contains("pro") {
-                if name_lower.contains("12.9") {
-                    return 100;
-                } else if name_lower.contains("11") {
-                    return 110;
+        if name_lower.contains(DEVICE_KEYWORD_IPAD) {
+            if name_lower.contains(DEVICE_KEYWORD_PRO) {
+                if name_lower.contains(DEVICE_KEYWORD_12_9) {
+                    return IOS_IPAD_PRO_12_9_PRIORITY;
+                } else if name_lower.contains(DEVICE_KEYWORD_11) {
+                    return IOS_IPAD_PRO_11_PRIORITY_VALUE;
                 } else {
-                    return 120;
+                    return IOS_IPAD_PRO_OTHER_PRIORITY;
                 }
-            } else if name_lower.contains("air") {
-                return 130;
-            } else if name_lower.contains("mini") {
-                return 140;
+            } else if name_lower.contains(DEVICE_KEYWORD_AIR) {
+                return IOS_IPAD_AIR_PRIORITY_VALUE;
+            } else if name_lower.contains(DEVICE_KEYWORD_MINI) {
+                return IOS_IPAD_MINI_PRIORITY_CALC;
             } else {
-                return 150;
+                return IOS_IPAD_DEFAULT_PRIORITY;
             }
         }
 
         // Apple TV (200-299)
-        if name_lower.contains("tv") {
-            if name_lower.contains("4k") {
-                return 200;
+        if name_lower.contains(DEVICE_KEYWORD_TV) {
+            if name_lower.contains(DEVICE_KEYWORD_4K) {
+                return IOS_TV_4K_PRIORITY;
             } else {
-                return 210;
+                return IOS_TV_DEFAULT_PRIORITY;
             }
         }
 
         // Apple Watch (300-399)
-        if name_lower.contains("watch") {
-            if name_lower.contains("ultra") {
-                return 300;
-            } else if name_lower.contains("series") {
+        if name_lower.contains(DEVICE_KEYWORD_WATCH) {
+            if name_lower.contains(DEVICE_KEYWORD_ULTRA) {
+                return IOS_WATCH_ULTRA_PRIORITY;
+            } else if name_lower.contains(DEVICE_KEYWORD_SERIES) {
                 let version = Self::extract_ios_version(&name_lower);
                 if version > 0 {
-                    return 310 - version.min(10);
+                    return IOS_WATCH_SERIES_BASE - version.min(IOS_WATCH_SERIES_OFFSET);
                 }
-                return 320;
-            } else if name_lower.contains("se") {
-                return 330;
+                return IOS_WATCH_DEFAULT_PRIORITY;
+            } else if name_lower.contains(DEVICE_KEYWORD_SE) {
+                return IOS_WATCH_SE_PRIORITY;
             } else {
-                return 340;
+                return IOS_WATCH_OTHER_PRIORITY;
             }
         }
 
-        999
+        IOS_UNKNOWN_DEVICE_PRIORITY
     }
 
     /// Infer device category for priority sorting
@@ -421,13 +441,13 @@ impl DynamicDeviceConfig {
         );
 
         // Foldable devices (check first to avoid phone categorization)
-        if combined.contains("fold") || combined.contains("flip") {
+        if combined.contains(DEVICE_KEYWORD_FOLD) || combined.contains(DEVICE_KEYWORD_FLIP) {
             return 20;
         }
 
         // Tablets (check before phones to catch "pixel_tablet")
-        if combined.contains("tablet")
-            || combined.contains("pad")
+        if combined.contains(DEVICE_KEYWORD_TABLET)
+            || combined.contains(DEVICE_KEYWORD_PAD)
             || (combined.contains("10") && combined.contains("inch"))
             || (combined.contains("11") && combined.contains("inch"))
             || (combined.contains("12") && combined.contains("inch"))
@@ -436,38 +456,42 @@ impl DynamicDeviceConfig {
         }
 
         // Phone category gets highest priority
-        if combined.contains("phone")
-            || (combined.contains("pixel")
-                && !combined.contains("fold")
-                && !combined.contains("tablet"))
-            || (combined.contains("galaxy")
-                && !combined.contains("fold")
-                && !combined.contains("tablet"))
-            || combined.contains("oneplus")
+        if combined.contains(DEVICE_KEYWORD_PHONE)
+            || (combined.contains(DEVICE_KEYWORD_PIXEL)
+                && !combined.contains(DEVICE_KEYWORD_FOLD)
+                && !combined.contains(DEVICE_KEYWORD_TABLET))
+            || (combined.contains(DEVICE_KEYWORD_GALAXY)
+                && !combined.contains(DEVICE_KEYWORD_FOLD)
+                && !combined.contains(DEVICE_KEYWORD_TABLET))
+            || combined.contains(DEVICE_KEYWORD_ONEPLUS)
             || (combined.contains("5") && combined.contains("inch"))
             || (combined.contains("6") && combined.contains("inch"))
-            || (combined.contains("pro")
-                && !combined.contains("tablet")
-                && !combined.contains("fold"))
+            || (combined.contains(DEVICE_KEYWORD_PRO)
+                && !combined.contains(DEVICE_KEYWORD_TABLET)
+                && !combined.contains(DEVICE_KEYWORD_FOLD))
         {
             return 0;
         }
 
         // TV devices
-        if combined.contains("tv") || combined.contains("1080p") || combined.contains("4k") {
+        if combined.contains(DEVICE_KEYWORD_TV)
+            || combined.contains(DEVICE_KEYWORD_1080P)
+            || combined.contains(DEVICE_KEYWORD_4K)
+        {
             return 200;
         }
 
         // Wear devices (watches)
-        if combined.contains("wear")
-            || combined.contains("watch")
-            || (combined.contains("round") && !combined.contains("tablet"))
+        if combined.contains(DEVICE_KEYWORD_WEAR)
+            || combined.contains(DEVICE_KEYWORD_WATCH)
+            || (combined.contains(DEVICE_KEYWORD_ROUND)
+                && !combined.contains(DEVICE_KEYWORD_TABLET))
         {
             return 300;
         }
 
         // Auto/Car devices
-        if combined.contains("auto") || combined.contains("car") {
+        if combined.contains(DEVICE_KEYWORD_AUTO) || combined.contains(DEVICE_KEYWORD_CAR) {
             return 400;
         }
 
@@ -479,17 +503,17 @@ impl DynamicDeviceConfig {
         let combined = display_name.to_lowercase();
 
         // Google devices get highest priority
-        if combined.contains("google") || combined.contains("pixel") {
+        if combined.contains(DEVICE_KEYWORD_GOOGLE) || combined.contains(DEVICE_KEYWORD_PIXEL) {
             return 0;
         }
 
         // Samsung devices get second priority
-        if combined.contains("samsung") || combined.contains("galaxy") {
+        if combined.contains(DEVICE_KEYWORD_SAMSUNG) || combined.contains(DEVICE_KEYWORD_GALAXY) {
             return 10;
         }
 
         // OnePlus devices
-        if combined.contains("oneplus") {
+        if combined.contains(DEVICE_KEYWORD_ONEPLUS) {
             return 20;
         }
 
@@ -497,21 +521,21 @@ impl DynamicDeviceConfig {
         if let Some(start) = display_name.find('(') {
             if let Some(end) = display_name.find(')') {
                 let oem_part = &display_name[start + 1..end].to_lowercase();
-                if oem_part == "xiaomi" {
+                if oem_part == DEVICE_KEYWORD_XIAOMI {
                     return 30;
-                } else if oem_part == "asus" {
+                } else if oem_part == DEVICE_KEYWORD_ASUS {
                     return 35;
-                } else if oem_part == "oppo" {
+                } else if oem_part == DEVICE_KEYWORD_OPPO {
                     return 40;
-                } else if oem_part == "vivo" {
+                } else if oem_part == DEVICE_KEYWORD_VIVO {
                     return 45;
-                } else if oem_part == "huawei" {
+                } else if oem_part == DEVICE_KEYWORD_HUAWEI {
                     return 50;
-                } else if oem_part == "motorola" {
+                } else if oem_part == DEVICE_KEYWORD_MOTOROLA {
                     return 55;
-                } else if oem_part == "lenovo" {
+                } else if oem_part == DEVICE_KEYWORD_LENOVO {
                     return 60;
-                } else if oem_part == "sony" {
+                } else if oem_part == DEVICE_KEYWORD_SONY {
                     return 65;
                 }
             }
@@ -561,7 +585,7 @@ impl DynamicDeviceConfig {
         for caps in number_regex.captures_iter(&combined) {
             if let Ok(num) = caps[1].parse::<u32>() {
                 // Only consider reasonable version numbers (1-50)
-                if num > 0 && num <= 50 {
+                if num > 0 && num <= MAX_VERSION_NUMBER {
                     versions.push(num);
                 }
             }
@@ -573,7 +597,7 @@ impl DynamicDeviceConfig {
         }
 
         // Return 50 for devices without version numbers (middle priority)
-        50
+        MAX_VERSION_NUMBER
     }
 
     /// Extract iOS device version
@@ -583,7 +607,7 @@ impl DynamicDeviceConfig {
 
         for part in parts {
             if let Ok(num) = part.parse::<u32>() {
-                if num > 0 && num <= 50 {
+                if num > 0 && num <= MAX_VERSION_NUMBER {
                     return num;
                 }
             }
@@ -592,7 +616,7 @@ impl DynamicDeviceConfig {
             if part.contains('-') {
                 if let Some(num_part) = part.split('-').next_back() {
                     if let Ok(num) = num_part.parse::<u32>() {
-                        if num > 0 && num <= 50 {
+                        if num > 0 && num <= MAX_VERSION_NUMBER {
                             return num;
                         }
                     }
@@ -685,7 +709,7 @@ impl DynamicDeviceConfig {
 
         for part in combined.split_whitespace() {
             if let Ok(num) = part.parse::<u32>() {
-                if num > 0 && num <= 50 {
+                if num > 0 && num <= MAX_VERSION_NUMBER {
                     // Reasonable device version range
                     return Some(100 - num); // Newer versions get lower numbers (higher priority)
                 }
@@ -695,7 +719,7 @@ impl DynamicDeviceConfig {
             if part.contains('_') {
                 if let Some(num_part) = part.split('_').next_back() {
                     if let Ok(num) = num_part.parse::<u32>() {
-                        if num > 0 && num <= 50 {
+                        if num > 0 && num <= MAX_VERSION_NUMBER {
                             return Some(100 - num);
                         }
                     }
@@ -742,7 +766,10 @@ impl DynamicDeviceConfig {
         }
 
         // Take reasonable limit, but keep important modifiers like Fold, XL, Pro
-        parts.into_iter().take(4).collect()
+        parts
+            .into_iter()
+            .take(MAX_DEVICE_NAME_PARTS_DISPLAY)
+            .collect()
     }
 
     fn basic_name_parsing(&self, device_type: &str) -> Vec<String> {

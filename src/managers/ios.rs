@@ -201,6 +201,15 @@ use crate::constants::ios::{
     IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT, IOS_RUNTIME_PREFIX, SIMULATOR_APP_NAME,
     SIMULATOR_OPEN_FLAG, SIMULATOR_QUIT_COMMAND,
 };
+#[cfg(target_os = "macos")]
+use crate::constants::{
+    ios_devices::*,
+    numeric::{
+        BYTES_PER_MB, IOS_DEVICE_PARSE_BATCH_SIZE, VERSION_DEFAULT, VERSION_MINOR_DIVISOR,
+        VERSION_PATCH_DIVISOR,
+    },
+    resolutions::*,
+};
 use crate::managers::common::{DeviceConfig, DeviceManager};
 #[cfg(target_os = "macos")]
 use crate::models::device_info::DynamicDeviceConfig;
@@ -241,22 +250,22 @@ fn extract_ios_version(display_name: &str) -> f32 {
         let parts: Vec<&str> = version_str.split('.').collect();
         if parts.len() >= 2 {
             // Parse major.minor[.patch]
-            let major = parts[0].parse::<f32>().unwrap_or(0.0);
-            let minor = parts[1].parse::<f32>().unwrap_or(0.0) / 10.0;
+            let major = parts[0].parse::<f32>().unwrap_or(VERSION_DEFAULT);
+            let minor = parts[1].parse::<f32>().unwrap_or(VERSION_DEFAULT) / VERSION_MINOR_DIVISOR;
             let patch = if parts.len() > 2 {
-                parts[2].parse::<f32>().unwrap_or(0.0) / 100.0
+                parts[2].parse::<f32>().unwrap_or(VERSION_DEFAULT) / VERSION_PATCH_DIVISOR
             } else {
-                0.0
+                VERSION_DEFAULT
             };
             major + minor + patch
         } else if parts.len() == 1 {
             // Just major version
-            parts[0].parse::<f32>().unwrap_or(0.0)
+            parts[0].parse::<f32>().unwrap_or(VERSION_DEFAULT)
         } else {
-            0.0
+            VERSION_DEFAULT
         }
     } else {
-        0.0
+        VERSION_DEFAULT
     }
 }
 
@@ -420,7 +429,7 @@ impl IosManager {
                                 let storage_size = device
                                     .get("dataPathSize")
                                     .and_then(|v| v.as_u64())
-                                    .map(|size| format!("{} MB", size / (1024 * 1024)));
+                                    .map(|size| format!("{} MB", size / BYTES_PER_MB));
 
                                 // Paths
                                 let device_path = device
@@ -440,7 +449,7 @@ impl IosManager {
                                     ram_size: None, // iOS simulators don't have configurable RAM
                                     storage_size,
                                     resolution,
-                                    dpi: Some("Retina".to_string()), // iOS uses Retina display
+                                    dpi: Some(RETINA_DISPLAY.to_string()), // iOS uses Retina display
                                     device_path,
                                     system_image: None, // Not applicable for iOS
                                     identifier: udid.to_string(),
@@ -471,16 +480,16 @@ impl IosManager {
                 || device_lower.contains("14")
             {
                 if device_lower.contains("pro max") {
-                    return Some("1290x2796".to_string());
+                    return Some(IPHONE_15_PRO_MAX_RESOLUTION.to_string());
                 } else if device_lower.contains("pro") {
-                    return Some("1179x2556".to_string());
+                    return Some(IPHONE_15_PRO_RESOLUTION.to_string());
                 } else if device_lower.contains("plus") {
-                    return Some("1290x2796".to_string());
+                    return Some(IPHONE_15_PRO_MAX_RESOLUTION.to_string());
                 } else {
-                    return Some("1170x2532".to_string());
+                    return Some(IPHONE_15_RESOLUTION.to_string());
                 }
             } else if device_lower.contains("se") {
-                return Some("750x1334".to_string());
+                return Some(IPHONE_SE_RESOLUTION.to_string());
             }
         }
 
@@ -488,20 +497,20 @@ impl IosManager {
         if device_lower.contains("ipad") {
             if device_lower.contains("pro") {
                 if device_lower.contains("13") || device_lower.contains("12.9") {
-                    return Some("2048x2732".to_string());
+                    return Some(IPAD_PRO_12_9_RESOLUTION.to_string());
                 } else if device_lower.contains("11") {
-                    return Some("1668x2388".to_string());
+                    return Some(IPAD_PRO_11_RESOLUTION.to_string());
                 }
             } else if device_lower.contains("air") {
                 if device_lower.contains("13") {
-                    return Some("2048x2732".to_string());
+                    return Some(IPAD_AIR_13_RESOLUTION.to_string());
                 } else {
-                    return Some("1640x2360".to_string());
+                    return Some(IPAD_AIR_RESOLUTION.to_string());
                 }
             } else if device_lower.contains("mini") {
-                return Some("1488x2266".to_string());
+                return Some(IPAD_MINI_RESOLUTION.to_string());
             } else {
-                return Some("1620x2160".to_string()); // Regular iPad
+                return Some(IPAD_RESOLUTION.to_string()); // Regular iPad
             }
         }
 
@@ -593,12 +602,12 @@ impl IosManager {
         let mut display = cleaned.replace(IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT); // 12.9 inch -> 12.9"
 
         // Handle additional inch sizes that might not be covered by the pattern
-        display = display.replace("13 inch", "13\"");
-        display = display.replace("11 inch", "11\"");
+        display = display.replace(INCH_13_PATTERN, INCH_13_REPLACEMENT);
+        display = display.replace(INCH_11_PATTERN, INCH_11_REPLACEMENT);
 
         // Handle memory specifications
-        display = display.replace("8GB", "(8GB)");
-        display = display.replace("16GB", "(16GB)");
+        display = display.replace(MEMORY_8GB_PATTERN, MEMORY_8GB_REPLACEMENT);
+        display = display.replace(MEMORY_16GB_PATTERN, MEMORY_16GB_REPLACEMENT);
 
         // Capitalize properly with enhanced special case handling
         display
@@ -785,8 +794,7 @@ impl DeviceManager for IosManager {
                 }
 
                 // Parse devices in batches to improve performance
-                const BATCH_SIZE: usize = 10;
-                for batch in raw_devices.chunks(BATCH_SIZE) {
+                for batch in raw_devices.chunks(IOS_DEVICE_PARSE_BATCH_SIZE) {
                     for (device_json_val, runtime) in batch {
                         if let Some(parsed_device) =
                             self.parse_device_from_json(device_json_val, runtime)?

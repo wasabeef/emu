@@ -4,9 +4,12 @@
 //! and checking system configuration.
 
 use anyhow::Result;
-use emu::managers::{
-    common::{DeviceConfig, DeviceManager},
-    AndroidManager,
+use emu::{
+    constants::defaults::*,
+    managers::{
+        common::{DeviceConfig, DeviceManager},
+        AndroidManager,
+    },
 };
 
 #[tokio::main]
@@ -69,9 +72,9 @@ async fn main() -> Result<()> {
     // Test creating a simple AVD
     println!("\n4. Testing AVD creation...");
     let test_config = DeviceConfig::new(
-        "test_debug_device".to_string(),
-        "phone".to_string(),
-        "34".to_string(), // Android 14
+        TEST_DEVICE_NAME_BASE.to_string(),
+        TEST_DEVICE_TYPE.to_string(),
+        TEST_API_LEVEL_34.to_string(), // Android 14
     );
 
     println!("Attempting to create test AVD with config:");
@@ -96,9 +99,9 @@ async fn main() -> Result<()> {
             // Try with a different API level
             println!("\n   Trying with API level 33 (Android 13)...");
             let test_config_33 = DeviceConfig::new(
-                "test_debug_device_33".to_string(),
-                "phone".to_string(),
-                "33".to_string(),
+                TEST_DEVICE_NAME_33.to_string(),
+                TEST_DEVICE_TYPE.to_string(),
+                TEST_API_LEVEL_33.to_string(),
             );
 
             match android_manager.create_device(&test_config_33).await {

@@ -5,6 +5,22 @@ use crate::{
         state::{CreateDeviceField, NotificationType},
         AppState, Panel,
     },
+    constants::{
+        colors::*,
+        messages::ui::{
+            DIALOG_SHORTCUT_CANCEL, DIALOG_SHORTCUT_NO, DIALOG_SHORTCUT_YES,
+            TERMINAL_TOO_SMALL_ERROR,
+        },
+        ui_layout::{
+            ANDROID_PANEL_PERCENTAGE, API_LEVEL_LIST_MIN_HEIGHT, DEVICE_DETAILS_PANEL_PERCENTAGE,
+            DEVICE_PANELS_PERCENTAGE, DIALOG_HEIGHT_LARGE, DIALOG_HEIGHT_MEDIUM,
+            DIALOG_HEIGHT_SMALL, DIALOG_MARGIN, DIALOG_WIDTH_LARGE, DIALOG_WIDTH_MEDIUM,
+            DIALOG_WIDTH_SMALL, FORM_FOOTER_HEIGHT, FORM_LABEL_WIDTH, HEADER_HEIGHT,
+            IOS_PANEL_PERCENTAGE, LOADING_INDICATOR_MARGIN, LOG_LEVEL_WIDTH, LOG_TIMESTAMP_WIDTH,
+            MESSAGE_TRUNCATE_SUFFIX_LENGTH, MIN_TERMINAL_HEIGHT, MIN_TERMINAL_WIDTH,
+            NOTIFICATION_HEIGHT, SEPARATOR_LENGTH, STATUS_BAR_HEIGHT,
+        },
+    },
     ui::{widgets::get_animated_moon, Theme},
 };
 use ratatui::{
@@ -25,8 +41,8 @@ fn render_confirmation_dialog(
     border_color: Color,
     theme: &Theme,
 ) {
-    let dialog_width = 60.min(area.width - 4);
-    let dialog_height = 10.min(area.height - 4);
+    let dialog_width = DIALOG_WIDTH_SMALL.min(area.width - DIALOG_MARGIN);
+    let dialog_height = DIALOG_HEIGHT_SMALL.min(area.height - DIALOG_MARGIN);
     let x = (area.width.saturating_sub(dialog_width)) / 2;
     let y = (area.height.saturating_sub(dialog_height)) / 2;
 
@@ -40,7 +56,7 @@ fn render_confirmation_dialog(
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
         .title(format!("{icon} {title}"))
-        .style(Style::default().bg(Color::Black));
+        .style(Style::default().bg(UI_COLOR_BACKGROUND));
     frame.render_widget(background_block, dialog_area);
 
     // Inner area for content
@@ -72,27 +88,27 @@ fn render_confirmation_dialog(
         Span::styled(
             "y",
             Style::default()
-                .fg(Color::Green)
+                .fg(STATUS_COLOR_SUCCESS)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw(" = Yes  "),
+        Span::raw(DIALOG_SHORTCUT_YES),
         Span::styled(
             "n",
             Style::default()
                 .fg(theme.error)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw(" = No  "),
+        Span::raw(DIALOG_SHORTCUT_NO),
         Span::styled(
             "Esc",
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(UI_COLOR_TEXT_DIM)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw(" = Cancel"),
+        Span::raw(DIALOG_SHORTCUT_CANCEL),
     ];
     let shortcuts_paragraph = Paragraph::new(Line::from(shortcuts))
-        .style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().fg(UI_COLOR_TEXT_DIM))
         .alignment(Alignment::Center);
     frame.render_widget(shortcuts_paragraph, inner_chunks[1]);
 }
@@ -101,8 +117,9 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
     let size = frame.area();
 
     // Ensure we have enough space
-    if size.height < 10 || size.width < 40 {
-        let msg = Paragraph::new("Terminal too small").style(Style::default().fg(Color::Red));
+    if size.height < MIN_TERMINAL_HEIGHT || size.width < MIN_TERMINAL_WIDTH {
+        let msg =
+            Paragraph::new(TERMINAL_TOO_SMALL_ERROR).style(Style::default().fg(STATUS_COLOR_ERROR));
         frame.render_widget(msg, size);
         return;
     }
@@ -110,9 +127,9 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(10),   // Main content
-            Constraint::Length(1), // Status bar (reduced from 3 to 1)
+            Constraint::Length(HEADER_HEIGHT),     // Header
+            Constraint::Min(10),                   // Main content
+            Constraint::Length(STATUS_BAR_HEIGHT), // Status bar
         ])
         .split(size);
 
@@ -142,9 +159,9 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
         Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(40), // Device panels with device commands
-                Constraint::Min(10),        // Log panel
-                Constraint::Length(1),      // Log commands
+                Constraint::Percentage(DEVICE_PANELS_PERCENTAGE), // Device panels with device commands
+                Constraint::Min(10),                              // Log panel
+                Constraint::Length(1),                            // Log commands
             ])
             .split(chunks[1])
     };
@@ -164,9 +181,9 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
         let device_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(30), // Android
-                Constraint::Percentage(30), // iOS
-                Constraint::Percentage(40), // Device Details
+                Constraint::Percentage(ANDROID_PANEL_PERCENTAGE), // Android
+                Constraint::Percentage(IOS_PANEL_PERCENTAGE),     // iOS
+                Constraint::Percentage(DEVICE_DETAILS_PANEL_PERCENTAGE), // Device Details
             ])
             .split(device_area_chunks[0]);
 
@@ -216,7 +233,7 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
     let status = Paragraph::new(status_with_icon)
         .style(
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(UI_COLOR_TEXT_DIM)
                 .add_modifier(Modifier::DIM),
         )
         .alignment(Alignment::Right);
@@ -281,9 +298,9 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
             let text = format!("{status_indicator} {}", device.name.replace('_', " "));
 
             let style = if selected {
-                Style::default().bg(theme.primary).fg(Color::Black)
+                Style::default().bg(theme.primary).fg(UI_COLOR_BACKGROUND)
             } else if device.is_running {
-                Style::default().fg(Color::Green)
+                Style::default().fg(STATUS_COLOR_ACTIVE)
             } else {
                 Style::default().fg(theme.text)
             };
@@ -374,11 +391,11 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             let text = format!("{status_indicator} {}{availability}", device.name);
 
             let style = if selected {
-                Style::default().bg(theme.primary).fg(Color::Black)
+                Style::default().bg(theme.primary).fg(UI_COLOR_BACKGROUND)
             } else if device.is_running {
-                Style::default().fg(Color::Green)
+                Style::default().fg(STATUS_COLOR_ACTIVE)
             } else if !device.is_available {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(UI_COLOR_TEXT_DIM)
             } else {
                 Style::default().fg(theme.text)
             };
@@ -468,15 +485,17 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
         title_spans.push(Span::raw(" [Filter: "));
 
         let filter_style = match filter.as_str() {
-            "ERROR" => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            "ERROR" => Style::default()
+                .fg(LOG_COLOR_ERROR)
+                .add_modifier(Modifier::BOLD),
             "WARN" => Style::default()
-                .fg(Color::Yellow)
+                .fg(LOG_COLOR_WARN)
                 .add_modifier(Modifier::BOLD),
             "INFO" => Style::default()
-                .fg(Color::Green)
+                .fg(LOG_COLOR_INFO)
                 .add_modifier(Modifier::BOLD),
             "DEBUG" => Style::default()
-                .fg(Color::Gray)
+                .fg(LOG_COLOR_DEBUG)
                 .add_modifier(Modifier::BOLD),
             _ => Style::default().fg(theme.text),
         };
@@ -492,8 +511,8 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
     let available_width = area.width.saturating_sub(2) as usize;
 
     // Calculate widths for each component
-    let timestamp_width = 9; // "HH:MM:SS "
-    let level_width = 9; // "[ERROR] " max width
+    let timestamp_width = LOG_TIMESTAMP_WIDTH; // "HH:MM:SS "
+    let level_width = LOG_LEVEL_WIDTH; // "[ERROR] " max width
     let message_width = available_width.saturating_sub(timestamp_width + level_width);
 
     // Get filtered logs
@@ -514,16 +533,18 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
         .into_iter()
         .map(|entry| {
             let level_style = match entry.level.as_str() {
-                "ERROR" => Style::default().fg(Color::Red),
-                "WARN" => Style::default().fg(Color::Yellow),
-                "INFO" => Style::default().fg(Color::Green),
-                "DEBUG" => Style::default().fg(Color::Gray),
+                "ERROR" => Style::default().fg(LOG_COLOR_ERROR),
+                "WARN" => Style::default().fg(LOG_COLOR_WARN),
+                "INFO" => Style::default().fg(LOG_COLOR_INFO),
+                "DEBUG" => Style::default().fg(LOG_COLOR_DEBUG),
                 _ => Style::default().fg(theme.text),
             };
 
             // Truncate message if it's too long (safely handle UTF-8 boundaries)
-            let message = if entry.message.chars().count() > message_width && message_width > 3 {
-                let truncate_len = message_width.saturating_sub(3);
+            let message = if entry.message.chars().count() > message_width
+                && message_width > MESSAGE_TRUNCATE_SUFFIX_LENGTH
+            {
+                let truncate_len = message_width.saturating_sub(MESSAGE_TRUNCATE_SUFFIX_LENGTH);
                 let truncated: String = entry.message.chars().take(truncate_len).collect();
                 format!("{truncated}...")
             } else {
@@ -546,7 +567,7 @@ fn render_log_panel(frame: &mut Frame, area: Rect, state: &AppState, theme: &The
             Line::from(vec![
                 Span::styled(
                     entry.timestamp.clone(),
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(UI_COLOR_TEXT_DIM),
                 ),
                 Span::raw(" "),
                 Span::styled(format!("[{}]", &entry.level), level_style),
@@ -585,8 +606,8 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
     let size = frame.area();
 
     // Calculate dialog dimensions
-    let dialog_width = 80.min(size.width - 4);
-    let dialog_height = 16.min(size.height - 4);
+    let dialog_width = DIALOG_WIDTH_MEDIUM.min(size.width - 4);
+    let dialog_height = DIALOG_HEIGHT_MEDIUM.min(size.height - 4);
 
     // Center the dialog
     let x = (size.width.saturating_sub(dialog_width)) / 2;
@@ -598,7 +619,7 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
     frame.render_widget(Clear, dialog_area);
 
     // Add a background block to ensure full coverage
-    let background_block = Block::default().style(Style::default().bg(Color::Black));
+    let background_block = Block::default().style(Style::default().bg(UI_COLOR_BACKGROUND));
     frame.render_widget(background_block, dialog_area);
 
     // Dialog title with icon based on active panel
@@ -767,7 +788,7 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
         let creating_msg = Paragraph::new(progress_msg)
             .style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(STATUS_COLOR_WARNING)
                     .add_modifier(Modifier::BOLD),
             )
             .alignment(Alignment::Center);
@@ -782,7 +803,7 @@ fn render_create_device_dialog(frame: &mut Frame, state: &AppState, theme: &Them
         frame.render_widget(loading_msg, msg_chunk);
     } else if let Some(error) = &form.error_message {
         let error_msg = Paragraph::new(error.as_str())
-            .style(Style::default().fg(Color::Red))
+            .style(Style::default().fg(STATUS_COLOR_ERROR))
             .alignment(Alignment::Center);
         frame.render_widget(error_msg, msg_chunk);
     }
@@ -798,7 +819,7 @@ fn render_input_field(
 ) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(20), Constraint::Min(1)])
+        .constraints([Constraint::Length(FORM_LABEL_WIDTH), Constraint::Min(1)])
         .split(area);
 
     // Label
@@ -837,7 +858,7 @@ fn render_select_field(
 ) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(20), Constraint::Min(1)])
+        .constraints([Constraint::Length(FORM_LABEL_WIDTH), Constraint::Min(1)])
         .split(area);
 
     // Label
@@ -889,7 +910,7 @@ fn render_confirm_delete_dialog(frame: &mut Frame, state: &AppState, theme: &The
             "Confirm Delete",
             &message,
             "🗑",
-            Color::Red,
+            STATUS_COLOR_ERROR,
             theme,
         );
     }
@@ -918,7 +939,7 @@ fn render_confirm_wipe_dialog(frame: &mut Frame, state: &AppState, theme: &Theme
             "Confirm Wipe",
             &message,
             "🧹",
-            Color::Yellow,
+            STATUS_COLOR_WARNING,
             theme,
         );
     }
@@ -948,16 +969,16 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         // Separator line
         lines.push(Line::from(vec![Span::styled(
-            "━".repeat(30),
-            Style::default().fg(Color::DarkGray),
+            "━".repeat(SEPARATOR_LENGTH as usize),
+            Style::default().fg(UI_COLOR_TEXT_DIM),
         )]));
 
         // === ESSENTIAL: Status ===
         let (status_icon, status_color) =
             if details.status == "Running" || details.status == "Booted" {
-                ("●", Color::Green)
+                ("●", STATUS_COLOR_ACTIVE)
             } else {
-                ("○", Color::Gray)
+                ("○", STATUS_COLOR_INACTIVE)
             };
         lines.push(Line::from(vec![
             Span::styled(status_icon, Style::default().fg(status_color)),
@@ -984,7 +1005,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
                 Span::raw("📱 Display: "),
                 Span::styled(
                     format!("{resolution}{dpi_info}"),
-                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(STATUS_COLOR_WARNING),
                 ),
             ]));
         }
@@ -993,14 +1014,14 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
         if let Some(ref ram) = details.ram_size {
             lines.push(Line::from(vec![
                 Span::raw("🧠 RAM: "),
-                Span::styled(ram.clone(), Style::default().fg(Color::Cyan)),
+                Span::styled(ram.clone(), Style::default().fg(STATUS_COLOR_DEBUG)),
             ]));
         }
 
         if let Some(ref storage) = details.storage_size {
             lines.push(Line::from(vec![
                 Span::raw("💾 Storage: "),
-                Span::styled(storage.clone(), Style::default().fg(Color::Cyan)),
+                Span::styled(storage.clone(), Style::default().fg(STATUS_COLOR_DEBUG)),
             ]));
         }
 
@@ -1018,7 +1039,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
                 };
                 lines.push(Line::from(vec![
                     Span::raw("🔧 Arch: "),
-                    Span::styled(architecture, Style::default().fg(Color::Magenta)),
+                    Span::styled(architecture, Style::default().fg(LOG_COLOR_VERBOSE)),
                 ]));
             }
         }
@@ -1044,7 +1065,10 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::raw("🆔 ID: "),
-            Span::styled(details.identifier.clone(), Style::default().fg(Color::Blue)),
+            Span::styled(
+                details.identifier.clone(),
+                Style::default().fg(STATUS_COLOR_INFO),
+            ),
         ]));
 
         // Path info (full path)
@@ -1052,7 +1076,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
                 Span::raw("📂 "),
-                Span::styled(path.clone(), Style::default().fg(Color::DarkGray)),
+                Span::styled(path.clone(), Style::default().fg(UI_COLOR_TEXT_DIM)),
             ]));
         }
 
@@ -1077,14 +1101,17 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
             let loading_text = format!("{moon_icon} Loading");
             let loading_width = "🌙 Loading".len() as u16; // Use fixed width for consistent positioning
             let loading_area = Rect::new(
-                area.x + area.width.saturating_sub(loading_width + 3),
+                area.x
+                    + area
+                        .width
+                        .saturating_sub(loading_width + LOADING_INDICATOR_MARGIN),
                 area.y + area.height.saturating_sub(2),
                 loading_width + 2,
                 1,
             );
 
             let loading_paragraph = Paragraph::new(loading_text)
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(UI_COLOR_TEXT_DIM))
                 .alignment(Alignment::Right);
 
             frame.render_widget(loading_paragraph, loading_area);
@@ -1098,7 +1125,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
                     .borders(Borders::ALL)
                     .border_style(border_style),
             )
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(UI_COLOR_TEXT_DIM))
             .alignment(Alignment::Center);
 
         frame.render_widget(no_device_text, area);
@@ -1113,8 +1140,8 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
     let size = frame.area();
 
     // Position notifications in the top-right corner
-    let notification_width = 60.min(size.width - 4);
-    let notification_height = 4; // Height per notification
+    let notification_width = DIALOG_WIDTH_SMALL.min(size.width - DIALOG_MARGIN);
+    let notification_height = NOTIFICATION_HEIGHT; // Height per notification
 
     for (i, notification) in state.notifications.iter().enumerate() {
         let y_offset = i as u16 * (notification_height + 1); // Add spacing between notifications
@@ -1133,10 +1160,10 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
 
         // Determine colors based on notification type
         let (border_color, text_color, icon) = match notification.notification_type {
-            NotificationType::Success => (Color::Green, Color::White, "✓"),
-            NotificationType::Error => (Color::Red, Color::White, "✗"),
-            NotificationType::Warning => (Color::Yellow, Color::Black, "⚠"),
-            NotificationType::Info => (Color::Blue, Color::White, "ℹ"),
+            NotificationType::Success => (STATUS_COLOR_SUCCESS, UI_COLOR_TEXT_BRIGHT, "✓"),
+            NotificationType::Error => (STATUS_COLOR_ERROR, UI_COLOR_TEXT_BRIGHT, "✗"),
+            NotificationType::Warning => (STATUS_COLOR_WARNING, UI_COLOR_BACKGROUND, "⚠"),
+            NotificationType::Info => (STATUS_COLOR_INFO, UI_COLOR_TEXT_BRIGHT, "ℹ"),
         };
 
         let notification_block = Block::default()
@@ -1160,7 +1187,7 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
             ]),
             Line::from(vec![Span::styled(
                 format!("  {}", notification.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::Gray),
+                Style::default().fg(UI_COLOR_TEXT_NORMAL),
             )]),
         ];
 
@@ -1183,7 +1210,7 @@ fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _them
     let device_commands = Paragraph::new(device_text)
         .style(
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(UI_COLOR_TEXT_DIM)
                 .add_modifier(Modifier::DIM),
         )
         .alignment(Alignment::Center);
@@ -1211,7 +1238,7 @@ fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &
                 (
                     "🗑️ [Shift+L]clear logs  🔍 [f]ilter  🖥️ [Shift+F]ullscreen".to_string(),
                     Style::default()
-                        .fg(Color::DarkGray)
+                        .fg(UI_COLOR_TEXT_DIM)
                         .add_modifier(Modifier::DIM),
                 )
             }
@@ -1235,8 +1262,8 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     };
 
     // Calculate dialog dimensions (larger to prevent content being cut off)
-    let dialog_width = 90.min(size.width - 2);
-    let dialog_height = 26.min(size.height - 2);
+    let dialog_width = DIALOG_WIDTH_LARGE.min(size.width - 2);
+    let dialog_height = DIALOG_HEIGHT_LARGE.min(size.height - 2);
 
     let dialog_area = Rect {
         x: (size.width - dialog_width) / 2,
@@ -1269,11 +1296,11 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // Top margin
-            Constraint::Length(2), // Instructions
-            Constraint::Min(15),   // API level list (bigger area)
-            Constraint::Length(3), // Progress/error/status area
-            Constraint::Length(1), // Shortcuts
+            Constraint::Length(1),                      // Top margin
+            Constraint::Length(2),                      // Instructions
+            Constraint::Min(API_LEVEL_LIST_MIN_HEIGHT), // API level list (bigger area)
+            Constraint::Length(FORM_FOOTER_HEIGHT),     // Progress/error/status area
+            Constraint::Length(1),                      // Shortcuts
         ])
         .split(inner_area);
 
@@ -1296,7 +1323,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
         };
 
         let empty_widget = Paragraph::new(empty_msg)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(UI_COLOR_TEXT_DIM))
             .alignment(Alignment::Center)
             .wrap(ratatui::widgets::Wrap { trim: true })
             .block(
@@ -1345,22 +1372,22 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
                     if api.is_installed {
                         Style::default()
                             .bg(theme.primary)
-                            .fg(Color::White)
+                            .fg(UI_COLOR_TEXT_BRIGHT)
                             .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default()
                             .bg(theme.primary)
-                            .fg(Color::Black)
+                            .fg(UI_COLOR_BACKGROUND)
                             .add_modifier(Modifier::BOLD)
                     }
                 } else {
                     // Non-selected items: use color coding
                     if api.is_installed {
                         Style::default()
-                            .fg(Color::Green)
+                            .fg(STATUS_COLOR_SUCCESS)
                             .add_modifier(Modifier::BOLD)
                     } else {
-                        Style::default().fg(Color::DarkGray)
+                        Style::default().fg(UI_COLOR_TEXT_DIM)
                     }
                 };
 
@@ -1409,7 +1436,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
         let (progress_text, color) = if progress.percentage >= 100 {
             (
                 "✅ Installation completed successfully!".to_string(),
-                Color::Green,
+                STATUS_COLOR_SUCCESS,
             )
         } else {
             (
@@ -1419,7 +1446,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
                     progress.operation,
                     progress.percentage
                 ),
-                Color::Yellow,
+                STATUS_COLOR_WARNING,
             )
         };
 
@@ -1432,14 +1459,14 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
             Paragraph::new(format!("{} Processing: {package}", get_animated_moon()))
                 .style(
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(STATUS_COLOR_WARNING)
                         .add_modifier(Modifier::BOLD),
                 )
                 .alignment(Alignment::Center);
         frame.render_widget(installing_msg, chunks[3]);
     } else if let Some(ref error) = api_mgmt.error_message {
         let error_widget = Paragraph::new(error.as_str())
-            .style(Style::default().fg(Color::Red))
+            .style(Style::default().fg(STATUS_COLOR_ERROR))
             .alignment(Alignment::Center)
             .wrap(ratatui::widgets::Wrap { trim: true });
         frame.render_widget(error_widget, chunks[3]);
@@ -1461,7 +1488,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     let shortcuts_widget = Paragraph::new(shortcuts)
         .style(
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(UI_COLOR_TEXT_DIM)
                 .add_modifier(Modifier::DIM),
         )
         .alignment(Alignment::Center);

@@ -22,6 +22,10 @@
 use anyhow::Result;
 use clap::Parser;
 use emu::app::App;
+use emu::constants::{
+    defaults::{ANDROID_LOGGING_DISABLED_VALUE, DEFAULT_LOG_LEVEL},
+    env_vars::{ANDROID_AVD_VERBOSE, ANDROID_EMULATOR_LOG_ENABLE, ANDROID_VERBOSE},
+};
 
 /// Command line arguments for the Emu application.
 ///
@@ -37,7 +41,7 @@ struct Cli {
     ///
     /// Valid values: trace, debug, info, warn, error
     /// Only applies when --debug flag is set.
-    #[arg(short, long, default_value = "info")]
+    #[arg(short, long, default_value = DEFAULT_LOG_LEVEL)]
     log_level: String,
 
     /// Enable debug mode with console logging.
@@ -81,9 +85,9 @@ async fn main() -> Result<()> {
     } else {
         // Suppress Android emulator verbose output in normal TUI mode
         // These environment variables control Android SDK tool verbosity
-        std::env::set_var("ANDROID_EMULATOR_LOG_ENABLE", "0");
-        std::env::set_var("ANDROID_AVD_VERBOSE", "0");
-        std::env::set_var("ANDROID_VERBOSE", "0");
+        std::env::set_var(ANDROID_EMULATOR_LOG_ENABLE, ANDROID_LOGGING_DISABLED_VALUE);
+        std::env::set_var(ANDROID_AVD_VERBOSE, ANDROID_LOGGING_DISABLED_VALUE);
+        std::env::set_var(ANDROID_VERBOSE, ANDROID_LOGGING_DISABLED_VALUE);
     }
 
     run_tui().await

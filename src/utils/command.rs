@@ -8,6 +8,8 @@ use anyhow::{Context, Result};
 use std::ffi::OsStr;
 use tokio::process::Command;
 
+use crate::constants::timeouts::{INITIAL_RETRY_DELAY, MAX_RETRY_DELAY};
+
 /// A utility for executing external commands asynchronously.
 ///
 /// CommandRunner provides a consistent interface for running external tools
@@ -289,7 +291,7 @@ impl CommandRunner {
         A: AsRef<OsStr>,
     {
         let mut last_error = None;
-        let mut delay = std::time::Duration::from_millis(100);
+        let mut delay = INITIAL_RETRY_DELAY;
 
         for attempt in 0..=max_retries {
             match self.run(program.as_ref(), args.clone()).await {
@@ -306,8 +308,8 @@ impl CommandRunner {
                         );
                         tokio::time::sleep(delay).await;
 
-                        // Exponential backoff with max delay of 2 seconds
-                        delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(2));
+                        // Exponential backoff with max delay
+                        delay = std::cmp::min(delay * 2, MAX_RETRY_DELAY);
                     }
                 }
             }

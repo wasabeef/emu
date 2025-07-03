@@ -4,6 +4,7 @@
 //! both dark and light modes with carefully chosen colors for accessibility
 //! and visual clarity.
 
+use crate::constants::colors::*;
 use ratatui::style::{Color, Modifier, Style};
 
 /// Theme configuration for the terminal user interface.
@@ -45,20 +46,20 @@ impl Theme {
     /// for good visibility on dark backgrounds.
     pub fn dark() -> Self {
         Self {
-            primary: Color::Yellow,
-            background: Color::Black,
-            text: Color::White,
-            selected: Color::Yellow,
-            running: Color::Green,
-            stopped: Color::Gray,
-            error: Color::Red,
-            border: Color::White,
-            focused_bg: Color::Rgb(25, 25, 35), // Subtle gray background
-            unfocused_bg: Color::Rgb(20, 20, 25), // Lighter background
+            primary: UI_COLOR_HIGHLIGHT,
+            background: UI_COLOR_BACKGROUND,
+            text: UI_COLOR_TEXT_BRIGHT,
+            selected: UI_COLOR_HIGHLIGHT,
+            running: STATUS_COLOR_ACTIVE,
+            stopped: STATUS_COLOR_INACTIVE,
+            error: STATUS_COLOR_ERROR,
+            border: UI_COLOR_BORDER,
+            focused_bg: DARK_THEME_BG_PRIMARY,
+            unfocused_bg: DARK_THEME_BG_SECONDARY,
             header: Style::default()
-                .fg(Color::Yellow)
+                .fg(UI_COLOR_HIGHLIGHT)
                 .add_modifier(Modifier::BOLD),
-            status: Style::default().fg(Color::Cyan),
+            status: Style::default().fg(STATUS_COLOR_DEBUG),
         }
     }
 
@@ -68,20 +69,20 @@ impl Theme {
     /// for visibility on light backgrounds.
     pub fn light() -> Self {
         Self {
-            primary: Color::Blue,
-            background: Color::White,
-            text: Color::Black,
-            selected: Color::Blue,
-            running: Color::Green,
-            stopped: Color::Gray,
-            error: Color::Red,
-            border: Color::Black,
-            focused_bg: Color::Rgb(240, 245, 250), // Subtle blue background
-            unfocused_bg: Color::Rgb(250, 250, 255), // Lighter background
+            primary: STATUS_COLOR_INFO,
+            background: UI_COLOR_TEXT_BRIGHT,
+            text: UI_COLOR_BACKGROUND,
+            selected: STATUS_COLOR_INFO,
+            running: STATUS_COLOR_ACTIVE,
+            stopped: STATUS_COLOR_INACTIVE,
+            error: STATUS_COLOR_ERROR,
+            border: UI_COLOR_BACKGROUND,
+            focused_bg: LIGHT_THEME_BG_PRIMARY,
+            unfocused_bg: LIGHT_THEME_BG_SECONDARY,
             header: Style::default()
-                .fg(Color::Blue)
+                .fg(STATUS_COLOR_INFO)
                 .add_modifier(Modifier::BOLD),
-            status: Style::default().fg(Color::DarkGray),
+            status: Style::default().fg(UI_COLOR_TEXT_DIM),
         }
     }
 

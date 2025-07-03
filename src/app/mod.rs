@@ -16,6 +16,17 @@ pub mod state;
 pub mod event_processing;
 
 use crate::{
+    constants::{
+        keywords::{LOG_LEVEL_ERROR, LOG_LEVEL_WARNING},
+        performance::{
+            API_INSTALLATION_COMPLETION_DELAY, DETAIL_UPDATE_DEBOUNCE, FAST_DETAIL_UPDATE_DEBOUNCE,
+            FAST_LOG_UPDATE_DEBOUNCE, LOG_UPDATE_DEBOUNCE,
+        },
+        timeouts::{
+            AUTO_REFRESH_CHECK_INTERVAL, DEVICE_STOP_WAIT_TIME, EVENT_POLL_TIMEOUT,
+            NOTIFICATION_CHECK_INTERVAL,
+        },
+    },
     managers::common::DeviceManager,
     managers::{AndroidManager, IosManager},
     models::{error::format_user_error, AndroidDevice, IosDevice},
@@ -24,7 +35,7 @@ use crate::{
 use anyhow::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyModifiers};
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -160,8 +171,7 @@ impl App {
         mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
         let mut last_auto_refresh_check = std::time::Instant::now();
-        const AUTO_REFRESH_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
-        const NOTIFICATION_CHECK_INTERVAL: Duration = Duration::from_millis(500);
+        // Use constants from performance module instead of hardcoding
         let mut last_notification_check = std::time::Instant::now();
 
         loop {
@@ -195,7 +205,7 @@ impl App {
             }
 
             // Direct event processing - wait for input with reasonable timeout
-            if event::poll(Duration::from_millis(100))? {
+            if event::poll(EVENT_POLL_TIMEOUT)? {
                 if let Ok(event) = event::read() {
                     match event {
                         CrosstermEvent::Key(key) => {
@@ -1059,9 +1069,7 @@ impl App {
 
                                                             // Small delay to ensure final progress update is shown
                                                             tokio::time::sleep(
-                                                                tokio::time::Duration::from_millis(
-                                                                    500,
-                                                                ),
+                                                                API_INSTALLATION_COMPLETION_DELAY,
                                                             )
                                                             .await;
 
@@ -1835,7 +1843,7 @@ impl App {
                                     Err(_) => break,   // Error occurred
                                 }
                             }
-                            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                            _ = tokio::time::sleep(DETAIL_UPDATE_DEBOUNCE) => {
                                 // Check if task should be cancelled by checking if we're still the active log device
                                 let should_continue = {
                                     let state_lock = state.lock().await;
@@ -1900,11 +1908,11 @@ impl App {
                             }
 
                             let level = if line_content.contains("error")
-                                || line_content.contains("Error")
+                                || line_content.contains(LOG_LEVEL_ERROR)
                             {
                                 "ERROR"
                             } else if line_content.contains("warning")
-                                || line_content.contains("Warning")
+                                || line_content.contains(LOG_LEVEL_WARNING)
                             {
                                 "WARN"
                             } else {
@@ -2279,12 +2287,12 @@ impl App {
             let result = match active_panel {
                 Panel::Android => {
                     // Add a small delay to show the progress
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    tokio::time::sleep(DETAIL_UPDATE_DEBOUNCE).await;
                     android_manager.create_device(&config).await
                 }
                 Panel::Ios => {
                     if let Some(ref ios_manager) = ios_manager {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        tokio::time::sleep(DETAIL_UPDATE_DEBOUNCE).await;
                         ios_manager.create_device(&config).await
                     } else {
                         Err(anyhow::anyhow!("iOS manager not available"))
@@ -2637,7 +2645,7 @@ impl App {
         // 真のバックグラウンドタスクとして実行（UIブロックなし）
         tokio::spawn(async move {
             // 短時間待機してUIが表示されてから読み込み
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(LOG_UPDATE_DEBOUNCE).await;
 
             // Androidデバイス一覧を読み込み
             match android_manager.list_devices().await {
@@ -2796,7 +2804,7 @@ impl App {
         let ios_manager = self.ios_manager.clone();
 
         // Use optimized delay for fast panel switching
-        let delay = crate::constants::performance::FAST_DETAIL_UPDATE_DEBOUNCE;
+        let delay = FAST_DETAIL_UPDATE_DEBOUNCE;
 
         // Create a delayed task to update device details
         let update_handle = tokio::spawn(async move {
@@ -2823,8 +2831,8 @@ impl App {
         let ios_manager = self.ios_manager.clone();
 
         // Use optimized delays for fast switching
-        let log_delay = crate::constants::performance::FAST_LOG_UPDATE_DEBOUNCE;
-        let detail_delay = crate::constants::performance::FAST_DETAIL_UPDATE_DEBOUNCE;
+        let log_delay = FAST_LOG_UPDATE_DEBOUNCE;
+        let detail_delay = FAST_DETAIL_UPDATE_DEBOUNCE;
 
         // Launch parallel tasks
         let state_clone_log = Arc::clone(&state_clone);
@@ -2878,7 +2886,7 @@ impl App {
 
         tokio::spawn(async move {
             // Wait a bit for device to fully start/stop
-            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            tokio::time::sleep(DEVICE_STOP_WAIT_TIME).await;
 
             // Get current active device
             let (active_panel, device_identifier) = {

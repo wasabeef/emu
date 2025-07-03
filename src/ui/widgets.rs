@@ -4,9 +4,14 @@
 //! primitive widgets. These widgets encapsulate common UI patterns and styling
 //! logic for consistency across the application.
 
-use crate::models::{AndroidDevice, DeviceStatus, IosDevice};
+use crate::{
+    constants::colors::*,
+    constants::performance::*,
+    constants::ui_layout::*,
+    models::{AndroidDevice, DeviceStatus, IosDevice},
+};
 use ratatui::{
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
 };
@@ -53,9 +58,9 @@ impl DeviceListWidget {
 
     pub fn render(self) -> List<'static> {
         let border_style = if self.is_active {
-            Style::default().fg(Color::Yellow)
+            Style::default().fg(UI_COLOR_HIGHLIGHT)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(UI_COLOR_TEXT_BRIGHT)
         };
 
         let items: Vec<ListItem> = self
@@ -65,7 +70,9 @@ impl DeviceListWidget {
             .map(|(i, item)| {
                 let selected = self.selected == Some(i) && self.is_active;
                 let style = if selected {
-                    Style::default().bg(Color::Yellow).fg(Color::Black)
+                    Style::default()
+                        .bg(UI_COLOR_HIGHLIGHT)
+                        .fg(UI_COLOR_BACKGROUND)
                 } else {
                     Style::default()
                 };
@@ -115,7 +122,7 @@ impl StatusBar {
 
         Paragraph::new(display_text)
             .block(Block::default().borders(Borders::ALL))
-            .style(Style::default().fg(Color::Cyan))
+            .style(Style::default().fg(STATUS_COLOR_DEBUG))
     }
 }
 
@@ -182,9 +189,9 @@ impl EnhancedDeviceListWidget {
 
     pub fn render(self) -> List<'static> {
         let border_style = if self.is_active {
-            Style::default().fg(Color::Yellow)
+            Style::default().fg(UI_COLOR_HIGHLIGHT)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(UI_COLOR_TEXT_BRIGHT)
         };
 
         let items: Vec<ListItem> = match self.active_panel {
@@ -195,7 +202,9 @@ impl EnhancedDeviceListWidget {
                     .map(|(i, device)| {
                         let selected = i == self.selected_android && self.is_active;
                         let style = if selected {
-                            Style::default().bg(Color::Yellow).fg(Color::Black)
+                            Style::default()
+                                .bg(UI_COLOR_HIGHLIGHT)
+                                .fg(UI_COLOR_BACKGROUND)
                         } else {
                             Style::default()
                         };
@@ -217,8 +226,10 @@ impl EnhancedDeviceListWidget {
                             "Unknown API".to_string()
                         };
 
-                        let device_type_short = if device.device_type.len() > 25 {
-                            format!("{}...", &device.device_type[..22])
+                        let device_type_short = if device.device_type.len()
+                            > DEVICE_TYPE_DISPLAY_MAX_LENGTH
+                        {
+                            format!("{}...", &device.device_type[..DEVICE_TYPE_TRUNCATED_LENGTH])
                         } else {
                             device.device_type.clone()
                         };
@@ -239,7 +250,9 @@ impl EnhancedDeviceListWidget {
                     .map(|(i, device)| {
                         let selected = i == self.selected_ios && self.is_active;
                         let style = if selected {
-                            Style::default().bg(Color::Yellow).fg(Color::Black)
+                            Style::default()
+                                .bg(UI_COLOR_HIGHLIGHT)
+                                .fg(UI_COLOR_BACKGROUND)
                         } else {
                             Style::default()
                         };
@@ -261,8 +274,10 @@ impl EnhancedDeviceListWidget {
                             "Unknown Runtime"
                         };
 
-                        let device_type_short = if device.device_type.len() > 25 {
-                            format!("{}...", &device.device_type[..22])
+                        let device_type_short = if device.device_type.len()
+                            > DEVICE_TYPE_DISPLAY_MAX_LENGTH
+                        {
+                            format!("{}...", &device.device_type[..DEVICE_TYPE_TRUNCATED_LENGTH])
                         } else {
                             device.device_type.clone()
                         };
@@ -314,7 +329,7 @@ impl ProgressWidget {
     }
 
     pub fn with_progress(mut self, progress: f64) -> Self {
-        self.progress = progress.clamp(0.0, 1.0);
+        self.progress = progress.clamp(PROGRESS_MIN_BOUND, PROGRESS_MAX_BOUND);
         self.is_indeterminate = false;
         self
     }
@@ -322,7 +337,7 @@ impl ProgressWidget {
     pub fn render(self) -> Gauge<'static> {
         let ratio = if self.is_indeterminate {
             // For indeterminate progress, use a cycling pattern
-            0.5 // This could be animated in a real implementation
+            PROGRESS_ANIMATION_STEP // This could be animated in a real implementation
         } else {
             self.progress
         };
@@ -330,12 +345,16 @@ impl ProgressWidget {
         let label = if self.is_indeterminate {
             format!("{} (Working...)", self.message)
         } else {
-            format!("{} ({:.0}%)", self.message, self.progress * 100.0)
+            format!(
+                "{} ({:.0}%)",
+                self.message,
+                self.progress * PERCENTAGE_CONVERSION_FACTOR
+            )
         };
 
         Gauge::default()
             .block(Block::default().title(self.title).borders(Borders::ALL))
-            .gauge_style(Style::default().fg(Color::Cyan))
+            .gauge_style(Style::default().fg(STATUS_COLOR_DEBUG))
             .ratio(ratio)
             .label(label)
     }
@@ -375,7 +394,7 @@ impl Header {
             .block(Block::default().borders(Borders::ALL))
             .style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             )
     }
@@ -384,7 +403,7 @@ impl Header {
 pub fn create_loading_gauge(percentage: u16) -> Gauge<'static> {
     Gauge::default()
         .block(Block::default().title("Loading").borders(Borders::ALL))
-        .gauge_style(Style::default().fg(Color::Yellow))
+        .gauge_style(Style::default().fg(UI_COLOR_HIGHLIGHT))
         .percent(percentage)
 }
 
@@ -394,7 +413,7 @@ pub fn create_help_text() -> Vec<Line<'static>> {
             Span::styled(
                 "q",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Quit"),
@@ -403,7 +422,7 @@ pub fn create_help_text() -> Vec<Line<'static>> {
             Span::styled(
                 "r",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Refresh devices"),
@@ -412,7 +431,7 @@ pub fn create_help_text() -> Vec<Line<'static>> {
             Span::styled(
                 "Tab",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Switch panel"),
@@ -421,7 +440,7 @@ pub fn create_help_text() -> Vec<Line<'static>> {
             Span::styled(
                 "Enter",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Start/Stop device"),
@@ -430,7 +449,7 @@ pub fn create_help_text() -> Vec<Line<'static>> {
             Span::styled(
                 "↑/↓",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(UI_COLOR_HIGHLIGHT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Navigate"),
@@ -447,6 +466,7 @@ pub fn get_animated_moon() -> &'static str {
         .as_millis();
 
     let moon_phases = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
-    let index = ((elapsed / 200) % moon_phases.len() as u128) as usize;
+    let index =
+        ((elapsed / ANIMATION_TIMING_DURATION_MS as u128) % moon_phases.len() as u128) as usize;
     moon_phases[index]
 }

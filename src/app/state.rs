@@ -12,8 +12,13 @@
 //! Background operations use async tasks with proper synchronization through RwLock.
 
 use crate::constants::{
-    android::{DEFAULT_RAM_STRING, DEFAULT_STORAGE_STRING},
-    MAX_LOG_ENTRIES,
+    defaults::{DEFAULT_RAM_MB, DEFAULT_STORAGE_MB},
+    limits::{MAX_WORDS_IN_API_DISPLAY, MAX_WORDS_IN_DEVICE_NAME},
+    timeouts::{
+        CACHE_EXPIRATION_TIME, CACHE_INVALIDATION_OFFSET_SECS, DEFAULT_AUTO_REFRESH_INTERVAL,
+        FAST_REFRESH_INTERVAL_SECS, NOTIFICATION_AUTO_DISMISS_TIME,
+    },
+    MAX_LOG_ENTRIES, MAX_NOTIFICATIONS,
 };
 use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
@@ -178,7 +183,7 @@ impl DeviceCache {
     /// Checks if the cache is stale (older than 5 minutes).
     /// Returns true if the cache should be refreshed.
     pub fn is_stale(&self) -> bool {
-        self.last_updated.elapsed() > std::time::Duration::from_secs(300)
+        self.last_updated.elapsed() > CACHE_EXPIRATION_TIME
     }
 
     /// Updates the Android device cache with new data.
@@ -211,14 +216,16 @@ impl DeviceCache {
     /// This forces a cache refresh on the next device creation.
     pub fn invalidate_android_cache(&mut self) {
         self.android_api_levels.clear();
-        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
+        self.last_updated = std::time::Instant::now()
+            - std::time::Duration::from_secs(CACHE_INVALIDATION_OFFSET_SECS);
     }
 
     /// Invalidates the iOS cache by clearing runtimes and marking as stale.
     /// This forces a cache refresh on the next device creation.
     pub fn invalidate_ios_cache(&mut self) {
         self.ios_runtimes.clear();
-        self.last_updated = std::time::Instant::now() - std::time::Duration::from_secs(400);
+        self.last_updated = std::time::Instant::now()
+            - std::time::Duration::from_secs(CACHE_INVALIDATION_OFFSET_SECS);
     }
 }
 
@@ -384,8 +391,8 @@ impl Default for CreateDeviceForm {
             device_type_id: String::new(),
             version: String::new(),
             version_display: String::new(),
-            ram_size: DEFAULT_RAM_STRING.to_string(),
-            storage_size: DEFAULT_STORAGE_STRING.to_string(),
+            ram_size: DEFAULT_RAM_MB.to_string(),
+            storage_size: DEFAULT_STORAGE_MB.to_string(),
             available_device_types: vec![],
             available_versions: vec![],
             selected_api_level_index: 0,
@@ -559,7 +566,10 @@ impl CreateDeviceForm {
                     .to_string();
 
                 // Take first 2-3 meaningful words, keep spaces
-                let words: Vec<&str> = cleaned.split_whitespace().take(3).collect();
+                let words: Vec<&str> = cleaned
+                    .split_whitespace()
+                    .take(MAX_WORDS_IN_DEVICE_NAME)
+                    .collect();
                 if words.is_empty() {
                     "Device".to_string()
                 } else {
@@ -584,7 +594,7 @@ impl CreateDeviceForm {
             } else if self.version_display.starts_with("API") {
                 self.version_display
                     .split(' ')
-                    .take(2)
+                    .take(MAX_WORDS_IN_API_DISPLAY)
                     .collect::<Vec<&str>>()
                     .join(" ")
             } else {
@@ -613,7 +623,7 @@ impl Notification {
             message,
             notification_type,
             timestamp: chrono::Local::now(),
-            auto_dismiss_after: Some(std::time::Duration::from_secs(5)),
+            auto_dismiss_after: Some(NOTIFICATION_AUTO_DISMISS_TIME),
         }
     }
 
@@ -676,11 +686,11 @@ impl Default for AppState {
             confirm_delete_dialog: None,
             confirm_wipe_dialog: None,
             notifications: VecDeque::new(),
-            max_notifications: 10,
+            max_notifications: MAX_NOTIFICATIONS,
             log_scroll_offset: 0,
             log_filter_level: None,
             last_refresh: std::time::Instant::now(),
-            auto_refresh_interval: std::time::Duration::from_secs(3), // 3-second refresh
+            auto_refresh_interval: DEFAULT_AUTO_REFRESH_INTERVAL, // 3-second refresh
             pending_device_start: None,
             device_cache: Arc::new(RwLock::new(DeviceCache::default())),
             device_operation_status: None,
@@ -1200,14 +1210,14 @@ impl AppState {
     pub fn set_pending_device_start(&mut self, device_name: String) {
         self.pending_device_start = Some(device_name);
         // Refresh more frequently when device is starting
-        self.auto_refresh_interval = std::time::Duration::from_secs(1);
+        self.auto_refresh_interval = std::time::Duration::from_secs(FAST_REFRESH_INTERVAL_SECS);
     }
 
     /// Clears pending device start and returns to normal refresh interval.
     pub fn clear_pending_device_start(&mut self) {
         self.pending_device_start = None;
         // Return to normal refresh interval
-        self.auto_refresh_interval = std::time::Duration::from_secs(3);
+        self.auto_refresh_interval = DEFAULT_AUTO_REFRESH_INTERVAL;
     }
 
     /// Gets the name of device pending start, if any.
