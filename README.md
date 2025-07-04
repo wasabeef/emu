@@ -24,14 +24,14 @@ https://github.com/user-attachments/assets/3f4bfde6-6e54-45bd-9a7c-0cb2eeb2f861
 
 ### User Experience
 
-- 📊 **Real-time Monitoring**: Live device status and log streaming with < 10ms latency
-- ⚡ **High Performance**: Instant startup (<150ms, typical ~104ms) with background loading
-- ⌨️ **Keyboard-driven**: Vim-like keybindings with circular navigation
-- 📱 **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
-- 🔍 **Comprehensive Details**: Device specifications, status, RAM/Storage in MB, full paths
-- 🧠 **Smart Caching**: Platform-aware cache invalidation and background loading
-- 📝 **Robust Testing**: 15 test files with 31+ test functions ensuring reliability
-- 📦 **API Level Management**: Install/uninstall system images directly from TUI
+- **Real-time Monitoring**: Live device status and log streaming with < 10ms latency
+- **High Performance**: Instant startup (<150ms, typical ~104ms) with background loading
+- **Keyboard-driven**: Vim-like keybindings with circular navigation
+- **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
+- **Comprehensive Details**: Device specifications, status, RAM/Storage in MB, full paths
+- **Smart Caching**: Platform-aware cache invalidation and background loading
+- **Robust Testing**: 15 test files with 31+ test functions ensuring reliability
+- **API Level Management**: Install/uninstall system images directly from TUI
 
 ## Installation
 
