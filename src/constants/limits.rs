@@ -67,3 +67,16 @@ pub const MAX_WORDS_IN_API_DISPLAY: usize = 2;
 
 // String matching minimum length
 pub const MIN_STRING_LENGTH_FOR_MATCH: usize = 3;
+
+// Additional validation limits
+pub const MIN_DEVICE_NAME_LENGTH: usize = 1;
+pub const MIN_STORAGE_GB: u32 = 1;
+pub const MAX_STORAGE_GB: u32 = 64;
+
+// Word count requirements
+pub const MIN_WORDS_FOR_DEVICE_NAME: usize = 1;
+
+// Array index constants
+pub const FIRST_WORD_INDEX: usize = 0;
+pub const SECOND_WORD_INDEX: usize = 1;
+pub const LAST_MATCH_INDEX: usize = 0;

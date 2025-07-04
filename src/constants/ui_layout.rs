@@ -1,6 +1,6 @@
 /// UI layout constants for panel sizes and dimensions
 // Panel percentage constants for three-panel layout
-pub const DEVICE_PANELS_PERCENTAGE: u16 = 40; // Combined Android + iOS panels
+pub const DEVICE_PANELS_PERCENTAGE: u16 = 60; // Combined Android + iOS panels
 pub const ANDROID_PANEL_PERCENTAGE: u16 = 30;
 pub const IOS_PANEL_PERCENTAGE: u16 = 30;
 pub const DEVICE_DETAILS_PANEL_PERCENTAGE: u16 = 40;
@@ -48,3 +48,33 @@ pub const STATUS_BAR_HEIGHT: u16 = 1;
 
 // Form footer heights
 pub const FORM_FOOTER_HEIGHT: u16 = 3;
+
+// Additional UI layout constants
+pub const DIALOG_MIN_WIDTH: u16 = 40;
+pub const DIALOG_MIN_HEIGHT: u16 = 8;
+pub const FORM_FIELD_WIDTH: u16 = 30;
+pub const PANEL_MIN_WIDTH: u16 = 20;
+pub const PANEL_MIN_HEIGHT: u16 = 5;
+pub const TAB_STOP: u16 = 4;
+
+// Padding constants
+pub const DEFAULT_PADDING: u16 = 1;
+pub const LIST_ITEM_PADDING: u16 = 1;
+pub const WIDGET_PADDING: u16 = 1;
+pub const VERTICAL_SPACING: u16 = 1;
+pub const SECTION_SPACING: u16 = 2;
+
+// Border constants
+pub const BORDER_WIDTH: u16 = 1;
+pub const FOCUS_BORDER_WIDTH: u16 = 2;
+
+// List display constants
+pub const MAX_VISIBLE_ITEMS: u16 = 20;
+pub const MIN_VISIBLE_ITEMS: u16 = 5;
+pub const PAGE_SIZE: u16 = 10;
+pub const SCROLL_OFFSET: u16 = 3;
+
+// Animation timing constants
+pub const LOADING_ANIMATION_INTERVAL_MS: u64 = 100;
+pub const SPINNER_FRAME_DURATION_MS: u64 = 100;
+pub const NOTIFICATION_DURATION_MS: u64 = 3000;
