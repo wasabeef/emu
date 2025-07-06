@@ -1,4 +1,25 @@
-/// Progress tracking constants for API installation and other operations
+//! Progress tracking constants for API installation and other operations.
+//!
+//! This module defines constants for progress tracking, particularly for
+//! Android API level installation and system image management.
+//!
+//! # Progress Phases
+//!
+//! API installation typically follows these phases:
+//! 1. Loading (0-20%) - Initial preparation
+//! 2. Download (20-70%) - Downloading system images
+//! 3. Extract (70-90%) - Extracting downloaded files
+//! 4. Install (90-95%) - Installing to SDK location
+//! 5. Cleanup (95-100%) - Finalizing installation
+//!
+//! # Increment Values
+//!
+//! Each phase uses different increment values to ensure smooth progress:
+//! - Loading: 5% increments
+//! - Download: 3% increments (for granular download progress)
+//! - Extract: 4% increments
+//! - Install: 5% increments
+//! - Cleanup: 3% increments
 // API installation progress phase thresholds
 pub const DOWNLOAD_PHASE_START_PERCENTAGE: u8 = 20;
 pub const EXTRACT_PHASE_START_PERCENTAGE: u8 = 70;

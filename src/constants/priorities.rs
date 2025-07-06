@@ -1,4 +1,31 @@
-/// Priority values for device sorting and ordering
+//! Priority values for device sorting and ordering.
+//!
+//! This module defines priority values used to sort and order devices in the UI.
+//! Lower values indicate higher priority (will appear first in lists).
+//!
+//! # Android Priorities
+//!
+//! Android devices are sorted by brand and device type:
+//! - Pixel devices get highest priority (30)
+//! - Nexus devices (40)
+//! - OnePlus devices (50)
+//! - Other brands (60+)
+//!
+//! # iOS Priorities
+//!
+//! iOS devices are sorted by device type and model:
+//! - iPhone models: Mini (30) < SE (40) < Standard (50) < Plus (60) < Pro (70) < Pro Max (80)
+//! - iPad models: Mini (100) < Standard (110) < Air (120) < Pro 11" (130) < Pro 13" (140)
+//! - Other devices: Watch (150) < TV (170) < Unknown (199)
+//!
+//! # Usage
+//!
+//! ```rust
+//! use emu::constants::priorities::{ANDROID_PIXEL_PRIORITY, IOS_IPHONE_PRO_MAX_PRIORITY};
+//!
+//! // Sort devices by priority (lower values first)
+//! devices.sort_by_key(|device| get_device_priority(device));
+//! ```
 // Android device priorities (for sorting in device lists)
 pub const ANDROID_TABLET_PRIORITY: u8 = 100;
 pub const ANDROID_PIXEL_PRIORITY: u8 = 30;

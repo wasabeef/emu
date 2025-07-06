@@ -1,4 +1,29 @@
 //! Size limits and validation constants.
+//!
+//! This module defines various limits and constraints used throughout the application,
+//! including device configuration limits, string processing limits, and validation ranges.
+//!
+//! # Categories
+//!
+//! ## Memory and Storage Limits
+//! - RAM size limits (MIN_RAM_MB, MAX_RAM_MB)
+//! - Storage size limits (MIN_STORAGE_MB, MAX_STORAGE_MB)
+//! - Memory validation tiers for different device configurations
+//!
+//! ## String and Text Limits
+//! - Device name length constraints
+//! - Display name truncation limits
+//! - Word count limits for name processing
+//!
+//! ## UI and Display Limits
+//! - Maximum log entries and notifications
+//! - Error message display lengths
+//! - Device type display constraints
+//!
+//! ## Validation Constants
+//! - Array index constants for safe array access
+//! - Version number limits
+//! - String matching minimum lengths
 
 /// Minimum RAM size in MB for Android devices
 pub const MIN_RAM_MB: u32 = 512;
