@@ -12,7 +12,7 @@ async fn test_device_creation_flow() {
     let android_manager = match AndroidManager::new() {
         Ok(manager) => manager,
         Err(e) => {
-            println!("Android manager not available: {}", e);
+            println!("Android manager not available: {e}");
             return;
         }
     };
@@ -32,13 +32,15 @@ async fn test_device_creation_flow() {
 
     match list_result {
         Ok(Ok(devices)) => {
-            println!("   ✅ Successfully listed {} devices", devices.len());
+            let device_count = devices.len();
+            println!("   ✅ Successfully listed {device_count} devices");
             for (i, (id, name)) in devices.iter().enumerate().take(3) {
-                println!("      Device {}: {} ({})", i + 1, name, id);
+                let device_num = i + 1;
+                println!("      Device {device_num}: {name} ({id})");
             }
         }
         Ok(Err(e)) => {
-            println!("   ❌ Failed to list devices: {}", e);
+            println!("   ❌ Failed to list devices: {e}");
         }
         Err(_) => {
             println!("   ❌ TIMEOUT: list_available_devices took too long");
@@ -56,13 +58,14 @@ async fn test_device_creation_flow() {
 
     match targets_result {
         Ok(Ok(targets)) => {
-            println!("   ✅ Successfully listed {} API targets", targets.len());
+            let target_count = targets.len();
+            println!("   ✅ Successfully listed {target_count} API targets");
             for (api, display) in targets.iter().take(3) {
-                println!("      API {}: {}", api, display);
+                println!("      API {api}: {display}");
             }
         }
         Ok(Err(e)) => {
-            println!("   ❌ Failed to list targets: {}", e);
+            println!("   ❌ Failed to list targets: {e}");
         }
         Err(_) => {
             println!("   ❌ TIMEOUT: list_available_targets took too long");
@@ -79,7 +82,8 @@ async fn test_device_creation_flow() {
 
     match info_result {
         Ok(Ok(device_infos)) => {
-            println!("   ✅ Successfully got {} device infos", device_infos.len());
+            let info_count = device_infos.len();
+            println!("   ✅ Successfully got {info_count} device infos");
             for info in device_infos.iter().take(3) {
                 println!(
                     "      Device: {} (OEM: {:?}, Category: {:?})",
@@ -88,7 +92,7 @@ async fn test_device_creation_flow() {
             }
         }
         Ok(Err(e)) => {
-            println!("   ❌ Failed to get device infos: {}", e);
+            println!("   ❌ Failed to get device infos: {e}");
         }
         Err(_) => {
             println!("   ❌ TIMEOUT: get_available_devices took too long");
@@ -105,7 +109,7 @@ async fn test_android_manager_basic_operations() {
     let android_manager = match AndroidManager::new() {
         Ok(manager) => manager,
         Err(e) => {
-            println!("Android manager not available: {}", e);
+            println!("Android manager not available: {e}");
             return;
         }
     };
@@ -113,7 +117,7 @@ async fn test_android_manager_basic_operations() {
     // Test availability check
     println!("🔍 Testing is_available...");
     let is_available = android_manager.is_available().await;
-    println!("   Available: {}", is_available);
+    println!("   Available: {is_available}");
 
     if !is_available {
         println!("Android SDK not available, skipping further tests");
@@ -126,7 +130,8 @@ async fn test_android_manager_basic_operations() {
 
     match list_result {
         Ok(Ok(devices)) => {
-            println!("   ✅ Successfully listed {} existing AVDs", devices.len());
+            let avd_count = devices.len();
+            println!("   ✅ Successfully listed {avd_count} existing AVDs");
             for device in devices.iter().take(2) {
                 println!(
                     "      AVD: {} (API {}, Type: {})",
@@ -135,7 +140,7 @@ async fn test_android_manager_basic_operations() {
             }
         }
         Ok(Err(e)) => {
-            println!("   ❌ Failed to list existing AVDs: {}", e);
+            println!("   ❌ Failed to list existing AVDs: {e}");
         }
         Err(_) => {
             println!("   ❌ TIMEOUT: list_devices took too long");

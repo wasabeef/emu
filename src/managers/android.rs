@@ -1145,7 +1145,11 @@ impl AndroidManager {
                     // Fall back to hardcoded values
                     self.get_android_version_name(device.api_level)
                 };
-                format!("API {} (Android {})", device.api_level, version_name)
+                format!(
+                    "API {api_level} (Android {version_name})",
+                    api_level = device.api_level,
+                    version_name = version_name
+                )
             },
             ram_size: None,
             storage_size: None,
@@ -1212,7 +1216,7 @@ impl AndroidManager {
                                     }
                                 }
                                 "hw.lcd.density" => {
-                                    details.dpi = Some(format!("{} DPI", value.trim()));
+                                    details.dpi = Some(format!("{dpi} DPI", dpi = value.trim()));
                                 }
                                 "image.sysdir.1" => {
                                     details.system_image = Some(value.trim().to_string());
@@ -1631,7 +1635,12 @@ impl AndroidManager {
             )
         };
 
-        let package_path = format!("system-images;android-{};{};{}", config.version, tag, abi);
+        let package_path = format!(
+            "system-images;android-{version};{tag};{abi}",
+            version = config.version,
+            tag = tag,
+            abi = abi
+        );
         let image_available = self
             .check_system_image_available(&config.version, &tag, &abi)
             .await
@@ -2172,7 +2181,10 @@ impl DeviceManager for AndroidManager {
                 let mut diagnostic_info = Vec::new();
                 // Shortened name (max 20 characters)
                 let short_name = if safe_name.len() > MAX_DEVICE_NAME_CREATE_LENGTH {
-                    format!("{}...", &safe_name[..MAX_DEVICE_NAME_CREATE_LENGTH - 3])
+                    format!(
+                        "{name}...",
+                        name = &safe_name[..MAX_DEVICE_NAME_CREATE_LENGTH - 3]
+                    )
                 } else {
                     safe_name.clone()
                 };
@@ -2222,7 +2234,10 @@ impl DeviceManager for AndroidManager {
                     };
 
                     let short_error = if key_error.len() > MAX_ERROR_MESSAGE_LENGTH {
-                        format!("{}...", &key_error[..MAX_ERROR_MESSAGE_LENGTH - 3])
+                        format!(
+                            "{error}...",
+                            error = &key_error[..MAX_ERROR_MESSAGE_LENGTH - 3]
+                        )
                     } else {
                         key_error.to_string()
                     };

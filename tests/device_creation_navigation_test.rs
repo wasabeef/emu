@@ -15,8 +15,8 @@ fn test_device_creation_field_navigation() {
         CreateDeviceField::ApiLevel
     );
     println!(
-        "✅ Initial field: {:?}",
-        state.create_device_form.active_field
+        "✅ Initial field: {active_field:?}",
+        active_field = state.create_device_form.active_field
     );
 
     // Test next_field navigation (Android)
@@ -429,6 +429,9 @@ fn test_placeholder_name_generation() {
     assert!(state.create_device_form.name.contains("Pixel"));
     assert!(state.create_device_form.name.contains("API"));
 
-    println!("Generated name: {}", state.create_device_form.name);
+    println!(
+        "Generated name: {name}",
+        name = state.create_device_form.name
+    );
     println!("✅ Placeholder name generation works correctly");
 }

@@ -37,7 +37,8 @@ async fn main() -> Result<()> {
                 println!("⚠ No system images found. You may need to install some system images.");
                 println!("  Example: sdkmanager \"system-images;android-34;google_apis_playstore;arm64-v8a\"");
             } else {
-                println!("✓ Found {} system images:", images.len());
+                let count = images.len();
+                println!("✓ Found {count} system images:");
                 for image in &images {
                     println!("  - {image}");
                 }
@@ -55,12 +56,13 @@ async fn main() -> Result<()> {
             if devices.is_empty() {
                 println!("ℹ No existing AVDs found");
             } else {
-                println!("✓ Found {} existing AVDs:", devices.len());
+                let count = devices.len();
+                println!("✓ Found {count} existing AVDs:");
                 for device in &devices {
-                    println!(
-                        "  - {} (API {}) - Status: {:?}",
-                        device.name, device.api_level, device.status
-                    );
+                    let name = &device.name;
+                    let api = device.api_level;
+                    let status = &device.status;
+                    println!("  - {name} (API {api}) - Status: {status:?}");
                 }
             }
         }
@@ -78,9 +80,12 @@ async fn main() -> Result<()> {
     );
 
     println!("Attempting to create test AVD with config:");
-    println!("  Name: {}", test_config.name);
-    println!("  Type: {}", test_config.device_type);
-    println!("  API Level: {}", test_config.version);
+    let name = &test_config.name;
+    let device_type = &test_config.device_type;
+    let version = &test_config.version;
+    println!("  Name: {name}");
+    println!("  Type: {device_type}");
+    println!("  API Level: {version}");
 
     match android_manager.create_device(&test_config).await {
         Ok(()) => {

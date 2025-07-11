@@ -105,11 +105,10 @@ fn test_panel_switching_algorithm_performance() {
     let duration = start.elapsed();
     let avg_switch_time = duration / iterations;
 
-    println!("10,000 panel switches completed in: {:?}", duration);
+    println!("10,000 panel switches completed in: {duration:?}");
     println!(
-        "Average switch time: {:?} ({} ns)",
-        avg_switch_time,
-        avg_switch_time.as_nanos()
+        "Average switch time: {avg_switch_time:?} ({nanos} ns)",
+        nanos = avg_switch_time.as_nanos()
     );
 
     // Should be extremely fast - just memory operations
@@ -161,11 +160,10 @@ async fn test_fast_panel_switching_performance() {
     let duration = start.elapsed();
     let avg_time = duration / iterations;
 
-    println!("100 fast panel switches simulated in: {:?}", duration);
+    println!("100 fast panel switches simulated in: {duration:?}");
     println!(
-        "Average time per switch: {:?} ({} μs)",
-        avg_time,
-        avg_time.as_micros()
+        "Average time per switch: {avg_time:?} ({micros} μs)",
+        micros = avg_time.as_micros()
     );
 
     // Optimized delays are always active:
@@ -217,10 +215,7 @@ async fn test_optimized_performance() {
     std::thread::sleep(std::time::Duration::from_millis(50 + 25)); // FAST delays
     let optimized_duration = start_optimized.elapsed();
 
-    println!(
-        "Optimized panel switch simulation: {:?}",
-        optimized_duration
-    );
+    println!("Optimized panel switch simulation: {optimized_duration:?}");
 
     println!("\n📊 OPTIMIZED PERFORMANCE:");
     println!(

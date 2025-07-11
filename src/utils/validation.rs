@@ -54,8 +54,7 @@ impl FieldValidator for DeviceNameValidator {
 
         if value.len() > DEVICE_NAME_VALIDATION_LIMIT {
             return Err(format!(
-                "Device name must be {} characters or less",
-                DEVICE_NAME_VALIDATION_LIMIT
+                "Device name must be {DEVICE_NAME_VALIDATION_LIMIT} characters or less"
             ));
         }
 
@@ -120,9 +119,17 @@ impl FieldValidator for NumericRangeValidator {
         match value.parse::<u32>() {
             Ok(num) => {
                 if num < self.min {
-                    Err(format!("Value must be at least {} {}", self.min, self.unit))
+                    Err(format!(
+                        "Value must be at least {min} {unit}",
+                        min = self.min,
+                        unit = self.unit
+                    ))
                 } else if num > self.max {
-                    Err(format!("Value must be at most {} {}", self.max, self.unit))
+                    Err(format!(
+                        "Value must be at most {max} {unit}",
+                        max = self.max,
+                        unit = self.unit
+                    ))
                 } else {
                     Ok(())
                 }
@@ -150,7 +157,10 @@ impl RequiredSelectionValidator {
 impl FieldValidator for RequiredSelectionValidator {
     fn validate(&self, value: &str) -> Result<(), String> {
         if value.is_empty() {
-            Err(format!("Please select a {}", self.field_name))
+            Err(format!(
+                "Please select a {field_name}",
+                field_name = self.field_name
+            ))
         } else {
             Ok(())
         }

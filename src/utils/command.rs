@@ -123,7 +123,10 @@ impl CommandRunner {
             .unwrap_or_default()
             .contains("debug")
         {
-            eprintln!("[DEBUG] Command exit code: {:?}", output.status.code());
+            eprintln!(
+                "[DEBUG] Command exit code: {exit_code:?}",
+                exit_code = output.status.code()
+            );
             eprintln!("[DEBUG] Command stdout: {stdout}");
             eprintln!("[DEBUG] Command stderr: {stderr}");
         }
@@ -315,7 +318,9 @@ impl CommandRunner {
             }
         }
 
-        Err(last_error.unwrap())
-            .context(format!("Command failed after {} attempts", max_retries + 1))
+        Err(last_error.unwrap()).context(format!(
+            "Command failed after {attempts} attempts",
+            attempts = max_retries + 1
+        ))
     }
 }

@@ -130,7 +130,7 @@ fn test_dynamic_device_config_parsing() {
     for device_name in test_cases {
         let parsed_parts = config.parse_device_name(device_name);
 
-        println!("Device '{}' parsed to: {:?}", device_name, parsed_parts);
+        println!("Device '{device_name}' parsed to: {parsed_parts:?}");
 
         // パースが失敗していないことを確認（空でない）
         assert!(
@@ -201,16 +201,16 @@ fn test_device_name_sanitization_for_avd_creation() {
     let test_cases = vec![
         // (input, should_be_safe_for_avd)
         ("Pixel 7 Pro API 34", true),    // 通常のケース
-        ("2.7\" QVGA API 36", true),     // 引用符付き（AVDでは削除される）
-        ("Device with: colon", true),    // コロン付き（AVDでは削除される）
-        ("Device/with/slash", true),     // スラッシュ付き（AVDでは削除される）
+        ("2.7\" QVGA API 36", true),     // 引用符付き（AVD では削除される）
+        ("Device with: colon", true),    // コロン付き（AVD では削除される）
+        ("Device/with/slash", true),     // スラッシュ付き（AVD では削除される）
         ("Normal Device Name", true),    // 正常なケース
         ("'Single Quote Device'", true), // シングルクォート付き
         ("Device*with*asterisk", true),  // アスタリスク付き
     ];
 
     for (input, should_be_safe) in test_cases {
-        // AndroidManager の実際のサニタイゼーション処理をテスト（AVD名用）
+        // AndroidManager の実際のサニタイゼーション処理をテスト（AVD 名用）
         let sanitized = input
             .chars()
             .filter_map(|c| match c {
@@ -229,7 +229,7 @@ fn test_device_name_sanitization_for_avd_creation() {
                 "Sanitized name should not be empty for: '{}'",
                 input
             );
-            // AVD名ではスペースはアンダースコアに変換される
+            // AVD 名ではスペースはアンダースコアに変換される
             if input.contains(' ') {
                 assert!(
                     sanitized.contains('_'),

@@ -45,7 +45,7 @@ async fn test_rapid_operations_simulation() {
         // The actual heavy lifting happens in background tasks
 
         let operation_time = start.elapsed();
-        println!("{}: {:?}", operation, operation_time);
+        println!("{operation}: {operation_time:?}");
 
         // All UI operations should complete in sub-millisecond time
         assert!(
@@ -116,7 +116,7 @@ fn test_responsiveness_thresholds() {
     ];
 
     for (standard, threshold_ms) in &standards {
-        println!("{}: <= {} ms", standard, threshold_ms);
+        println!("{standard}: <= {threshold_ms} ms");
     }
 
     // Our optimizations should meet the "Immediate feedback" standard
