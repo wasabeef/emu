@@ -37,6 +37,12 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
+    - name: Show Rust version
+      run: |
+        rustc --version
+        cargo --version
+        cargo clippy --version
+    
     - name: Check
       run: cargo check --all-features
     
