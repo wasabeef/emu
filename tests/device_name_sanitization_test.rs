@@ -28,7 +28,8 @@ fn test_device_name_generation_preserves_spaces() {
     // 具体的な形式をテスト - 新しい動的パーサーは括弧内の内容を除外
     assert_eq!(form.name, "Pixel Fold API 35");
 
-    println!("Generated device name: '{}'", form.name);
+    let name = &form.name;
+    println!("Generated device name: '{name}'");
 }
 
 #[test]
@@ -112,7 +113,8 @@ fn test_device_name_fallback_when_empty() {
     // フォールバック名が生成されることを確認
     assert_eq!(form.name, "Device API");
 
-    println!("Fallback device name: '{}'", form.name);
+    let name = &form.name;
+    println!("Fallback device name: '{name}'");
 }
 
 #[test]
@@ -135,8 +137,8 @@ fn test_dynamic_device_config_parsing() {
         // パースが失敗していないことを確認（空でない）
         assert!(
             !parsed_parts.is_empty() || device_name.is_empty(),
-            "Should be able to parse device name '{}'",
-            device_name
+            "{}",
+            format!("Should be able to parse device name '{device_name}'")
         );
     }
 }
@@ -192,7 +194,8 @@ fn test_device_name_with_special_characters() {
     assert!(form.name.contains("API 36"), "Should contain API level");
 
     // 二重引用符が処理されていることを確認（表示名には残る）
-    println!("Special character device name: '{}'", form.name);
+    let name = &form.name;
+    println!("Special character device name: '{name}'");
 }
 
 #[test]
@@ -226,19 +229,19 @@ fn test_device_name_sanitization_for_avd_creation() {
         if should_be_safe {
             assert!(
                 !sanitized.is_empty(),
-                "Sanitized name should not be empty for: '{}'",
-                input
+                "{}",
+                format!("Sanitized name should not be empty for: '{input}'")
             );
             // AVD 名ではスペースはアンダースコアに変換される
             if input.contains(' ') {
                 assert!(
                     sanitized.contains('_'),
-                    "Spaces should be converted to underscores in AVD name: '{}'",
-                    input
+                    "{}",
+                    format!("Spaces should be converted to underscores in AVD name: '{input}'")
                 );
             }
         }
 
-        println!("Input: '{}' -> AVD Name: '{}'", input, sanitized);
+        println!("Input: '{input}' -> AVD Name: '{sanitized}'");
     }
 }

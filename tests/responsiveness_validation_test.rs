@@ -12,7 +12,7 @@ async fn test_ui_responsiveness_validation() {
     drop(app);
     let cleanup_time = start.elapsed();
 
-    println!("App cleanup time: {:?}", cleanup_time);
+    println!("App cleanup time: {cleanup_time:?}");
 
     // Cleanup should also be fast
     assert!(
@@ -87,12 +87,9 @@ fn test_memory_state_switching_efficiency() {
     let total_time = start.elapsed();
     let avg_operation_time = total_time / operations;
 
-    println!("1,000,000 state operations in: {:?}", total_time);
-    println!(
-        "Average operation time: {:?} ({} ns)",
-        avg_operation_time,
-        avg_operation_time.as_nanos()
-    );
+    println!("1,000,000 state operations in: {total_time:?}");
+    let nanos = avg_operation_time.as_nanos();
+    println!("Average operation time: {avg_operation_time:?} ({nanos} ns)");
 
     // State operations should be extremely fast
     assert!(
@@ -122,10 +119,7 @@ fn test_responsiveness_thresholds() {
     // Our optimizations should meet the "Immediate feedback" standard
     let our_target = 5; // 5ms target for UI operations
 
-    println!(
-        "\nOur target: <= {} ms (exceeds immediate feedback standard)",
-        our_target
-    );
+    println!("\nOur target: <= {our_target} ms (exceeds immediate feedback standard)");
 
     assert!(
         our_target <= 16,

@@ -201,7 +201,7 @@ fn test_performance_critical_operations() {
     // Test rapid device navigation
     state.android_devices = (0..100)
         .map(|i| AndroidDevice {
-            name: format!("Device{}", i),
+            name: format!("Device{i}"),
             device_type: "phone".to_string(),
             api_level: 30 + (i % 5) as u32,
             status: DeviceStatus::Stopped,

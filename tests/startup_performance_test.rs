@@ -122,10 +122,7 @@ async fn test_background_cache_performance() {
 
     match app_result {
         Ok(_app) => {
-            println!(
-                "✅ App with background cache created in: {:?}",
-                total_duration
-            );
+            println!("✅ App with background cache created in: {total_duration:?}");
 
             // Wait a bit for background cache to potentially complete
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -186,7 +183,8 @@ async fn test_parallel_command_performance() {
             let normal_duration = start.elapsed();
             println!("1. Normal list_devices(): {normal_duration:?}");
             if let Ok(devices) = normal_result {
-                println!("   Found {} devices", devices.len());
+                let count = devices.len();
+                println!("   Found {count} devices");
             }
 
             // Test parallel execution
@@ -196,7 +194,8 @@ async fn test_parallel_command_performance() {
             let parallel_duration = start.elapsed();
             println!("2. Parallel list_devices(): {parallel_duration:?}");
             if let Ok(devices) = parallel_result {
-                println!("   Found {} devices", devices.len());
+                let count = devices.len();
+                println!("   Found {count} devices");
             }
 
             // Calculate improvement
