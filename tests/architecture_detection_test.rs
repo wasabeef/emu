@@ -17,7 +17,7 @@ fn test_host_architecture_detection() {
     #[cfg(target_arch = "x86_64")]
     assert_eq!(host_arch, "x86_64", "Intel processors should prefer x86_64");
 
-    println!("Detected host architecture preference: {}", host_arch);
+    println!("Detected host architecture preference: {host_arch}");
 }
 
 #[test]
@@ -110,5 +110,5 @@ fn test_default_abi_function() {
     #[cfg(target_arch = "x86_64")]
     assert_eq!(default_abi, "x86_64");
 
-    println!("Default ABI for this host: {}", default_abi);
+    println!("Default ABI for this host: {default_abi}");
 }

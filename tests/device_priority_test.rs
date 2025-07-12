@@ -141,10 +141,7 @@ fn test_device_version_extraction() {
     for (device_id, display_name, _is_android) in &test_cases {
         let version_bonus = TestHelper::extract_android_device_version(device_id, display_name);
         priorities.insert((*device_id, *display_name), version_bonus);
-        println!(
-            "Device: {} {} -> Version Bonus: {}",
-            device_id, display_name, version_bonus
-        );
+        println!("Device: {device_id} {display_name} -> Version Bonus: {version_bonus}");
     }
 
     // Newer devices should have lower version bonus numbers (100 - version)
@@ -173,13 +170,12 @@ fn test_device_version_extraction() {
     for (display_name, expected_priority) in ios_test_cases {
         let priority = TestHelper::calculate_ios_device_priority(display_name);
         println!(
-            "iOS Device: {} -> Priority: {} (expected around {})",
-            display_name, priority, expected_priority
+            "iOS Device: {display_name} -> Priority: {priority} (expected around {expected_priority})"
         );
         assert!(
             priority <= expected_priority + 10,
-            "iOS device {} priority should be close to expected",
-            display_name
+            "{}",
+            format!("iOS device {display_name} priority should be close to expected")
         );
     }
 }
@@ -197,13 +193,11 @@ fn test_oem_priority() {
     for (display_name, expected_priority) in test_cases {
         let priority = TestHelper::get_oem_priority(display_name);
         println!(
-            "Device: {} -> OEM Priority: {} (expected: {})",
-            display_name, priority, expected_priority
+            "Device: {display_name} -> OEM Priority: {priority} (expected: {expected_priority})"
         );
         assert_eq!(
             priority, expected_priority,
-            "OEM priority mismatch for {}",
-            display_name
+            "OEM priority mismatch for {display_name}"
         );
     }
 }
@@ -221,14 +215,12 @@ fn test_category_priority() {
     for (device_id, display_name, expected_category) in test_cases {
         let category_priority = TestHelper::get_category_priority(device_id, display_name);
         println!(
-            "Device: {} (id: {}) -> Category Priority: {} (expected: {})",
-            display_name, device_id, category_priority, expected_category
+            "Device: {display_name} (id: {device_id}) -> Category Priority: {category_priority} (expected: {expected_category})"
         );
 
         assert_eq!(
             category_priority, expected_category,
-            "Category priority mismatch for {}",
-            display_name
+            "Category priority mismatch for {display_name}"
         );
     }
 }
@@ -274,14 +266,9 @@ fn test_overall_priority_sorting() {
                 .saturating_sub(displayed_oem);
             (displayed_oem, version)
         };
+        let idx = i + 1;
         println!(
-            "  {}. {} -> Priority: {} (category: {}, oem: {}, version: {})",
-            i + 1,
-            display_name,
-            priority,
-            category,
-            displayed_oem,
-            version
+            "  {idx}. {display_name} -> Priority: {priority} (category: {category}, oem: {displayed_oem}, version: {version})"
         );
     }
 
@@ -358,8 +345,7 @@ fn test_overall_priority_sorting() {
         TestHelper::calculate_android_device_priority("pixel_fold", "Pixel Fold (Google)");
     let fold_category = TestHelper::get_category_priority("pixel_fold", "Pixel Fold (Google)");
     println!(
-        "Pixel Fold position: {}, priority: {}, category: {}",
-        fold_pos, fold_priority, fold_category
+        "Pixel Fold position: {fold_pos}, priority: {fold_priority}, category: {fold_category}"
     );
     assert_eq!(
         fold_category, 20,
@@ -371,7 +357,7 @@ fn test_overall_priority_sorting() {
 fn test_simple_pixel_priority() {
     // Simple test to see what priority "Pixel" gets
     let pixel_priority = TestHelper::calculate_android_device_priority("pixel", "Pixel (Google)");
-    println!("Simple Pixel priority: {}", pixel_priority);
+    println!("Simple Pixel priority: {pixel_priority}");
 
     // This should be 25 according to our logic
     assert_eq!(
@@ -395,12 +381,12 @@ fn test_pixel_versioned_vs_unversioned_priority() {
     let pixel_9_fold_priority =
         TestHelper::calculate_android_device_priority("pixel_9_fold", "Pixel 9 Fold (Google)");
 
-    println!("Pixel priority: {}", pixel_priority);
-    println!("Pixel C priority: {}", pixel_c_priority);
-    println!("Pixel Fold priority: {}", pixel_fold_priority);
-    println!("Pixel 9 priority: {}", pixel_9_priority);
-    println!("Pixel 9 Pro priority: {}", pixel_9_pro_priority);
-    println!("Pixel 9 Fold priority: {}", pixel_9_fold_priority);
+    println!("Pixel priority: {pixel_priority}");
+    println!("Pixel C priority: {pixel_c_priority}");
+    println!("Pixel Fold priority: {pixel_fold_priority}");
+    println!("Pixel 9 priority: {pixel_9_priority}");
+    println!("Pixel 9 Pro priority: {pixel_9_pro_priority}");
+    println!("Pixel 9 Fold priority: {pixel_9_fold_priority}");
 
     // Debug version extraction - call the actual method to see what's happening
     println!("=== DEBUGGING VERSION EXTRACTION ===");
@@ -420,23 +406,24 @@ fn test_pixel_versioned_vs_unversioned_priority() {
         "Pixel 9 (Google)".to_lowercase()
     );
 
-    println!("Combined pixel: '{}'", combined_pixel);
-    println!("Combined pixel_9: '{}'", combined_pixel_9);
-    println!("Contains pixel: {}", combined_pixel.contains("pixel"));
-    println!("Contains nexus: {}", combined_pixel.contains("nexus"));
+    println!("Combined pixel: '{combined_pixel}'");
+    println!("Combined pixel_9: '{combined_pixel_9}'");
+    let contains_pixel = combined_pixel.contains("pixel");
+    println!("Contains pixel: {contains_pixel}");
+    let contains_nexus = combined_pixel.contains("nexus");
+    println!("Contains nexus: {contains_nexus}");
 
     // Debug version extraction
     let pixel_version = TestHelper::extract_android_device_version("pixel", "Pixel (Google)");
     let pixel_9_version = TestHelper::extract_android_device_version("pixel_9", "Pixel 9 (Google)");
-    println!("Pixel version extraction: {}", pixel_version);
-    println!("Pixel 9 version extraction: {}", pixel_9_version);
+    println!("Pixel version extraction: {pixel_version}");
+    println!("Pixel 9 version extraction: {pixel_9_version}");
 
     // Versioned Pixel devices should come before unversioned ones
     assert!(
         pixel_9_priority < pixel_priority,
-        "Pixel 9 ({}) should come before Pixel ({})",
-        pixel_9_priority,
-        pixel_priority
+        "{}",
+        format!("Pixel 9 ({pixel_9_priority}) should come before Pixel ({pixel_priority})")
     );
     assert!(
         pixel_9_priority < pixel_c_priority,
@@ -466,9 +453,9 @@ fn test_galaxy_nexus_priority() {
     let pixel_8_priority =
         TestHelper::calculate_android_device_priority("pixel_8", "Pixel 8 (Google)");
 
-    println!("Galaxy Nexus priority: {}", galaxy_nexus_priority);
-    println!("Pixel 7 priority: {}", pixel_7_priority);
-    println!("Pixel 8 priority: {}", pixel_8_priority);
+    println!("Galaxy Nexus priority: {galaxy_nexus_priority}");
+    println!("Pixel 7 priority: {pixel_7_priority}");
+    println!("Pixel 8 priority: {pixel_8_priority}");
 
     // Galaxy Nexus should come after Pixel devices
     assert!(
@@ -506,13 +493,8 @@ fn test_realistic_device_ordering() {
     println!("Realistic device ordering:");
     for (i, (device_id, display_name)) in devices.iter().enumerate() {
         let priority = TestHelper::calculate_android_device_priority(device_id, display_name);
-        println!(
-            "  {}. {} (ID: {}) -> Priority: {}",
-            i + 1,
-            display_name,
-            device_id,
-            priority
-        );
+        let idx = i + 1;
+        println!("  {idx}. {display_name} (ID: {device_id}) -> Priority: {priority}");
     }
 
     // The first few devices should be phones, with Google having preference
@@ -571,7 +553,7 @@ fn test_pixel_version_ordering() {
     println!("Pixel device ordering:");
     for (i, (device_id, display_name)) in pixel_devices.iter().enumerate() {
         let priority = TestHelper::calculate_android_device_priority(device_id, display_name);
-        println!("  {}. {} -> Priority: {}", i + 1, display_name, priority);
+        println!("  {}. {display_name} -> Priority: {priority}", i + 1);
     }
 
     // Check that newer Pixels come first

@@ -60,9 +60,10 @@ pub mod notifications {
 
 /// UI labels and static text
 pub mod ui {
-    // Window titles
-    pub const APP_TITLE: &str = " 🦤 Emu - Device Manager";
-    pub const APP_TITLE_FULLSCREEN: &str = " 🦤 Emu - Device Manager [FULLSCREEN LOGS]";
+    // Window titles (Note: These are now dynamically generated in render.rs with version)
+    // Kept for reference but not used directly
+    pub const APP_TITLE_BASE: &str = "Emu - Device Manager";
+    pub const APP_TITLE_FULLSCREEN_SUFFIX: &str = "[FULLSCREEN LOGS]";
 
     // Panel titles
     pub const ANDROID_DEVICES_TITLE: &str = "🤖 Android Devices";
@@ -111,6 +112,14 @@ pub mod ui {
 
     // Shortcuts
     pub const CONFIRM_SHORTCUTS: &str = "✅ [Y]es   ❌ [N]o / [Esc] Cancel";
+
+    // Dialog shortcut display text
+    pub const DIALOG_SHORTCUT_YES: &str = " = Yes  ";
+    pub const DIALOG_SHORTCUT_NO: &str = " = No  ";
+    pub const DIALOG_SHORTCUT_CANCEL: &str = " = Cancel";
+
+    // Terminal size error message
+    pub const TERMINAL_TOO_SMALL_ERROR: &str = "Terminal too small";
 }
 
 /// Device status values
@@ -157,4 +166,38 @@ pub mod formats {
 pub mod platforms {
     pub const ANDROID_DEVICE: &str = "Android device";
     pub const IOS_SIMULATOR: &str = "iOS simulator";
+}
+
+/// Error message formatting
+pub mod error_formatting {
+    /// Maximum length for error messages before truncation
+    pub const MAX_ERROR_MESSAGE_LENGTH: usize = 150;
+
+    /// Length at which to truncate error messages (allows for "..." suffix)
+    pub const ERROR_MESSAGE_TRUNCATED_LENGTH: usize = 147;
+}
+
+/// Validation error messages and hints
+pub mod validation {
+    // Device name validation messages
+    pub const DEVICE_NAME_EMPTY_ERROR: &str = "Device name cannot be empty";
+    pub const DEVICE_NAME_TOO_LONG_ERROR: &str = "Device name must be {} characters or less";
+    pub const DEVICE_NAME_INVALID_CHARS_ERROR: &str =
+        "Device name can only contain letters, numbers, dots, dashes, and underscores";
+    pub const DEVICE_NAME_INVALID_START_ERROR: &str = "Device name cannot start with '.' or '-'";
+    pub const DEVICE_NAME_HINT: &str = "Letters, numbers, dots, dashes, and underscores only";
+
+    // Numeric validation messages
+    pub const NUMERIC_VALUE_TOO_LOW_ERROR: &str = "Value must be at least {} {}";
+    pub const NUMERIC_VALUE_TOO_HIGH_ERROR: &str = "Value must be at most {} {}";
+    pub const NUMERIC_VALUE_INVALID_ERROR: &str = "Please enter a valid number";
+    pub const NUMERIC_VALUE_HINT: &str = "Enter a number or leave empty for default";
+
+    // Selection validation messages
+    pub const REQUIRED_SELECTION_ERROR: &str = "Please select a {}";
+    pub const REQUIRED_SELECTION_HINT: &str = "Selection is required";
+    pub const REQUIRED_FIELD_HINT: &str = "Required field";
+
+    // General validation messages
+    pub const DEFAULT_VALUE_HINT: &str = "Enter a value";
 }

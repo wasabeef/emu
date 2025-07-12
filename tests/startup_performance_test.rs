@@ -11,19 +11,19 @@ async fn test_startup_performance() {
     let start = Instant::now();
     let app_result = App::new().await;
     let app_init_duration = start.elapsed();
-    println!("App initialization: {:?}", app_init_duration);
+    println!("App initialization: {app_init_duration:?}");
 
     match app_result {
         Ok(_app) => {
             println!("✅ App created successfully");
         }
         Err(e) => {
-            println!("❌ App creation failed: {}", e);
+            println!("❌ App creation failed: {e}");
             panic!("App creation failed");
         }
     }
 
-    println!("📊 Total startup time: {:?}", app_init_duration);
+    println!("📊 Total startup time: {app_init_duration:?}");
 
     // Performance thresholds
     let total_time = app_init_duration;
@@ -50,7 +50,7 @@ async fn test_app_components_performance() {
     let start = Instant::now();
     let android_manager_result = emu::managers::AndroidManager::new();
     let android_manager_duration = start.elapsed();
-    println!("1. AndroidManager creation: {:?}", android_manager_duration);
+    println!("1. AndroidManager creation: {android_manager_duration:?}");
 
     match android_manager_result {
         Ok(android_manager) => {
@@ -58,19 +58,19 @@ async fn test_app_components_performance() {
             let start = Instant::now();
             let devices_result = android_manager.list_devices().await;
             let list_devices_duration = start.elapsed();
-            println!("2. Android list_devices(): {:?}", list_devices_duration);
+            println!("2. Android list_devices(): {list_devices_duration:?}");
 
             match devices_result {
                 Ok(devices) => {
                     println!("   Found {} Android devices", devices.len());
                 }
                 Err(e) => {
-                    println!("   Android device listing failed: {}", e);
+                    println!("   Android device listing failed: {e}");
                 }
             }
         }
         Err(e) => {
-            println!("   AndroidManager creation failed: {}", e);
+            println!("   AndroidManager creation failed: {e}");
         }
     }
 
@@ -80,26 +80,26 @@ async fn test_app_components_performance() {
         let start = Instant::now();
         let ios_manager_result = emu::managers::IosManager::new();
         let ios_manager_duration = start.elapsed();
-        println!("3. IosManager creation: {:?}", ios_manager_duration);
+        println!("3. IosManager creation: {ios_manager_duration:?}");
 
         match ios_manager_result {
             Ok(ios_manager) => {
                 let start = Instant::now();
                 let devices_result = ios_manager.list_devices().await;
                 let list_devices_duration = start.elapsed();
-                println!("4. iOS list_devices(): {:?}", list_devices_duration);
+                println!("4. iOS list_devices(): {list_devices_duration:?}");
 
                 match devices_result {
                     Ok(devices) => {
                         println!("   Found {} iOS devices", devices.len());
                     }
                     Err(e) => {
-                        println!("   iOS device listing failed: {}", e);
+                        println!("   iOS device listing failed: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("   IosManager creation failed: {}", e);
+                println!("   IosManager creation failed: {e}");
             }
         }
     }
@@ -122,17 +122,14 @@ async fn test_background_cache_performance() {
 
     match app_result {
         Ok(_app) => {
-            println!(
-                "✅ App with background cache created in: {:?}",
-                total_duration
-            );
+            println!("✅ App with background cache created in: {total_duration:?}");
 
             // Wait a bit for background cache to potentially complete
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             println!("📋 Background cache should be loading in parallel");
         }
         Err(e) => {
-            println!("❌ App creation failed: {}", e);
+            println!("❌ App creation failed: {e}");
         }
     }
 }
@@ -147,17 +144,17 @@ async fn test_startup_without_device_loading() {
     // Just create the managers without listing devices
     let _android_manager_result = emu::managers::AndroidManager::new();
     let android_duration = start.elapsed();
-    println!("1. AndroidManager only: {:?}", android_duration);
+    println!("1. AndroidManager only: {android_duration:?}");
 
     #[cfg(target_os = "macos")]
     {
         let start = Instant::now();
         let _ios_manager_result = emu::managers::IosManager::new();
         let ios_duration = start.elapsed();
-        println!("2. IosManager only: {:?}", ios_duration);
+        println!("2. IosManager only: {ios_duration:?}");
     }
 
-    println!("📊 Manager creation only: {:?}", android_duration);
+    println!("📊 Manager creation only: {android_duration:?}");
 
     if android_duration > std::time::Duration::from_millis(100) {
         println!(
@@ -184,9 +181,10 @@ async fn test_parallel_command_performance() {
             let start = Instant::now();
             let normal_result = android_manager.list_devices().await;
             let normal_duration = start.elapsed();
-            println!("1. Normal list_devices(): {:?}", normal_duration);
+            println!("1. Normal list_devices(): {normal_duration:?}");
             if let Ok(devices) = normal_result {
-                println!("   Found {} devices", devices.len());
+                let count = devices.len();
+                println!("   Found {count} devices");
             }
 
             // Test parallel execution
@@ -194,9 +192,10 @@ async fn test_parallel_command_performance() {
             let start = Instant::now();
             let parallel_result = android_manager.list_devices().await;
             let parallel_duration = start.elapsed();
-            println!("2. Parallel list_devices(): {:?}", parallel_duration);
+            println!("2. Parallel list_devices(): {parallel_duration:?}");
             if let Ok(devices) = parallel_result {
-                println!("   Found {} devices", devices.len());
+                let count = devices.len();
+                println!("   Found {count} devices");
             }
 
             // Calculate improvement
@@ -205,7 +204,7 @@ async fn test_parallel_command_performance() {
                     as f64
                     / normal_duration.as_millis() as f64)
                     * 100.0;
-                println!("✅ Performance improved by {:.1}%", improvement);
+                println!("✅ Performance improved by {improvement:.1}%");
             } else {
                 println!("⚠️  No performance improvement detected");
             }
@@ -214,7 +213,7 @@ async fn test_parallel_command_performance() {
             env::remove_var("EMU_PARALLEL_COMMANDS");
         }
         Err(e) => {
-            println!("❌ AndroidManager creation failed: {}", e);
+            println!("❌ AndroidManager creation failed: {e}");
         }
     }
 }
@@ -236,14 +235,14 @@ async fn test_incremental_refresh_performance() {
             // We can't directly call refresh_devices_smart, but we can measure through the app
             // This is a placeholder for the actual test
             let normal_duration = start.elapsed();
-            println!("1. Normal refresh: {:?}", normal_duration);
+            println!("1. Normal refresh: {normal_duration:?}");
 
             // Test incremental refresh
             env::set_var("EMU_INCREMENTAL_REFRESH", "true");
             let start = Instant::now();
             // Placeholder for actual incremental refresh test
             let incremental_duration = start.elapsed();
-            println!("2. Incremental refresh: {:?}", incremental_duration);
+            println!("2. Incremental refresh: {incremental_duration:?}");
 
             // Clean up
             env::remove_var("EMU_INCREMENTAL_REFRESH");
@@ -251,7 +250,7 @@ async fn test_incremental_refresh_performance() {
             println!("Note: Full incremental refresh testing requires running the app");
         }
         Err(e) => {
-            println!("❌ App creation failed: {}", e);
+            println!("❌ App creation failed: {e}");
         }
     }
 }

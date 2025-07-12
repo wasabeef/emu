@@ -89,7 +89,7 @@ fn test_notification_limit() {
 
     // Add more notifications than the limit
     for i in 0..5 {
-        state.add_info_notification(format!("Message {}", i));
+        state.add_info_notification(format!("Message {i}"));
     }
 
     // Should only keep the most recent 3

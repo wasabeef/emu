@@ -218,18 +218,32 @@ cargo test startup_performance_test -- --nocapture
 - `src/models/platform.rs` - Platform enums and device configurations
 
 ### Constants & Utilities
-- `src/constants/` - Modular constants system
+- `src/constants/` - Modular constants system (NO HARDCODED VALUES)
   - `commands.rs` - CLI tool names and arguments
   - `defaults.rs` - Default values and configurations
   - `env_vars.rs` - Environment variable names (legacy)
   - `files.rs` - File paths and extensions
+  - `limits.rs` - Size limits, validation ranges, array indices
   - `messages.rs` - User-facing strings
   - `patterns.rs` - Regular expressions
   - `performance.rs` - Performance tuning parameters (always optimal)
+  - `priorities.rs` - Device sorting priority values
+  - `progress.rs` - Progress tracking and phase increments
+  - `ui_layout.rs` - UI dimensions, spacing, padding, animations
 - `src/utils/validation.rs` - Form field validation framework
 - `src/utils/command.rs` - Enhanced command execution with retry and error handling
 
 ## Code Conventions
+
+### Constants Management
+- **ALL hardcoded values must be defined as constants** in `src/constants/`
+- Constants are organized by domain (ui_layout, limits, priorities, progress, etc.)
+- Use descriptive constant names that clearly indicate purpose and unit
+- Group related constants in the same module
+- Add RustDoc comments for constant modules explaining their purpose
+- Constants should have appropriate types (u8, u16, u32, usize)
+- Re-export commonly used constants at module level for convenience
+- Example: `pub const MAX_DEVICE_NAME_LENGTH: usize = 50;`
 
 ### Error Handling
 - Use `anyhow` for error propagation with context
@@ -291,6 +305,9 @@ cargo test startup_performance_test -- --nocapture
 - Test error conditions and edge cases
 - Validate UI state management
 - Ensure async operations work correctly
+- **Test all new constants**: Validate ranges, ordering, and type consistency
+- Use documentation tests for constants to verify runtime behavior
+- Current test coverage: 146+ tests with 95%+ coverage
 
 ### Code Quality Requirements
 - **ALL code must pass `cargo clippy --all-targets --all-features -- -D warnings`**

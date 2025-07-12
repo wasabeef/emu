@@ -48,11 +48,12 @@ pub const API_28_VERSION: &str = "9";
 pub const API_27_VERSION: &str = "8.1";
 pub const API_26_VERSION: &str = "8.0";
 
-/// Default values for device creation
-pub const DEFAULT_RAM_STRING: &str = "2048";
-pub const DEFAULT_STORAGE_STRING: &str = "8192";
+/// Default storage fallback value
 pub const DEFAULT_STORAGE_FALLBACK: &str = "512M";
 
 /// Command execution timeouts
 pub const AVD_CREATION_TIMEOUT_SECS: u64 = 2;
 pub const DEVICE_STATUS_CHECK_TIMEOUT_SECS: u64 = 2;
+
+/// Default API levels to use when system images are not available
+pub const ANDROID_DEFAULT_API_LEVELS: [u32; 8] = [35, 34, 33, 32, 31, 30, 29, 28];

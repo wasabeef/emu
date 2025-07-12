@@ -15,7 +15,7 @@ async fn final_startup_performance_validation() {
     let mut startup_times = Vec::new();
 
     for i in 1..=iterations {
-        println!("Iteration {}/{}", i, iterations);
+        println!("Iteration {i}/{iterations}");
 
         let start = Instant::now();
         let app_result = App::new().await;
@@ -24,11 +24,11 @@ async fn final_startup_performance_validation() {
         match app_result {
             Ok(_app) => {
                 startup_times.push(duration);
-                println!("  ✅ Startup time: {:?}", duration);
+                println!("  ✅ Startup time: {duration:?}");
             }
             Err(e) => {
-                println!("  ❌ Failed: {}", e);
-                panic!("Startup failed on iteration {}", i);
+                println!("  ❌ Failed: {e}");
+                panic!("Startup failed on iteration {i}");
             }
         }
     }
@@ -95,14 +95,14 @@ fn startup_components_isolation_test() {
     let start = Instant::now();
     let _android_manager = emu::managers::AndroidManager::new();
     let android_manager_time = start.elapsed();
-    println!("AndroidManager creation: {:?}", android_manager_time);
+    println!("AndroidManager creation: {android_manager_time:?}");
 
     #[cfg(target_os = "macos")]
     {
         let start = Instant::now();
         let _ios_manager = emu::managers::IosManager::new();
         let ios_manager_time = start.elapsed();
-        println!("IosManager creation: {:?}", ios_manager_time);
+        println!("IosManager creation: {ios_manager_time:?}");
 
         // Skip performance assertions in CI environment
         if std::env::var("CI").is_err() {

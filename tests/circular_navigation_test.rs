@@ -223,7 +223,7 @@ fn test_rapid_circular_navigation() {
     // Create 5 Android devices
     state.android_devices = (0..5)
         .map(|i| AndroidDevice {
-            name: format!("Device{}", i),
+            name: format!("Device{i}"),
             device_type: "phone".to_string(),
             api_level: 30 + i as u32,
             status: DeviceStatus::Stopped,

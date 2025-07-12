@@ -38,3 +38,19 @@ pub const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Default notification display duration (3 seconds)
 pub const NOTIFICATION_DURATION: Duration = Duration::from_secs(3);
+
+/// Default API levels to install (in descending order of preference)
+pub const DEFAULT_API_LEVELS: &[u32] = &[35, 34, 33, 32, 31, 30, 29, 28];
+
+/// Default log level for the application
+pub const DEFAULT_LOG_LEVEL: &str = "info";
+
+/// Environment variable value to disable Android logging
+pub const ANDROID_LOGGING_DISABLED_VALUE: &str = "0";
+
+/// Test device constants for debug builds
+pub const TEST_DEVICE_NAME_BASE: &str = "test_debug_device";
+pub const TEST_DEVICE_NAME_33: &str = "test_debug_device_33";
+pub const TEST_DEVICE_TYPE: &str = "phone";
+pub const TEST_API_LEVEL_34: &str = "34";
+pub const TEST_API_LEVEL_33: &str = "33";

@@ -37,3 +37,45 @@ pub const ANDROID_STATUS_CHECK_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// AVD creation wait timeout
 pub const AVD_CREATION_WAIT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Device status check delay (used in Android manager)
+pub const DEVICE_STATUS_CHECK_DELAY: Duration = Duration::from_millis(500);
+
+/// Device start wait time
+pub const DEVICE_START_WAIT_TIME: Duration = Duration::from_secs(2);
+
+/// Log stream startup delay
+pub const LOG_STREAM_STARTUP_DELAY: Duration = Duration::from_millis(500);
+
+/// API installation wait time
+pub const API_INSTALLATION_WAIT_TIME: Duration = Duration::from_secs(2);
+
+/// Device stop wait time
+pub const DEVICE_STOP_WAIT_TIME: Duration = Duration::from_millis(2000);
+
+/// Cache expiration time (5 minutes)
+pub const CACHE_EXPIRATION_TIME: Duration = Duration::from_secs(300);
+
+/// Notification auto-dismiss time
+pub const NOTIFICATION_AUTO_DISMISS_TIME: Duration = Duration::from_secs(5);
+
+/// Default auto-refresh interval
+pub const DEFAULT_AUTO_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
+
+/// Auto-refresh check interval
+pub const AUTO_REFRESH_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
+
+/// Notification check interval  
+pub const NOTIFICATION_CHECK_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Event poll timeout
+pub const EVENT_POLL_TIMEOUT: Duration = Duration::from_millis(100);
+
+/// Log task sleep duration
+pub const LOG_TASK_SLEEP_DURATION: Duration = Duration::from_millis(100);
+
+/// Device operation wait time
+pub const DEVICE_OPERATION_WAIT_TIME: Duration = Duration::from_millis(100);
+
+/// Panel switch delay
+pub const PANEL_SWITCH_DELAY: Duration = Duration::from_millis(50);

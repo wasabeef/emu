@@ -3,7 +3,18 @@
 //! This module provides a validation framework for user input,
 //! ensuring consistent validation rules across the application.
 
-use crate::constants::patterns::DEVICE_NAME_PATTERN;
+use crate::constants::{
+    limits::{
+        DEVICE_NAME_VALIDATION_LIMIT, MEMORY_VALIDATION_BASE_MB, MEMORY_VALIDATION_HIGH_MB,
+        MEMORY_VALIDATION_MAX_MB, MEMORY_VALIDATION_MIN_MB,
+    },
+    messages::validation::{
+        DEFAULT_VALUE_HINT, DEVICE_NAME_EMPTY_ERROR, DEVICE_NAME_HINT,
+        DEVICE_NAME_INVALID_CHARS_ERROR, DEVICE_NAME_INVALID_START_ERROR, NUMERIC_VALUE_HINT,
+        NUMERIC_VALUE_INVALID_ERROR, REQUIRED_FIELD_HINT,
+    },
+    patterns::DEVICE_NAME_PATTERN,
+};
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -38,21 +49,20 @@ impl DeviceNameValidator {
 impl FieldValidator for DeviceNameValidator {
     fn validate(&self, value: &str) -> Result<(), String> {
         if value.is_empty() {
-            return Err("Device name cannot be empty".to_string());
+            return Err(DEVICE_NAME_EMPTY_ERROR.to_string());
         }
 
-        if value.len() > 50 {
-            return Err("Device name must be 50 characters or less".to_string());
+        if value.len() > DEVICE_NAME_VALIDATION_LIMIT {
+            return Err(format!(
+                "Device name must be {DEVICE_NAME_VALIDATION_LIMIT} characters or less"
+            ));
         }
 
         let regex = DEVICE_NAME_REGEX
             .get_or_init(|| Regex::new(DEVICE_NAME_PATTERN).expect("Invalid device name pattern"));
 
         if !regex.is_match(value) {
-            return Err(
-                "Device name can only contain letters, numbers, dots, dashes, and underscores"
-                    .to_string(),
-            );
+            return Err(DEVICE_NAME_INVALID_CHARS_ERROR.to_string());
         }
 
         // Platform-specific validation
@@ -60,7 +70,7 @@ impl FieldValidator for DeviceNameValidator {
             DevicePlatform::Android => {
                 // Android-specific rules
                 if value.starts_with('.') || value.starts_with('-') {
-                    return Err("Device name cannot start with '.' or '-'".to_string());
+                    return Err(DEVICE_NAME_INVALID_START_ERROR.to_string());
                 }
             }
             DevicePlatform::Ios => {
@@ -72,7 +82,7 @@ impl FieldValidator for DeviceNameValidator {
     }
 
     fn hint(&self) -> &str {
-        "Letters, numbers, dots, dashes, and underscores only"
+        DEVICE_NAME_HINT
     }
 }
 
@@ -88,14 +98,14 @@ impl NumericRangeValidator {
         Self { min, max, unit }
     }
 
-    /// Creates a validator for RAM size (512MB - 8192MB)
+    /// Creates a validator for RAM size
     pub fn ram_size() -> Self {
-        Self::new(512, 8192, "MB")
+        Self::new(MEMORY_VALIDATION_MIN_MB, MEMORY_VALIDATION_HIGH_MB, "MB")
     }
 
-    /// Creates a validator for storage size (1024MB - 65536MB)
+    /// Creates a validator for storage size
     pub fn storage_size() -> Self {
-        Self::new(1024, 65536, "MB")
+        Self::new(MEMORY_VALIDATION_BASE_MB, MEMORY_VALIDATION_MAX_MB, "MB")
     }
 }
 
@@ -109,19 +119,27 @@ impl FieldValidator for NumericRangeValidator {
         match value.parse::<u32>() {
             Ok(num) => {
                 if num < self.min {
-                    Err(format!("Value must be at least {} {}", self.min, self.unit))
+                    Err(format!(
+                        "Value must be at least {min} {unit}",
+                        min = self.min,
+                        unit = self.unit
+                    ))
                 } else if num > self.max {
-                    Err(format!("Value must be at most {} {}", self.max, self.unit))
+                    Err(format!(
+                        "Value must be at most {max} {unit}",
+                        max = self.max,
+                        unit = self.unit
+                    ))
                 } else {
                     Ok(())
                 }
             }
-            Err(_) => Err("Please enter a valid number".to_string()),
+            Err(_) => Err(NUMERIC_VALUE_INVALID_ERROR.to_string()),
         }
     }
 
     fn hint(&self) -> &str {
-        "Enter a number or leave empty for default"
+        NUMERIC_VALUE_HINT
     }
 }
 
@@ -139,14 +157,17 @@ impl RequiredSelectionValidator {
 impl FieldValidator for RequiredSelectionValidator {
     fn validate(&self, value: &str) -> Result<(), String> {
         if value.is_empty() {
-            Err(format!("Please select a {}", self.field_name))
+            Err(format!(
+                "Please select a {field_name}",
+                field_name = self.field_name
+            ))
         } else {
             Ok(())
         }
     }
 
     fn hint(&self) -> &str {
-        "Required field"
+        REQUIRED_FIELD_HINT
     }
 }
 
@@ -186,7 +207,7 @@ impl FieldValidator for CompositeValidator {
         self.validators
             .first()
             .map(|v| v.hint())
-            .unwrap_or("Enter a value")
+            .unwrap_or(DEFAULT_VALUE_HINT)
     }
 }
 

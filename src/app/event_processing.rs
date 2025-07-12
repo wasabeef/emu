@@ -7,6 +7,10 @@
 //! **Note**: This module is kept for compatibility but is no longer used in the main
 //! application loop. The app now uses direct event processing for 120fps responsiveness.
 
+#[allow(unused_imports)]
+use crate::constants::performance::{
+    EVENT_DEBOUNCE_TIMEOUT, NAVIGATION_BATCH_TIMEOUT, TEST_SLEEP_DURATION,
+};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
@@ -131,8 +135,8 @@ impl EventBatcher {
         Self {
             event_queue: VecDeque::new(),
             max_batch_size,
-            navigation_batcher: NavigationBatcher::new(50), // 50ms timeout
-            debouncer: EventDebouncer::new(5),              // 5ms debounce
+            navigation_batcher: NavigationBatcher::new(NAVIGATION_BATCH_TIMEOUT.as_millis() as u64), // 50ms timeout
+            debouncer: EventDebouncer::new(5), // 5ms debounce
         }
     }
 
@@ -250,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_navigation_batcher() {
-        let mut batcher = NavigationBatcher::new(50);
+        let mut batcher = NavigationBatcher::new(NAVIGATION_BATCH_TIMEOUT.as_millis() as u64);
 
         // Add multiple navigation events
         batcher.add_navigation(KeyCode::Down);
@@ -263,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_event_debouncer() {
-        let mut debouncer = EventDebouncer::new(10);
+        let mut debouncer = EventDebouncer::new(EVENT_DEBOUNCE_TIMEOUT.as_millis() as u64);
         let key_event = Event::Key(KeyEvent {
             code: KeyCode::Char('a'),
             modifiers: KeyModifiers::NONE,
@@ -274,7 +278,7 @@ mod tests {
         assert!(debouncer.should_process(&key_event));
         assert!(!debouncer.should_process(&key_event)); // Should be debounced
 
-        std::thread::sleep(Duration::from_millis(15));
+        std::thread::sleep(TEST_SLEEP_DURATION);
         assert!(debouncer.should_process(&key_event)); // Should process after timeout
     }
 }

@@ -193,7 +193,7 @@ fn test_performance_critical_operations() {
     }
 
     let panel_switch_time = start.elapsed();
-    println!("1000 panel switches took: {:?}", panel_switch_time);
+    println!("1000 panel switches took: {panel_switch_time:?}");
 
     // Panel switching should be very fast (memory operations only)
     assert!(panel_switch_time < std::time::Duration::from_millis(10));
@@ -201,7 +201,7 @@ fn test_performance_critical_operations() {
     // Test rapid device navigation
     state.android_devices = (0..100)
         .map(|i| AndroidDevice {
-            name: format!("Device{}", i),
+            name: format!("Device{i}"),
             device_type: "phone".to_string(),
             api_level: 30 + (i % 5) as u32,
             status: DeviceStatus::Stopped,
@@ -219,7 +219,7 @@ fn test_performance_critical_operations() {
     }
 
     let navigation_time = start.elapsed();
-    println!("1000 navigation operations took: {:?}", navigation_time);
+    println!("1000 navigation operations took: {navigation_time:?}");
 
     // Device navigation should be fast (index operations)
     assert!(navigation_time < std::time::Duration::from_millis(50));
@@ -236,7 +236,7 @@ fn test_performance_critical_operations() {
     }
 
     let cache_time = start.elapsed();
-    println!("100 cache operations took: {:?}", cache_time);
+    println!("100 cache operations took: {cache_time:?}");
 
     // Cache operations should be fast
     assert!(cache_time < std::time::Duration::from_millis(10));

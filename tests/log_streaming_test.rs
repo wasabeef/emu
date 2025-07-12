@@ -104,7 +104,7 @@ async fn test_log_entry_management() {
 
     // Add more than max entries
     for i in 0..max_entries + 10 {
-        state.add_log("INFO".to_string(), format!("Log entry {}", i));
+        state.add_log("INFO".to_string(), format!("Log entry {i}"));
     }
 
     // Should not exceed max entries
@@ -281,7 +281,7 @@ async fn test_mock_log_streaming_task_lifecycle() {
             // Add mock log entry
             {
                 let mut state_lock = state_clone.lock().await;
-                state_lock.add_log("INFO".to_string(), format!("Mock log entry {}", counter));
+                state_lock.add_log("INFO".to_string(), format!("Mock log entry {counter}"));
             }
 
             counter += 1;

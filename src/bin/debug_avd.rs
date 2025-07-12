@@ -4,9 +4,12 @@
 //! and checking system configuration.
 
 use anyhow::Result;
-use emu::managers::{
-    common::{DeviceConfig, DeviceManager},
-    AndroidManager,
+use emu::{
+    constants::defaults::*,
+    managers::{
+        common::{DeviceConfig, DeviceManager},
+        AndroidManager,
+    },
 };
 
 #[tokio::main]
@@ -34,7 +37,8 @@ async fn main() -> Result<()> {
                 println!("⚠ No system images found. You may need to install some system images.");
                 println!("  Example: sdkmanager \"system-images;android-34;google_apis_playstore;arm64-v8a\"");
             } else {
-                println!("✓ Found {} system images:", images.len());
+                let count = images.len();
+                println!("✓ Found {count} system images:");
                 for image in &images {
                     println!("  - {image}");
                 }
@@ -52,12 +56,13 @@ async fn main() -> Result<()> {
             if devices.is_empty() {
                 println!("ℹ No existing AVDs found");
             } else {
-                println!("✓ Found {} existing AVDs:", devices.len());
+                let count = devices.len();
+                println!("✓ Found {count} existing AVDs:");
                 for device in &devices {
-                    println!(
-                        "  - {} (API {}) - Status: {:?}",
-                        device.name, device.api_level, device.status
-                    );
+                    let name = &device.name;
+                    let api = device.api_level;
+                    let status = &device.status;
+                    println!("  - {name} (API {api}) - Status: {status:?}");
                 }
             }
         }
@@ -69,15 +74,18 @@ async fn main() -> Result<()> {
     // Test creating a simple AVD
     println!("\n4. Testing AVD creation...");
     let test_config = DeviceConfig::new(
-        "test_debug_device".to_string(),
-        "phone".to_string(),
-        "34".to_string(), // Android 14
+        TEST_DEVICE_NAME_BASE.to_string(),
+        TEST_DEVICE_TYPE.to_string(),
+        TEST_API_LEVEL_34.to_string(), // Android 14
     );
 
     println!("Attempting to create test AVD with config:");
-    println!("  Name: {}", test_config.name);
-    println!("  Type: {}", test_config.device_type);
-    println!("  API Level: {}", test_config.version);
+    let name = &test_config.name;
+    let device_type = &test_config.device_type;
+    let version = &test_config.version;
+    println!("  Name: {name}");
+    println!("  Type: {device_type}");
+    println!("  API Level: {version}");
 
     match android_manager.create_device(&test_config).await {
         Ok(()) => {
@@ -96,9 +104,9 @@ async fn main() -> Result<()> {
             // Try with a different API level
             println!("\n   Trying with API level 33 (Android 13)...");
             let test_config_33 = DeviceConfig::new(
-                "test_debug_device_33".to_string(),
-                "phone".to_string(),
-                "33".to_string(),
+                TEST_DEVICE_NAME_33.to_string(),
+                TEST_DEVICE_TYPE.to_string(),
+                TEST_API_LEVEL_33.to_string(),
             );
 
             match android_manager.create_device(&test_config_33).await {

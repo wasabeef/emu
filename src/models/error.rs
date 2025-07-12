@@ -4,6 +4,9 @@
 //! and provides utilities for converting technical errors into user-friendly
 //! messages suitable for display in the TUI.
 
+use crate::constants::messages::error_formatting::{
+    ERROR_MESSAGE_TRUNCATED_LENGTH, MAX_ERROR_MESSAGE_LENGTH,
+};
 use thiserror::Error;
 
 /// Comprehensive error type for device management operations.
@@ -232,8 +235,8 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
     }
 
     // Truncate very long error messages for display
-    if error_str.len() > 150 {
-        format!("{}...", &error_str[..147])
+    if error_str.len() > MAX_ERROR_MESSAGE_LENGTH {
+        format!("{}...", &error_str[..ERROR_MESSAGE_TRUNCATED_LENGTH])
     } else {
         error_str
     }

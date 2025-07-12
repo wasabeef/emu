@@ -278,7 +278,22 @@
 //!
 
 use crate::{
-    constants::{commands, defaults, env_vars, files},
+    constants::{
+        android, commands, defaults, env_vars, files,
+        keywords::{LOG_LEVEL_ERROR, LOG_LEVEL_FAILED},
+        limits::{
+            MAX_DEVICE_NAME_CREATE_LENGTH, MAX_DEVICE_NAME_PARTS_PROCESS, MAX_ERROR_MESSAGE_LENGTH,
+            MIN_STRING_LENGTH_FOR_MATCH, STORAGE_MB_TO_GB_DIVISOR,
+        },
+        progress::{
+            COMPLETION_THRESHOLD_PERCENTAGE, DOWNLOAD_PHASE_INCREMENT,
+            DOWNLOAD_PHASE_START_PERCENTAGE, DOWNLOAD_PROGRESS_MULTIPLIER, EXTRACT_PHASE_INCREMENT,
+            EXTRACT_PHASE_START_PERCENTAGE, INSTALL_PHASE_START_PERCENTAGE,
+            LOADING_PHASE_INCREMENT, PROGRESS_PHASE_100_PERCENT, PROGRESS_PHASE_75_PERCENT,
+            PROGRESS_PHASE_85_PERCENT,
+        },
+        timeouts::{DEVICE_START_WAIT_TIME, DEVICE_STATUS_CHECK_DELAY},
+    },
     managers::common::{DeviceConfig, DeviceManager},
     models::device_info::{
         ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
@@ -1065,7 +1080,10 @@ impl AndroidManager {
                         let line_end = start + end;
                         config_content.replace_range(
                             start..line_end,
-                            &format!("disk.dataPartition.size={}G", storage_mb / 1024),
+                            &format!(
+                                "disk.dataPartition.size={}G",
+                                storage_mb / STORAGE_MB_TO_GB_DIVISOR
+                            ),
                         );
                     }
                 }
@@ -1127,7 +1145,11 @@ impl AndroidManager {
                     // Fall back to hardcoded values
                     self.get_android_version_name(device.api_level)
                 };
-                format!("API {} (Android {})", device.api_level, version_name)
+                format!(
+                    "API {api_level} (Android {version_name})",
+                    api_level = device.api_level,
+                    version_name = version_name
+                )
             },
             ram_size: None,
             storage_size: None,
@@ -1166,8 +1188,10 @@ impl AndroidManager {
                                         }
                                     } else if let Some(size_str) = value.strip_suffix('G') {
                                         if let Ok(size_gb) = size_str.parse::<u64>() {
-                                            details.storage_size =
-                                                Some(format!("{} MB", size_gb * 1024));
+                                            details.storage_size = Some(format!(
+                                                "{} MB",
+                                                size_gb * STORAGE_MB_TO_GB_DIVISOR as u64
+                                            ));
                                         }
                                     }
                                 }
@@ -1192,7 +1216,7 @@ impl AndroidManager {
                                     }
                                 }
                                 "hw.lcd.density" => {
-                                    details.dpi = Some(format!("{} DPI", value.trim()));
+                                    details.dpi = Some(format!("{dpi} DPI", dpi = value.trim()));
                                 }
                                 "image.sysdir.1" => {
                                     details.system_image = Some(value.trim().to_string());
@@ -1341,8 +1365,10 @@ impl AndroidManager {
         for skin in &available_skins {
             let skin_lower = skin.to_lowercase();
             // Main part of device ID is contained in skin name, or vice versa
-            if (device_lower.len() > 3 && skin_lower.contains(&device_lower))
-                || (skin_lower.len() > 3 && device_lower.contains(&skin_lower))
+            if (device_lower.len() > MIN_STRING_LENGTH_FOR_MATCH
+                && skin_lower.contains(&device_lower))
+                || (skin_lower.len() > MIN_STRING_LENGTH_FOR_MATCH
+                    && device_lower.contains(&skin_lower))
             {
                 return Some(skin.clone());
             }
@@ -1568,7 +1594,7 @@ impl AndroidManager {
                 "First 3: {}",
                 available_images
                     .iter()
-                    .take(3)
+                    .take(MAX_DEVICE_NAME_PARTS_PROCESS)
                     .cloned()
                     .collect::<Vec<_>>()
                     .join(", ")
@@ -1589,7 +1615,7 @@ impl AndroidManager {
                 "First 3: {}",
                 available_devices
                     .iter()
-                    .take(3)
+                    .take(MAX_DEVICE_NAME_PARTS_PROCESS)
                     .map(|(id, display)| format!("{display} ({id})"))
                     .collect::<Vec<_>>()
                     .join(", ")
@@ -1609,7 +1635,12 @@ impl AndroidManager {
             )
         };
 
-        let package_path = format!("system-images;android-{};{};{}", config.version, tag, abi);
+        let package_path = format!(
+            "system-images;android-{version};{tag};{abi}",
+            version = config.version,
+            tag = tag,
+            abi = abi
+        );
         let image_available = self
             .check_system_image_available(&config.version, &tag, &abi)
             .await
@@ -1775,7 +1806,10 @@ impl AndroidManager {
                     // For parallel version, use default values for now
                     // TODO: Optimize hardware property reading in parallel
                     let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
-                    let storage_size = format!("{}M", defaults::DEFAULT_STORAGE_MB / 1024);
+                    let storage_size = format!(
+                        "{}M",
+                        defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
+                    );
 
                     devices.push(AndroidDevice {
                         name,
@@ -1962,7 +1996,10 @@ impl DeviceManager for AndroidManager {
 
             if shutdown_result.is_ok() {
                 // Give the OS a moment to process the shutdown
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    DEVICE_STATUS_CHECK_DELAY.as_millis() as u64,
+                ))
+                .await;
 
                 // Then use reboot -p as a fallback to power off
                 let _ = self
@@ -2143,8 +2180,11 @@ impl DeviceManager for AndroidManager {
                 // Create ultra-compact diagnostic info for UI
                 let mut diagnostic_info = Vec::new();
                 // Shortened name (max 20 characters)
-                let short_name = if safe_name.len() > 20 {
-                    format!("{}...", &safe_name[..17])
+                let short_name = if safe_name.len() > MAX_DEVICE_NAME_CREATE_LENGTH {
+                    format!(
+                        "{name}...",
+                        name = &safe_name[..MAX_DEVICE_NAME_CREATE_LENGTH - 3]
+                    )
                 } else {
                     safe_name.clone()
                 };
@@ -2193,8 +2233,11 @@ impl DeviceManager for AndroidManager {
                         &error_str
                     };
 
-                    let short_error = if key_error.len() > 60 {
-                        format!("{}...", &key_error[..57])
+                    let short_error = if key_error.len() > MAX_ERROR_MESSAGE_LENGTH {
+                        format!(
+                            "{error}...",
+                            error = &key_error[..MAX_ERROR_MESSAGE_LENGTH - 3]
+                        )
                     } else {
                         key_error.to_string()
                     };
@@ -2221,7 +2264,10 @@ impl DeviceManager for AndroidManager {
             }
 
             // Wait a bit for the device to fully stop
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                DEVICE_START_WAIT_TIME.as_secs(),
+            ))
+            .await;
         }
 
         // Delete the AVD
@@ -2240,7 +2286,10 @@ impl DeviceManager for AndroidManager {
             log::info!("Device '{identifier}' is running, stopping before wipe");
             self.stop_device(identifier).await?;
             // Wait briefly for the emulator to shut down
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                DEVICE_STATUS_CHECK_DELAY.as_millis() as u64,
+            ))
+            .await;
         }
 
         // Directly delete user data files from AVD directory instead of starting emulator
@@ -2392,7 +2441,7 @@ impl AndroidManager {
 
         // If no system images found, create a default list with common API levels
         if !found_system_images {
-            let default_apis = vec![35, 34, 33, 32, 31, 30, 29, 28];
+            let default_apis = android::ANDROID_DEFAULT_API_LEVELS.to_vec();
             for api in default_apis {
                 let version_name = self.get_android_version_name(api);
                 let api_level = ApiLevel::new(
@@ -2461,7 +2510,10 @@ impl AndroidManager {
             let mut stage = 0;
 
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(
+                    DEVICE_START_WAIT_TIME.as_secs(),
+                ))
+                .await;
 
                 match stage {
                     0 => {
@@ -2471,10 +2523,10 @@ impl AndroidManager {
                             percentage: progress,
                             eta_seconds: None,
                         });
-                        progress += 5;
-                        if progress >= 20 {
+                        progress += LOADING_PHASE_INCREMENT;
+                        if progress >= DOWNLOAD_PHASE_START_PERCENTAGE {
                             stage = 1;
-                            progress = 20;
+                            progress = DOWNLOAD_PHASE_START_PERCENTAGE;
                         }
                     }
                     1 => {
@@ -2484,10 +2536,10 @@ impl AndroidManager {
                             percentage: progress,
                             eta_seconds: None,
                         });
-                        progress += 3;
-                        if progress >= 70 {
+                        progress += DOWNLOAD_PHASE_INCREMENT;
+                        if progress >= EXTRACT_PHASE_START_PERCENTAGE {
                             stage = 2;
-                            progress = 70;
+                            progress = EXTRACT_PHASE_START_PERCENTAGE;
                         }
                     }
                     2 => {
@@ -2497,10 +2549,10 @@ impl AndroidManager {
                             percentage: progress,
                             eta_seconds: None,
                         });
-                        progress += 4;
-                        if progress >= 90 {
+                        progress += EXTRACT_PHASE_INCREMENT;
+                        if progress >= INSTALL_PHASE_START_PERCENTAGE {
                             stage = 3;
-                            progress = 90;
+                            progress = INSTALL_PHASE_START_PERCENTAGE;
                         }
                     }
                     3 => {
@@ -2511,7 +2563,7 @@ impl AndroidManager {
                             eta_seconds: None,
                         });
                         progress += 2;
-                        if progress >= 95 {
+                        if progress >= COMPLETION_THRESHOLD_PERCENTAGE {
                             break;
                         }
                     }
@@ -2539,7 +2591,10 @@ impl AndroidManager {
                                     if let Ok(pct) = line[start + 1..end].trim().parse::<u8>() {
                                         progress_stdout(InstallProgress {
                                             operation: "Downloading system image...".to_string(),
-                                            percentage: (20 + (pct * 50 / 100)).min(70),
+                                            percentage: (DOWNLOAD_PHASE_START_PERCENTAGE
+                                                + (pct * DOWNLOAD_PROGRESS_MULTIPLIER
+                                                    / PROGRESS_PHASE_100_PERCENT))
+                                                .min(EXTRACT_PHASE_START_PERCENTAGE),
                                             eta_seconds: None,
                                         });
                                     }
@@ -2549,13 +2604,13 @@ impl AndroidManager {
                     } else if line.contains("Unzipping") || line.contains("Extracting") {
                         progress_stdout(InstallProgress {
                             operation: "Extracting system image...".to_string(),
-                            percentage: 75,
+                            percentage: PROGRESS_PHASE_75_PERCENT,
                             eta_seconds: None,
                         });
                     } else if line.contains("Installing") {
                         progress_stdout(InstallProgress {
                             operation: "Installing system image...".to_string(),
-                            percentage: 85,
+                            percentage: PROGRESS_PHASE_85_PERCENT,
                             eta_seconds: None,
                         });
                     }
@@ -2572,7 +2627,10 @@ impl AndroidManager {
 
                 while let Ok(Some(line)) = lines.next_line().await {
                     // Log errors for debugging
-                    if line.contains("Error") || line.contains("error") || line.contains("Failed") {
+                    if line.contains(LOG_LEVEL_ERROR)
+                        || line.contains("error")
+                        || line.contains(LOG_LEVEL_FAILED)
+                    {
                         eprintln!("sdkmanager error: {line}");
                     }
                 }
