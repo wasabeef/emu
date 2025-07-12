@@ -60,9 +60,10 @@ pub mod notifications {
 
 /// UI labels and static text
 pub mod ui {
-    // Window titles
-    pub const APP_TITLE: &str = " 🦤 Emu - Device Manager";
-    pub const APP_TITLE_FULLSCREEN: &str = " 🦤 Emu - Device Manager [FULLSCREEN LOGS]";
+    // Window titles (Note: These are now dynamically generated in render.rs with version)
+    // Kept for reference but not used directly
+    pub const APP_TITLE_BASE: &str = "Emu - Device Manager";
+    pub const APP_TITLE_FULLSCREEN_SUFFIX: &str = "[FULLSCREEN LOGS]";
 
     // Panel titles
     pub const ANDROID_DEVICES_TITLE: &str = "🤖 Android Devices";

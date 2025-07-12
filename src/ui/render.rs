@@ -133,11 +133,12 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
         ])
         .split(size);
 
-    // Header with icon
+    // Header with icon and version
+    let version = env!("CARGO_PKG_VERSION");
     let header_text = if state.fullscreen_logs {
-        " 🦤 Emu - Device Manager [FULLSCREEN LOGS]"
+        format!(" 🦤 Emu v{version} - Device Manager [FULLSCREEN LOGS]")
     } else {
-        " 🦤 Emu - Device Manager"
+        format!(" 🦤 Emu v{version} - Device Manager")
     };
     let header = Paragraph::new(header_text)
         .block(Block::default().borders(Borders::ALL))
