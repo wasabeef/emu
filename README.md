@@ -35,8 +35,19 @@ https://github.com/user-attachments/assets/3f4bfde6-6e54-45bd-9a7c-0cb2eeb2f861
 
 ## Installation
 
+### Homebrew
+
 ```bash
 brew install wasabeef/emu-tap/emu
+```
+
+### Build from Source
+
+```bash
+# Clone and install
+git clone https://github.com/wasabeef/emu.git
+cd emu
+cargo install --path .
 ```
 
 ## Requirements
@@ -84,3 +95,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 ## License
 
 MIT - see [LICENSE](LICENSE)
+
