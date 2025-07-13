@@ -45,24 +45,28 @@ Emu is built using a layered, async-first architecture that prioritizes performa
 ### Layer Responsibilities
 
 #### Terminal UI Layer (`ui/`)
+
 - **Rendering**: Terminal UI rendering using Ratatui
 - **Themes**: Color schemes and visual styling
 - **Widgets**: Custom UI components and layouts
 - **Input Handling**: Keyboard event processing
 
 #### Application Core Layer (`app/`)
+
 - **State Management**: Centralized application state
 - **Event Processing**: User action handling and coordination
 - **Background Tasks**: Async task management and coordination
 - **Business Logic**: Core application workflows
 
 #### Device Management Layer (`managers/`)
+
 - **Platform Abstraction**: Unified device operation interface
 - **Android Management**: AVD lifecycle and logcat streaming
 - **iOS Management**: Simulator control via simctl
 - **Caching**: Device metadata and detail caching
 
 #### System Layer (`utils/`, `models/`)
+
 - **Command Execution**: Safe system command execution
 - **Error Handling**: Error types and user-friendly formatting
 - **Configuration**: Application settings and platform detection
@@ -79,28 +83,28 @@ pub struct AppState {
     // Device data
     pub android_devices: Vec<AndroidDevice>,
     pub ios_devices: Vec<IosDevice>,
-    
+
     // UI state
     pub active_panel: Panel,
     pub selected_android: usize,
     pub selected_ios: usize,
     pub mode: Mode,
-    
+
     // API Level Management (New in v2.0)
     pub api_level_management: Option<ApiLevelManagementState>,
-    
+
     // Background operations
     pub is_loading: bool,
     pub device_operation_status: Option<String>,
-    
+
     // Caching
     pub cached_device_details: Option<DeviceDetails>,
     pub device_cache: Arc<RwLock<DeviceCache>>,
-    
+
     // Logging and notifications
     pub device_logs: VecDeque<LogEntry>,
     pub notifications: VecDeque<Notification>,
-    
+
     // Dialogs
     pub create_device_form: CreateDeviceForm,
     pub confirm_delete_dialog: Option<ConfirmDeleteDialog>,
@@ -109,6 +113,7 @@ pub struct AppState {
 ```
 
 Key responsibilities:
+
 - **Device State**: Tracks all device information and status
 - **UI Coordination**: Manages panel focus, selection, and modal states
 - **Cache Management**: Handles device detail and metadata caching
@@ -130,6 +135,7 @@ pub trait DeviceManager: Send + Sync + Clone {
 ```
 
 Platform implementations:
+
 - **AndroidManager**: Manages AVDs using Android SDK tools
 - **IosManager**: Controls iOS simulators via Xcode simctl
 
@@ -148,6 +154,7 @@ pub struct App {
 ```
 
 Responsibilities:
+
 - **Event Loop**: Processes user input and system events
 - **Task Coordination**: Manages background tasks and cancellation
 - **UI Coordination**: Coordinates between state and rendering
@@ -184,6 +191,7 @@ impl DeviceManager for IosManager {
 ```
 
 **Benefits**:
+
 - Code reuse across platforms
 - Easy testing with mock implementations
 - Clear separation of platform-specific logic
@@ -203,6 +211,7 @@ pub struct ApiLevelManagementState {
 ```
 
 **Features**:
+
 - Real-time installation progress tracking
 - Scrollable UI with keyboard navigation
 - Automatic cache invalidation on changes
@@ -228,6 +237,7 @@ impl App {
 ```
 
 **Benefits**:
+
 - Safe concurrent access to shared state
 - Non-blocking UI with background updates
 - Proper task coordination and cancellation
@@ -241,11 +251,11 @@ impl App {
     fn start_background_device_loading(&mut self) {
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
-        
+
         tokio::spawn(async move {
             // Load devices in background
             let devices = android_manager.list_devices().await?;
-            
+
             let mut state = state_clone.lock().await;
             state.android_devices = devices;
             state.is_loading = false;
@@ -255,6 +265,7 @@ impl App {
 ```
 
 **Benefits**:
+
 - Fast application startup
 - Responsive UI during heavy operations
 - Proper resource cleanup and cancellation
@@ -276,6 +287,7 @@ impl AppState {
 ```
 
 **Benefits**:
+
 - Reduced API calls and command executions
 - Faster UI responsiveness
 - Intelligent cache invalidation
@@ -291,19 +303,20 @@ impl App {
         if let Some(handle) = self.detail_update_handle.take() {
             handle.abort();
         }
-        
+
         // Schedule new update with delay
         let handle = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             // Perform update
         });
-        
+
         self.detail_update_handle = Some(handle);
     }
 }
 ```
 
 **Benefits**:
+
 - Smooth user experience during rapid navigation
 - Reduced system load from excessive updates
 - Proper task cancellation to prevent resource leaks
@@ -369,10 +382,10 @@ App::new() → tokio::spawn() → list_devices() → state.devices = ... → ren
 pub enum DeviceError {
     #[error("Device not found: {name}")]
     NotFound { name: String },
-    
+
     #[error("Invalid device configuration: {reason}")]
     InvalidConfig { reason: String },
-    
+
     #[error("Platform not supported: {platform}")]
     UnsupportedPlatform { platform: String },
 }
@@ -381,10 +394,10 @@ pub enum DeviceError {
 fn create_device(config: &DeviceConfig) -> Result<()> {
     validate_config(config)
         .with_context(|| format!("Invalid config for device '{}'", config.name))?;
-    
+
     execute_creation(config)
         .with_context(|| "Failed to create device")?;
-    
+
     Ok(())
 }
 ```
@@ -417,14 +430,17 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
 ### Test Categories
 
 #### Test Suite Overview
+
 The project has 15 test files with 31+ test functions covering:
 
 #### Unit Tests (`src/`)
+
 - **Location**: Alongside source code in `#[cfg(test)]` modules
 - **Purpose**: Test individual functions and methods
 - **Focus**: Logic validation, edge cases, error conditions
 
 #### Integration Tests (`tests/`)
+
 - **Device Lifecycle**: Complete device management workflows (`comprehensive_integration_test.rs`)
 - **Performance Tests**: Startup time and responsiveness validation (`startup_performance_test.rs`)
 - **UI Tests**: Navigation, focus management, state coordination (`ui_focus_and_theme_test.rs`)
@@ -433,6 +449,7 @@ The project has 15 test files with 31+ test functions covering:
 - **Error Handling**: Error conditions and recovery scenarios
 
 #### Performance Benchmarks
+
 - **Startup Time**: < 150ms (typical: ~104ms)
 - **Panel Switching**: < 100ms
 - **Device Navigation**: < 50ms
@@ -441,29 +458,31 @@ The project has 15 test files with 31+ test functions covering:
 ### Testing Patterns
 
 #### Async Test Pattern
+
 ```rust
 #[tokio::test]
 async fn test_device_creation() {
     let manager = AndroidManager::new().unwrap();
     let config = DeviceConfig::new("test_device", "pixel_7", "31");
-    
+
     let result = manager.create_device(&config).await;
     assert!(result.is_ok());
 }
 ```
 
 #### State Test Pattern
+
 ```rust
 #[test]
 fn test_state_consistency() {
     let mut state = AppState::new();
-    
+
     // Setup initial state
     state.add_device(mock_device());
-    
+
     // Perform operation
     state.select_device(0);
-    
+
     // Verify state consistency
     assert_eq!(state.selected_android, 0);
     assert!(state.get_selected_device().is_some());
@@ -471,13 +490,14 @@ fn test_state_consistency() {
 ```
 
 #### Performance Test Pattern
+
 ```rust
 #[tokio::test]
 async fn test_startup_performance() {
     let start = Instant::now();
     let app = App::new(Config::default()).await?;
     let duration = start.elapsed();
-    
+
     assert!(duration < Duration::from_millis(150));
     println!("Startup time: {:?}", duration); // Typical: ~104ms
 }
@@ -486,11 +506,13 @@ async fn test_startup_performance() {
 ### Test Infrastructure
 
 #### Mock Framework
+
 - **mockall**: Mock external dependencies and system commands
 - **Test Doubles**: Controlled test environments
 - **Isolation**: Independent test execution
 
 #### Assertion Framework
+
 - **assert_cmd**: Command-line interface testing
 - **predicates**: Complex assertion conditions
 - **Custom Assertions**: Domain-specific test helpers
@@ -498,23 +520,27 @@ async fn test_startup_performance() {
 ## New Features in v2.0
 
 ### API Level Management
+
 - **Dynamic System Image Discovery**: Real-time detection of available system images
 - **Installation Progress Tracking**: Live progress updates during installation
 - **Smart Cache Invalidation**: Automatic cache refresh on system image changes
 - **Architecture Detection**: Automatic selection of optimal architecture (x86_64/arm64)
 
 ### Enhanced Caching System
+
 - **Device Creation Cache**: Pre-loaded device types and API levels
 - **Background Refresh**: Automatic cache updates without blocking UI
 - **Context-Aware Invalidation**: Cache cleared on relevant operations
 
 ### Improved User Experience
+
 - **Scrollable Dialogs**: Better handling of long lists
 - **Loading Indicators**: Clear feedback during async operations
 - **Keyboard Navigation**: Circular navigation in device lists
 - **Real-time Status Updates**: Live device status monitoring
 
 ### iOS Simulator Integration
+
 - **Automatic App Lifecycle**: Simulator.app opens automatically when starting devices
 - **Smart Cleanup**: Simulator.app quits automatically when last device stops
 - **Graceful Shutdown**: Uses AppleScript for clean app termination with fallback

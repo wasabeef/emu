@@ -83,6 +83,7 @@ cargo run
 ### Development Tools
 
 #### Recommended Tools
+
 ```bash
 # Install cargo-watch for live reload during development
 cargo install cargo-watch
@@ -95,6 +96,7 @@ rustup component add rustfmt
 ```
 
 #### Useful Commands
+
 ```bash
 # Run with live reload
 cargo watch -x run
@@ -146,6 +148,7 @@ src/
 ### Key Design Patterns
 
 #### Async Trait Pattern
+
 All device managers implement the `DeviceManager` trait with async methods:
 
 ```rust
@@ -158,6 +161,7 @@ pub trait DeviceManager: Send + Sync + Clone {
 ```
 
 #### State Management Pattern
+
 Centralized state with thread-safe access:
 
 ```rust
@@ -168,6 +172,7 @@ pub struct App {
 ```
 
 #### Error Handling Pattern
+
 Use `anyhow` for error propagation and `thiserror` for custom errors:
 
 ```rust
@@ -184,17 +189,20 @@ pub enum DeviceError {
 ### Rust Style Guidelines
 
 #### Formatting
+
 - Use `cargo fmt` for automatic formatting
 - Follow standard Rust naming conventions
 - Use 4 spaces for indentation
 
 #### Code Quality
+
 - Run `cargo clippy` and fix all warnings
 - Use meaningful variable and function names
 - Add documentation comments for public APIs
 - Keep functions focused and reasonably sized
 
 #### Error Handling
+
 - Use `Result<T, E>` for fallible operations
 - Provide helpful error messages with context
 - Use `anyhow::Context` to add context to errors
@@ -213,6 +221,7 @@ fn parse_device_config(content: &str) -> DeviceConfig {
 ```
 
 #### Async Programming
+
 - Use `async/await` consistently
 - Avoid blocking operations in async contexts
 - Use `tokio::spawn` for background tasks
@@ -233,20 +242,21 @@ if let Some(handle) = self.background_task.take() {
 ### Documentation Standards
 
 #### Code Comments
+
 - Use `///` for public API documentation
 - Use `//` for implementation comments
 - Include examples for complex functions
 
-```rust
+````rust
 /// Creates a new Android Virtual Device with the specified configuration.
-/// 
+///
 /// # Arguments
 /// * `config` - Device configuration including name, API level, and hardware specs
-/// 
+///
 /// # Returns
 /// * `Ok(())` - Device created successfully
 /// * `Err(DeviceError)` - Creation failed
-/// 
+///
 /// # Example
 /// ```rust
 /// let config = DeviceConfig::new("Pixel_7_API_31", "pixel_7", "31");
@@ -255,9 +265,10 @@ if let Some(handle) = self.background_task.take() {
 pub async fn create_device(&self, config: &DeviceConfig) -> Result<()> {
     // Implementation
 }
-```
+````
 
 #### Commit Messages
+
 Use conventional commit format:
 
 ```
@@ -269,6 +280,7 @@ type(scope): description
 ```
 
 Types:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -278,6 +290,7 @@ Types:
 - `perf`: Performance improvements
 
 Examples:
+
 ```
 feat(android): add device creation with custom RAM/storage
 fix(ios): resolve simulator state detection issue
@@ -290,6 +303,7 @@ test(device): add comprehensive device lifecycle tests
 ### Test Categories
 
 #### Unit Tests
+
 Located in the same file as the code being tested:
 
 ```rust
@@ -306,6 +320,7 @@ mod tests {
 ```
 
 #### Integration Tests
+
 Located in `tests/` directory:
 
 ```rust
@@ -320,6 +335,7 @@ async fn test_complete_device_lifecycle() {
 ```
 
 #### Performance Tests
+
 Validate performance requirements:
 
 ```rust
@@ -328,7 +344,7 @@ async fn test_startup_performance() {
     let start = std::time::Instant::now();
     let app = App::new().await?;
     let duration = start.elapsed();
-    
+
     assert!(duration < std::time::Duration::from_millis(150));
 }
 ```
@@ -369,6 +385,7 @@ cargo test android::
 ### Pull Request Process
 
 1. **Update your fork**:
+
    ```bash
    git fetch upstream
    git checkout main
@@ -376,6 +393,7 @@ cargo test android::
    ```
 
 2. **Create a feature branch**:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -383,6 +401,7 @@ cargo test android::
 3. **Make your changes** following the coding standards
 
 4. **Test your changes**:
+
    ```bash
    cargo test --bins --tests
    cargo clippy
@@ -390,12 +409,14 @@ cargo test android::
    ```
 
 5. **Commit your changes**:
+
    ```bash
    git add .
    git commit -m "feat(scope): description of changes"
    ```
 
 6. **Push to your fork**:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -405,6 +426,7 @@ cargo test android::
 ### Pull Request Requirements
 
 #### Checklist
+
 - [ ] Code follows the style guidelines
 - [ ] Self-review of the code
 - [ ] Tests added for new functionality
@@ -414,23 +436,29 @@ cargo test android::
 - [ ] Code is formatted with `cargo fmt`
 
 #### PR Description Template
+
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Testing
+
 Describe the tests you ran to verify your changes
 
 ## Screenshots (if applicable)
+
 Add screenshots for UI changes
 
 ## Checklist
+
 - [ ] Code follows style guidelines
 - [ ] Self-review completed
 - [ ] Tests added/updated
@@ -483,6 +511,7 @@ Add screenshots for UI changes
 ### Development Questions
 
 If you need help with:
+
 - **Setup Issues**: Create an issue with the "help wanted" label
 - **Architecture Questions**: Start a discussion
 - **Code Review**: Ask in the PR comments
@@ -490,6 +519,7 @@ If you need help with:
 ## Recognition
 
 Contributors are recognized in several ways:
+
 - Listed in the project's contributors
 - Mentioned in release notes for significant contributions
 - Added to the CONTRIBUTORS.md file

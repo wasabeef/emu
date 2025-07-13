@@ -4,6 +4,7 @@
 //! It defines the common interface that both Android and iOS managers implement,
 //! along with helper functions for device name sanitization and tool discovery.
 
+use crate::models::device::Device;
 use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -454,6 +455,37 @@ pub async fn check_tool_version(tool_path: &std::path::Path) -> Result<String> {
         .to_string();
 
     Ok(version)
+}
+
+/// Unified device manager trait for use with trait objects.
+///
+/// This trait provides a simplified interface that works with trait objects,
+/// using boxed Device objects instead of associated types. This allows for
+/// dependency injection and easier testing with mock implementations.
+#[async_trait::async_trait]
+pub trait UnifiedDeviceManager: Send + Sync {
+    /// Lists all available devices for this platform.
+    ///
+    /// Returns devices as trait objects to enable platform-agnostic handling.
+    async fn list_devices(&self) -> Result<Vec<Box<dyn Device>>>;
+
+    /// Starts a virtual device by its identifier.
+    async fn start_device(&self, device_id: &str) -> Result<()>;
+
+    /// Stops a virtual device by its identifier.
+    async fn stop_device(&self, device_id: &str) -> Result<()>;
+
+    /// Creates a new virtual device with the given configuration.
+    async fn create_device(&self, config: &DeviceConfig) -> Result<()>;
+
+    /// Permanently deletes a virtual device and its data.
+    async fn delete_device(&self, device_id: &str) -> Result<()>;
+
+    /// Wipes a virtual device to factory defaults.
+    async fn wipe_device(&self, device_id: &str) -> Result<()>;
+
+    /// Checks if the required tools for this platform are available.
+    async fn is_available(&self) -> bool;
 }
 
 #[cfg(test)]

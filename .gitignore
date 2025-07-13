@@ -53,3 +53,18 @@ flamegraph.svg
 # Environment files
 .env
 .env.local
+
+# Project planning documents
+plans/
+
+# Analysis scripts (temporary)
+scripts/measure_*.sh
+scripts/categorize_*.sh
+scripts/identify_*.sh
+
+# Additional coverage patterns
+coverage/
+coverage_report/
+
+# Project analysis (temporary)
+analysis_results/

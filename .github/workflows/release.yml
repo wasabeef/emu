@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*' # Trigger on existing tags
+      - "v*.*.*" # Trigger on existing tags
 
 permissions:
   contents: write
@@ -130,25 +130,25 @@ jobs:
           cd emu
           VERSION=${{ github.ref_name }}
           VERSION_NUM=${VERSION#v}
-          
+
           echo "Version: $VERSION"
           echo "Version number: $VERSION_NUM"
-          
+
           # Download and calculate SHA256
           echo "Calculating SHA256 for each platform..."
-          
+
           MACOS_ARM64_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Darwin-aarch64.tar.gz"
           MACOS_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Darwin-x86_64.tar.gz"
           LINUX_X86_URL="https://github.com/wasabeef/emu/releases/download/${VERSION}/emu-Linux-x86_64.tar.gz"
-          
+
           echo "URLs:"
           echo "  macOS ARM64: $MACOS_ARM64_URL"
           echo "  macOS x86_64: $MACOS_X86_URL"
           echo "  Linux x86_64: $LINUX_X86_URL"
-          
+
           # Download files with retry and calculate SHA256
           echo "Downloading release assets..."
-          
+
           # Function to download with retry
           download_with_retry() {
             local url=$1
@@ -179,17 +179,17 @@ jobs:
             echo "  ✗ Failed to download after $max_attempts attempts"
             return 1
           }
-          
+
           # Download each file with retry
           download_with_retry "$MACOS_ARM64_URL" "emu-macos-arm64.tar.gz" || exit 1
           download_with_retry "$MACOS_X86_URL" "emu-macos-x86.tar.gz" || exit 1
           download_with_retry "$LINUX_X86_URL" "emu-linux-x86.tar.gz" || exit 1
-          
+
           # Calculate SHA256
           MACOS_ARM64_SHA=$(shasum -a 256 emu-macos-arm64.tar.gz | cut -d' ' -f1)
           MACOS_X86_SHA=$(shasum -a 256 emu-macos-x86.tar.gz | cut -d' ' -f1)
           LINUX_X86_SHA=$(shasum -a 256 emu-linux-x86.tar.gz | cut -d' ' -f1)
-          
+
           # Verify SHA256 values are different
           if [ "$MACOS_ARM64_SHA" = "$MACOS_X86_SHA" ] || [ "$MACOS_ARM64_SHA" = "$LINUX_X86_SHA" ]; then
             echo "ERROR: SHA256 values are identical, which suggests download issues"
@@ -198,15 +198,15 @@ jobs:
             echo "  Linux x86_64: $LINUX_X86_SHA"
             exit 1
           fi
-          
+
           # Clean up downloaded files
           rm -f emu-*.tar.gz
-          
+
           echo "SHA256 values:"
           echo "  macOS ARM64: $MACOS_ARM64_SHA"
           echo "  macOS x86_64: $MACOS_X86_SHA"
           echo "  Linux x86_64: $LINUX_X86_SHA"
-          
+
           # Generate formula using printf to avoid heredoc issues
           printf 'class Emu < Formula
             desc "TUI for managing Android emulators and iOS simulators"
@@ -242,7 +242,7 @@ jobs:
           "$MACOS_X86_URL" "$MACOS_X86_SHA" \
           "$LINUX_X86_URL" "$LINUX_X86_SHA" \
           > ../emu-tap/Formula/emu.rb
-          
+
           echo "Generated formula:"
           cat ../emu-tap/Formula/emu.rb
 
@@ -251,11 +251,11 @@ jobs:
           cd emu-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Add timestamp to force update even if content is the same
           echo "" >> Formula/emu.rb
           echo "# Updated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> Formula/emu.rb
-          
+
           git add Formula/emu.rb
           git commit -m "emu ${{ github.ref_name }}"
           git push

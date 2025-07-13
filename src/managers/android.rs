@@ -2682,3 +2682,39 @@ impl AndroidManager {
         }
     }
 }
+
+/// Implementation of UnifiedDeviceManager for AndroidManager
+#[async_trait::async_trait]
+impl crate::managers::common::UnifiedDeviceManager for AndroidManager {
+    async fn list_devices(&self) -> Result<Vec<Box<dyn crate::models::device::Device>>> {
+        let devices = <Self as DeviceManager>::list_devices(self).await?;
+        Ok(devices
+            .into_iter()
+            .map(|d| Box::new(d) as Box<dyn crate::models::device::Device>)
+            .collect())
+    }
+
+    async fn start_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::start_device(self, device_id).await
+    }
+
+    async fn stop_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::stop_device(self, device_id).await
+    }
+
+    async fn create_device(&self, config: &crate::managers::common::DeviceConfig) -> Result<()> {
+        <Self as DeviceManager>::create_device(self, config).await
+    }
+
+    async fn delete_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::delete_device(self, device_id).await
+    }
+
+    async fn wipe_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::wipe_device(self, device_id).await
+    }
+
+    async fn is_available(&self) -> bool {
+        <Self as DeviceManager>::is_available(self).await
+    }
+}
