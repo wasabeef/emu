@@ -1,51 +1,23 @@
 # Lefthook configuration for Emu project
 # https://github.com/evilmartians/lefthook
 
-# Skip lefthook execution in CI environment
-skip_in_ci: true
-
-# Optionally skip in specific cases
-# skip_in_rebase: true
-
 pre-commit:
   parallel: false
   commands:
-    # Auto-format Rust code
-    fmt:
-      glob: "*.rs"
-      run: cargo fmt --all
+    # Auto-format project files
+    format:
+      glob: "*.{rs,js,ts,md,json,yml,toml}"
+      run: bun run format
       stage_fixed: true
 
     # Run clippy linter
     clippy:
       glob: "*.rs"
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: bun run lint
 
 # Optional: Run tests before push
 pre-push:
   parallel: true
   commands:
     test:
-      run: cargo test --bins --tests --quiet
-      skip:
-        - wip
-
-# Commands that can be run manually
-commands:
-  fmt:
-    run: cargo fmt --all
-
-  lint:
-    run: cargo clippy --all-targets --all-features -- -D warnings
-
-  test:
-    run: cargo test
-
-  check:
-    run: |
-      echo "Running format check..."
-      cargo fmt --all -- --check
-      echo "Running clippy..."
-      cargo clippy --all-targets --all-features -- -D warnings
-      echo "Running tests..."
-      cargo test
+      run: bun run test

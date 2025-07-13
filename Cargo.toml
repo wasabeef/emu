@@ -10,6 +10,10 @@ license = "MIT OR Apache-2.0"
 keywords = ["android", "ios", "emulator", "simulator", "tui"]
 categories = ["command-line-utilities", "development-tools"]
 
+[features]
+default = []
+test-utils = []
+
 [dependencies]
 # TUI Framework
 ratatui = "0.29"
@@ -42,6 +46,11 @@ which = "8.0"
 regex = "1.11"
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = "1.5"
+
+# For mock implementations
+async-trait = "0.1"
+rand = "0.8"
+futures = "0.3"
 
 [dev-dependencies]
 assert_cmd = "2.0"

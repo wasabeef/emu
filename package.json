@@ -10,13 +10,14 @@
     "lefthook": "lefthook",
     "format": "cargo fmt --all && prettier --write .",
     "lint": "cargo clippy --all-targets --all-features -- -D warnings",
-    "test": "cargo test",
+    "test": "cargo test --features test-utils",
     "check": "bun run fmt && bun run lint && bun run test",
     "build": "cargo build --release",
     "dev": "cargo run",
     "watch": "cargo watch -x run"
   },
   "devDependencies": {
-    "lefthook": "^1.10.0"
+    "lefthook": "^1.12.2",
+    "prettier": "^3.6.2"
   }
 }
