@@ -54,11 +54,15 @@ flamegraph.svg
 .env
 .env.local
 
-# Test analysis results (temporary)
-analysis_results/
+# Test analysis results (temporary)  
 *_IMPLEMENTATION.md
 *_RESULTS.md
 *_PLAN.md
+
+# CI workflow documentation (temporary)
+CI_WORKFLOW_UPDATES.md
+MOCK_INTEGRATION_SUMMARY.md
+EMULATOR_INDEPENDENT_TEST_PLAN.md
 
 # Analysis scripts (temporary)
 scripts/measure_*.sh
@@ -67,3 +71,7 @@ scripts/identify_*.sh
 
 # Additional coverage patterns
 coverage/
+coverage_report/
+
+# Project analysis (temporary)
+analysis_results/
