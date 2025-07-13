@@ -58,11 +58,14 @@ jobs:
               print('0.0')
           ")
 
-          # Get dynamic test counts
-          TOTAL_TESTS=$(cargo test --bins --tests 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
-          SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
-          PERFORMANCE_TESTS=$(cargo test --test startup_performance_test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
-          LIFECYCLE_TESTS=$(cargo test --test device_lifecycle_comprehensive_test 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
+          # Get dynamic test counts by automatically summing passed tests from cargo test output
+          # This works by extracting numbers from "test result: ok. X passed" lines and summing them
+          TOTAL_TESTS=$(cargo test --bins --tests 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          
+          # Count individual test categories automatically by summing their actual execution results
+          SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          PERFORMANCE_TESTS=$(cargo test --test startup_performance_test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          LIFECYCLE_TESTS=$(cargo test --test device_lifecycle_comprehensive_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
 
           echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
           echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
@@ -139,11 +142,12 @@ jobs:
           cargo test --test advanced_security_test --verbose
           cargo test --test path_traversal_security_test --verbose
           cargo test --test input_validation_comprehensive_test --verbose
+          cargo test --test command_security_test --verbose
           echo "✅ All security tests passed"
 
       - name: Security test summary
         run: |
-          SECURITY_COUNT=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
+          SECURITY_COUNT=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           echo "## 🔒 Security Test Results"
           echo "- ✅ Command injection prevention"
           echo "- ✅ Path traversal protection"
@@ -218,7 +222,7 @@ jobs:
       - name: Run all tests
         run: |
           echo "🧪 Running comprehensive test suite..."
-          TOTAL_TESTS=$(cargo test --bins --tests --verbose 2>&1 | grep -o '[0-9]\+ passed' | sed 's/ passed//' || echo '0')
+          TOTAL_TESTS=$(cargo test --bins --tests --verbose 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           echo "✅ All ${TOTAL_TESTS} tests passed"
 
       - name: Test suite summary
