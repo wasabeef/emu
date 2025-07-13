@@ -1,10 +1,9 @@
 ---
 name: Pull Request
 about: Suggest a change to the project
-title: ''
-labels: ''
-assignees: ''
-
+title: ""
+labels: ""
+assignees: ""
 ---
 
 ## 📝 Description

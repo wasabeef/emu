@@ -17,6 +17,7 @@ This document provides comprehensive guidance for developers working on Emu, cov
 ### Prerequisites
 
 #### Required Tools
+
 - **Rust**: Version 1.70 or later
 - **Git**: For version control
 - **Modern Terminal**: With 256+ color support
@@ -24,6 +25,7 @@ This document provides comprehensive guidance for developers working on Emu, cov
 #### Platform-Specific Requirements
 
 **Android Development (All Platforms)**:
+
 ```bash
 # Verify Android SDK setup
 echo $ANDROID_HOME
@@ -33,6 +35,7 @@ emulator -version
 ```
 
 **iOS Development (macOS Only)**:
+
 ```bash
 # Verify Xcode setup
 xcode-select -p
@@ -66,25 +69,29 @@ rustup component add rustfmt
 ### IDE Configuration
 
 #### VS Code Setup
+
 Recommended extensions:
+
 - **rust-analyzer**: Language server
 - **CodeLLDB**: Debugging support
 - **Even Better TOML**: Configuration file support
 - **Error Lens**: Inline error display
 
 `.vscode/settings.json`:
+
 ```json
 {
-    "rust-analyzer.cargo.features": "full",
-    "rust-analyzer.checkOnSave.command": "clippy",
-    "editor.formatOnSave": true,
-    "files.associations": {
-        "*.rs": "rust"
-    }
+  "rust-analyzer.cargo.features": "full",
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "editor.formatOnSave": true,
+  "files.associations": {
+    "*.rs": "rust"
+  }
 }
 ```
 
 #### RustRover/IntelliJ Setup
+
 - Install Rust plugin
 - Configure clippy integration
 - Set up test runner
@@ -93,6 +100,7 @@ Recommended extensions:
 ### Environment Variables
 
 Environment variables for development:
+
 ```bash
 # Debug logging
 RUST_LOG=debug
@@ -179,6 +187,7 @@ docs/
 ### Daily Development
 
 #### Basic Commands
+
 ```bash
 # Start development with live reload
 cargo watch -x run
@@ -206,6 +215,7 @@ cargo test
 ```
 
 #### Advanced Commands
+
 ```bash
 # Build optimized binary
 cargo build --release
@@ -227,6 +237,7 @@ cargo doc --open
 ### Git Workflow
 
 #### Branch Naming
+
 - **Feature**: `feature/device-details-panel`
 - **Bug Fix**: `fix/android-state-detection`
 - **Documentation**: `docs/development-guide-updates`
@@ -234,7 +245,9 @@ cargo doc --open
 - **Refactor**: `refactor/async-state-management`
 
 #### Commit Messages
+
 Follow conventional commit format:
+
 ```
 type(scope): description
 
@@ -244,6 +257,7 @@ Closes #issue-number
 ```
 
 Examples:
+
 ```
 feat(android): add device wipe functionality
 
@@ -266,6 +280,7 @@ start, stop, delete, and error conditions.
 ### Code Review Process
 
 #### Before Submitting
+
 ```bash
 # Ensure code quality
 cargo fmt
@@ -277,6 +292,7 @@ cargo audit
 ```
 
 #### PR Checklist
+
 - [ ] Code follows style guidelines
 - [ ] All tests pass
 - [ ] New functionality has tests
@@ -290,10 +306,13 @@ cargo audit
 ### Test Categories
 
 #### Test Suite Overview
+
 The project has 15 test files with 31+ test functions covering all major functionality.
 
 #### Unit Tests
+
 Located in source files with `#[cfg(test)]`:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -314,7 +333,9 @@ mod tests {
 ```
 
 #### Integration Tests
+
 Located in `tests/` directory:
+
 ```rust
 // tests/device_lifecycle_test.rs
 use emu::managers::AndroidManager;
@@ -323,7 +344,7 @@ use emu::models::DeviceConfig;
 #[tokio::test]
 async fn test_complete_device_lifecycle() {
     let manager = AndroidManager::new().unwrap();
-    
+
     // Test complete workflow
     let config = DeviceConfig::new("test_device", "pixel_7", "31");
     manager.create_device(&config).await.unwrap();
@@ -334,13 +355,14 @@ async fn test_complete_device_lifecycle() {
 ```
 
 #### Performance Tests
+
 ```rust
 #[tokio::test]
 async fn test_startup_performance() {
     let start = std::time::Instant::now();
     let app = App::new(Config::default()).await.unwrap();
     let duration = start.elapsed();
-    
+
     assert!(duration < std::time::Duration::from_millis(150));
     println!("Startup time: {:?}", duration);
 }
@@ -377,6 +399,7 @@ cargo tarpaulin --out Html
 ### Test Guidelines
 
 #### Writing Good Tests
+
 1. **Descriptive Names**: Test names should clearly describe what is being tested
 2. **Single Responsibility**: Each test should test one specific behavior
 3. **Independent**: Tests should not depend on each other
@@ -385,13 +408,14 @@ cargo tarpaulin --out Html
 6. **Coverage**: Aim for comprehensive coverage - current suite has 31+ test functions
 
 #### Mock Usage
+
 ```rust
 use mockall::predicate::*;
 use mockall::mock;
 
 mock! {
     AndroidManager {}
-    
+
     #[async_trait]
     impl DeviceManager for AndroidManager {
         async fn list_devices(&self) -> Result<Vec<AndroidDevice>>;
@@ -402,11 +426,11 @@ mock! {
 #[tokio::test]
 async fn test_with_mock() {
     let mut mock_manager = MockAndroidManager::new();
-    
+
     mock_manager
         .expect_list_devices()
         .returning(|| Ok(vec![create_mock_device()]));
-    
+
     let devices = mock_manager.list_devices().await.unwrap();
     assert_eq!(devices.len(), 1);
 }
@@ -415,6 +439,7 @@ async fn test_with_mock() {
 ## Performance Guidelines
 
 ### Performance Requirements
+
 - **Startup Time**: < 150ms (typical: ~104ms)
 - **Panel Switching**: < 100ms
 - **Device Navigation**: < 50ms
@@ -424,12 +449,13 @@ async fn test_with_mock() {
 ### Optimization Strategies
 
 #### Startup Optimization
+
 ```rust
 // Good: Background loading
 fn start_background_device_loading(&mut self) {
     let state_clone = Arc::clone(&self.state);
     let manager = self.android_manager.clone();
-    
+
     tokio::spawn(async move {
         // Load devices in background
         let devices = manager.list_devices().await?;
@@ -446,18 +472,19 @@ async fn new() -> Result<Self> {
 ```
 
 #### UI Responsiveness
+
 ```rust
 // Good: Debounced updates
 async fn schedule_update(&mut self) {
     if let Some(handle) = self.update_handle.take() {
         handle.abort(); // Cancel previous update
     }
-    
+
     let handle = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(50)).await;
         // Perform update
     });
-    
+
     self.update_handle = Some(handle);
 }
 
@@ -468,12 +495,13 @@ fn on_selection_change(&mut self) {
 ```
 
 #### Memory Management
+
 ```rust
 // Good: Bounded collections
 impl AppState {
     pub fn add_log(&mut self, level: String, message: String) {
         self.device_logs.push_back(LogEntry::new(level, message));
-        
+
         // Limit log entries (max 1000)
         while self.device_logs.len() > self.max_log_entries {
             self.device_logs.pop_front();
@@ -522,6 +550,7 @@ RUST_LOG=trace cargo run -- --debug
 ### Common Issues
 
 #### Android SDK Issues
+
 ```bash
 # Verify SDK installation
 echo $ANDROID_HOME
@@ -535,6 +564,7 @@ which adb
 ```
 
 #### iOS Issues (macOS)
+
 ```bash
 # Verify Xcode installation
 xcode-select -p
@@ -545,6 +575,7 @@ xcode-select --install
 ```
 
 #### Performance Issues
+
 ```bash
 # Profile startup
 time cargo run --release
@@ -559,6 +590,7 @@ ps aux | grep emu
 ### Debugging Tools
 
 #### Rust-Specific
+
 ```bash
 # Debug with lldb
 cargo build
@@ -570,6 +602,7 @@ gdb target/debug/emu
 ```
 
 #### Application-Specific
+
 ```rust
 // Add debug prints
 log::debug!("Device operation: {:?}", operation);
@@ -587,16 +620,19 @@ fn validate_state(&self) {
 ### Troubleshooting Guide
 
 #### Build Issues
+
 1. **Dependency conflicts**: `cargo clean && cargo build`
 2. **Rust version**: `rustup update`
 3. **Missing components**: `rustup component add clippy rustfmt`
 
 #### Runtime Issues
+
 1. **Android SDK**: Verify `ANDROID_HOME` and PATH
 2. **iOS Simulator**: Check Xcode installation
 3. **Permissions**: Ensure terminal has necessary permissions
 
 #### Test Issues
+
 1. **Flaky tests**: Check for race conditions
 2. **Platform-specific**: Use conditional compilation
 3. **Performance tests**: Run on consistent hardware
@@ -606,11 +642,13 @@ fn validate_state(&self) {
 ### Version Management
 
 Follow [Semantic Versioning](https://semver.org/):
+
 - **MAJOR**: Breaking changes
 - **MINOR**: New features (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)
 
 #### Version Update Process
+
 1. Update `Cargo.toml` version
 2. Update `CHANGELOG.md`
 3. Create git tag
@@ -664,6 +702,7 @@ cargo publish
 ## Constants Architecture
 
 ### Overview
+
 The application uses a modular constants system to eliminate hardcoded strings and improve maintainability. Constants are organized by category in the `src/constants/` directory.
 
 ### Module Structure
@@ -689,6 +728,7 @@ use crate::constants::{
 ### Categories
 
 #### Commands (`commands.rs`)
+
 - CLI tool names and paths
 - Command arguments
 - Platform-specific commands
@@ -700,6 +740,7 @@ pub const AVDMANAGER: &str = "avdmanager";
 ```
 
 #### Defaults (`defaults.rs`)
+
 - Default configuration values
 - UI dimensions
 - Resource limits
@@ -711,6 +752,7 @@ pub const MAX_LOG_ENTRIES: usize = 1000;
 ```
 
 #### Environment Variables (`env_vars.rs`)
+
 - System environment variable names
 - Configuration paths
 
@@ -720,6 +762,7 @@ pub const RUST_LOG: &str = "RUST_LOG";
 ```
 
 #### Files (`files.rs`)
+
 - File paths and extensions
 - Configuration file names
 
@@ -729,6 +772,7 @@ pub const HARDWARE_QEMU_INI: &str = "hardware-qemu.ini";
 ```
 
 #### Messages (`messages.rs`)
+
 - User-facing strings
 - Error messages
 - Status notifications
@@ -739,6 +783,7 @@ pub const MSG_LOADING_DEVICES: &str = "Loading devices...";
 ```
 
 #### Patterns (`patterns.rs`)
+
 - Regular expressions
 - Parsing patterns
 
@@ -748,6 +793,7 @@ pub const API_LEVEL_PATTERN: &str = r"API (\d+)";
 ```
 
 #### Performance (`performance.rs`)
+
 - Timing constants
 - Debounce delays
 - Cache durations
@@ -774,6 +820,7 @@ pub const CACHE_EXPIRY_SECS: u64 = 300; // 5 minutes
 4. Replace hardcoded values throughout codebase
 
 Example:
+
 ```rust
 // In messages.rs
 /// Message shown when device deletion is confirmed
@@ -786,6 +833,7 @@ state.add_notification(MSG_DEVICE_DELETED, NotificationType::Success);
 ## Best Practices Summary
 
 ### Code Quality
+
 - Run `cargo fmt` and `cargo clippy` before committing
 - Write comprehensive tests for new functionality (follow the pattern of 31+ existing tests)
 - Use meaningful variable and function names
@@ -793,6 +841,7 @@ state.add_notification(MSG_DEVICE_DELETED, NotificationType::Success);
 - Follow the trait-based abstraction pattern for platform-specific code
 
 ### Performance
+
 - Keep startup time under 150ms (typical: ~104ms)
 - Use background loading for heavy operations
 - Implement debouncing for UI operations (50-100ms delays)
@@ -800,18 +849,21 @@ state.add_notification(MSG_DEVICE_DELETED, NotificationType::Success);
 - Smart caching with platform-aware invalidation
 
 ### Error Handling
+
 - Use `Result<T, E>` for fallible operations
 - Provide helpful error messages with context
 - Never use `.unwrap()` in user-facing code
 - Implement graceful error recovery
 
 ### Testing
+
 - Write tests for all new functionality
 - Include performance tests for critical paths
 - Test error conditions and edge cases
 - Use mocks for external dependencies
 
 ### Documentation
+
 - Keep documentation up to date
 - Include examples in API documentation
 - Document architectural decisions
@@ -829,28 +881,28 @@ The `DeviceManager` trait provides a unified interface for device operations acr
 pub trait DeviceManager: Send + Sync + Clone {
     /// List all available devices
     fn list_devices(&self) -> impl Future<Output = Result<Vec<Device>>> + Send;
-    
+
     /// Start a device by identifier
     fn start_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
-    
+
     /// Stop a device by identifier
     fn stop_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
-    
+
     /// Create a new device with the given configuration
     fn create_device(&self, config: &DeviceConfig) -> impl Future<Output = Result<()>> + Send;
-    
+
     /// Delete a device by identifier
     fn delete_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
-    
+
     /// Wipe device data (cold boot)
     fn wipe_device(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
-    
+
     /// Get detailed information about a device
     fn get_device_details(&self, id: &str) -> impl Future<Output = Result<DeviceDetails>> + Send;
-    
+
     /// List available device types for creation
     fn list_device_types(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
-    
+
     /// List available system images or runtimes
     fn list_available_targets(&self) -> impl Future<Output = Result<Vec<(String, String)>>> + Send;
 }
@@ -865,17 +917,17 @@ use emu::models::DeviceConfig;
 #[tokio::main]
 async fn main() -> Result<()> {
     let manager = AndroidManager::new()?;
-    
+
     // List all devices
     let devices = manager.list_devices().await?;
-    
+
     // Create a new device
     let config = DeviceConfig::new("MyDevice", "pixel_7", "31");
     manager.create_device(&config).await?;
-    
+
     // Start the device
     manager.start_device("MyDevice").await?;
-    
+
     Ok(())
 }
 ```
@@ -893,7 +945,7 @@ pub struct AndroidDevice {
     pub path: String,
 }
 
-// iOS Device  
+// iOS Device
 pub struct IosDevice {
     pub udid: String,
     pub name: String,
@@ -941,6 +993,7 @@ impl DeviceConfig {
 ### Prerequisites
 
 1. Ensure all tests are passing:
+
    ```bash
    cargo test --bins --tests --all-features  # Recommended: excludes doctests
    # cargo test --all-features              # Optional: includes doctests (may have import issues)
@@ -949,12 +1002,14 @@ impl DeviceConfig {
    ```
 
 2. Update version in `Cargo.toml`:
+
    ```toml
    [package]
    version = "0.2.2"  # Update this
    ```
 
 3. Update `CHANGELOG.md` (optional - automated release notes are generated):
+
    - The release process will automatically generate release notes using git-cliff
    - Manual updates are only needed for major releases or special announcements
 
@@ -967,12 +1022,14 @@ impl DeviceConfig {
 ### Creating a Release
 
 1. Create and push a tag:
+
    ```bash
    git tag v0.1.0
    git push origin v0.1.0
    ```
 
 2. The GitHub Actions workflow will automatically:
+
    - Generate release notes from commit history using git-cliff
    - Build binaries for all platforms
    - Create a GitHub release with auto-generated release notes
@@ -988,6 +1045,7 @@ impl DeviceConfig {
 
 1. Verify the release on GitHub
 2. Test installation via Homebrew:
+
    ```bash
    brew tap wasabeef/tap
    brew install emu
@@ -1001,6 +1059,7 @@ impl DeviceConfig {
 ### Version Numbering
 
 We follow [Semantic Versioning](https://semver.org/):
+
 - MAJOR version for incompatible API changes
 - MINOR version for backwards-compatible functionality
 - PATCH version for backwards-compatible bug fixes
@@ -1008,6 +1067,7 @@ We follow [Semantic Versioning](https://semver.org/):
 ### Commit Conventions
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) for automatic changelog generation:
+
 - `feat:` New features
 - `fix:` Bug fixes
 - `docs:` Documentation changes
@@ -1017,6 +1077,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) for automatic c
 - `chore:` Maintenance tasks
 
 Example:
+
 ```bash
 git commit -m "feat: add iOS simulator log streaming"
 git commit -m "fix: prevent crash on small terminal sizes"
@@ -1069,16 +1130,19 @@ emulator -list-avds
 ### Common Issues
 
 #### Build Issues
+
 1. **Dependency conflicts**: `cargo clean && cargo build`
 2. **Rust version**: `rustup update`
 3. **Missing components**: `rustup component add clippy rustfmt`
 
 #### Runtime Issues
+
 1. **Android SDK**: Verify `ANDROID_HOME` and PATH
 2. **iOS Simulator**: Check Xcode installation
 3. **Permissions**: Ensure terminal has necessary permissions
 
 #### Test Issues
+
 1. **Flaky tests**: Check for race conditions
 2. **Platform-specific**: Use conditional compilation
 3. **Performance tests**: Run on consistent hardware

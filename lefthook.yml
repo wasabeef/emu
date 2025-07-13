@@ -15,7 +15,7 @@ pre-commit:
       glob: "*.rs"
       run: cargo fmt --all
       stage_fixed: true
-      
+
     # Run clippy linter
     clippy:
       glob: "*.rs"
@@ -34,13 +34,13 @@ pre-push:
 commands:
   fmt:
     run: cargo fmt --all
-    
+
   lint:
     run: cargo clippy --all-targets --all-features -- -D warnings
-    
+
   test:
     run: cargo test
-    
+
   check:
     run: |
       echo "Running format check..."
