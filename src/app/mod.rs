@@ -2642,12 +2642,12 @@ impl App {
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();
 
-        // 真のバックグラウンドタスクとして実行（UIブロックなし）
+        // 真のバックグラウンドタスクとして実行（UI ブロックなし）
         tokio::spawn(async move {
-            // 短時間待機してUIが表示されてから読み込み
+            // 短時間待機して UI が表示されてから読み込み
             tokio::time::sleep(LOG_UPDATE_DEBOUNCE).await;
 
-            // Androidデバイス一覧を読み込み
+            // Android デバイス一覧を読み込み
             match android_manager.list_devices().await {
                 Ok(android_devices) => {
                     let mut state = state_clone.lock().await;

@@ -978,6 +978,43 @@ impl DeviceManager for IosManager {
     }
 }
 
+/// Implementation of UnifiedDeviceManager for IosManager (macOS)
+#[cfg(target_os = "macos")]
+#[async_trait::async_trait]
+impl crate::managers::common::UnifiedDeviceManager for IosManager {
+    async fn list_devices(&self) -> Result<Vec<Box<dyn crate::models::device::Device>>> {
+        let devices = <Self as DeviceManager>::list_devices(self).await?;
+        Ok(devices
+            .into_iter()
+            .map(|d| Box::new(d) as Box<dyn crate::models::device::Device>)
+            .collect())
+    }
+
+    async fn start_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::start_device(self, device_id).await
+    }
+
+    async fn stop_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::stop_device(self, device_id).await
+    }
+
+    async fn create_device(&self, config: &crate::managers::common::DeviceConfig) -> Result<()> {
+        <Self as DeviceManager>::create_device(self, config).await
+    }
+
+    async fn delete_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::delete_device(self, device_id).await
+    }
+
+    async fn wipe_device(&self, device_id: &str) -> Result<()> {
+        <Self as DeviceManager>::wipe_device(self, device_id).await
+    }
+
+    async fn is_available(&self) -> bool {
+        <Self as DeviceManager>::is_available(self).await
+    }
+}
+
 // Stub implementation for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
 /// iOS Simulator manager stub for non-macOS platforms.
@@ -1034,5 +1071,38 @@ impl DeviceManager for IosManager {
 
     async fn is_available(&self) -> bool {
         false // Not available on non-macOS
+    }
+}
+
+/// Implementation of UnifiedDeviceManager for IosManager (non-macOS)
+#[cfg(not(target_os = "macos"))]
+#[async_trait::async_trait]
+impl crate::managers::common::UnifiedDeviceManager for IosManager {
+    async fn list_devices(&self) -> Result<Vec<Box<dyn crate::models::device::Device>>> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn start_device(&self, _device_id: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn stop_device(&self, _device_id: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn create_device(&self, _config: &crate::managers::common::DeviceConfig) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn delete_device(&self, _device_id: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn wipe_device(&self, _device_id: &str) -> Result<()> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    async fn is_available(&self) -> bool {
+        false
     }
 }

@@ -7,6 +7,24 @@
 use crate::constants::{android::DEFAULT_STORAGE_FALLBACK, defaults::DEFAULT_RAM_MB};
 use serde::{Deserialize, Serialize};
 
+/// Common interface for all device types.
+///
+/// This trait provides a unified interface for accessing device properties
+/// across different platforms (Android and iOS).
+pub trait Device: Send + Sync + std::fmt::Debug {
+    /// Returns the unique identifier for the device
+    fn id(&self) -> &str;
+
+    /// Returns the display name of the device
+    fn name(&self) -> &str;
+
+    /// Returns the current status of the device
+    fn status(&self) -> &DeviceStatus;
+
+    /// Returns whether the device is currently running
+    fn is_running(&self) -> bool;
+}
+
 /// Represents an Android Virtual Device (AVD).
 ///
 /// Contains all information needed to display and manage an Android emulator
@@ -73,6 +91,42 @@ pub enum DeviceStatus {
     Error,
     /// Device status cannot be determined
     Unknown,
+}
+
+impl Device for AndroidDevice {
+    fn id(&self) -> &str {
+        &self.name
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn status(&self) -> &DeviceStatus {
+        &self.status
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
+}
+
+impl Device for IosDevice {
+    fn id(&self) -> &str {
+        &self.udid
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn status(&self) -> &DeviceStatus {
+        &self.status
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
 }
 
 impl Default for AndroidDevice {

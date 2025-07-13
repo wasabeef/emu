@@ -21,10 +21,14 @@
 //! # Usage
 //!
 //! ```rust
-//! use emu::constants::priorities::{ANDROID_PIXEL_PRIORITY, IOS_IPHONE_PRO_MAX_PRIORITY};
+//! use emu::constants::priorities::{ANDROID_PIXEL_PRIORITY, ANDROID_NEXUS_PRIORITY, IOS_IPHONE_PRO_MAX_PRIORITY};
 //!
-//! // Sort devices by priority (lower values first)
-//! devices.sort_by_key(|device| get_device_priority(device));
+//! // Priority constants can be used directly for comparison
+//! assert_eq!(ANDROID_PIXEL_PRIORITY, 30);
+//! assert_eq!(IOS_IPHONE_PRO_MAX_PRIORITY, 80);
+//!
+//! // Lower values indicate higher priority
+//! assert!(ANDROID_PIXEL_PRIORITY < ANDROID_NEXUS_PRIORITY);
 //! ```
 // Android device priorities (for sorting in device lists)
 pub const ANDROID_TABLET_PRIORITY: u8 = 100;
