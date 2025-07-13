@@ -166,7 +166,7 @@ jobs:
 
       - name: Generate coverage
         run: |
-          cargo tarpaulin --out xml --output-dir coverage --all-features --bins --tests --timeout 180 --verbose
+          cargo tarpaulin --out xml --output-dir coverage --features test-utils --bins --tests --timeout 180 --verbose
 
       - name: Analyze test results
         id: analysis

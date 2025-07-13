@@ -54,15 +54,8 @@ flamegraph.svg
 .env
 .env.local
 
-# Test analysis results (temporary)  
-*_IMPLEMENTATION.md
-*_RESULTS.md
-*_PLAN.md
-
-# CI workflow documentation (temporary)
-CI_WORKFLOW_UPDATES.md
-MOCK_INTEGRATION_SUMMARY.md
-EMULATOR_INDEPENDENT_TEST_PLAN.md
+# Project planning documents
+plans/
 
 # Analysis scripts (temporary)
 scripts/measure_*.sh

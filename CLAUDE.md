@@ -136,15 +136,22 @@ cargo build --release
 
 ### Comprehensive Test Suite
 
-The project has 15 test files with 31+ test functions covering:
+The project has 18+ test files with 180+ test functions covering:
 
 #### Test Categories
 
-- **Integration Tests**: Complete device lifecycle workflows (`comprehensive_integration_test.rs`)
+- **Unit Tests**: Model validation, error handling, utilities (`tests/unit/`)
+  - Device models, error types, device info, validation utilities
+- **Integration Tests**: Complete workflows and system interactions (`tests/integration/`)
+  - Device lifecycle workflows (`comprehensive_integration_test.rs`)
+  - App state management (`app_state_comprehensive_test.rs`)
+  - Event processing and debouncing (`event_processing_test.rs`)
+  - Background task coordination (`background_task_test.rs`)
 - **Performance Tests**: Startup time and responsiveness validation (`startup_performance_test.rs`)
 - **UI Tests**: Navigation, focus management, theme handling (`ui_focus_and_theme_test.rs`)
 - **Device Operations**: Creation, status tracking, operations (`device_operations_status_test.rs`)
 - **Navigation Tests**: Field navigation, circular navigation (`device_creation_navigation_test.rs`)
+- **Mock-based Tests**: Using MockDeviceManager for emulator-independent testing
 
 #### Performance Benchmarks
 
@@ -168,9 +175,27 @@ cargo test --test device_creation_navigation_test
 cargo test --test device_operations_status_test
 cargo test --test ui_focus_and_theme_test
 
+# Run unit tests
+cargo test --test models --test utils
+
+# Run app integration tests
+cargo test --test app_state_comprehensive_test
+cargo test --test event_processing_test
+cargo test --test background_task_test
+
 # Performance validation
 cargo test startup_performance_test -- --nocapture
+
+# Test coverage measurement
+cargo tarpaulin --features test-utils --ignore-tests --exclude-files "*/tests/*" --exclude-files "*/examples/*"
 ```
+
+### Test Coverage
+
+- **Current Coverage**: 16.9% (MockDeviceManager-based)
+- **Realistic Target**: 28% (without emulators)
+- **Coverage Limitations**: UI rendering (0% coverage) requires actual terminal
+- **Test Infrastructure**: MockDeviceManager enables emulator-independent testing
 
 ## Current Implementation Status
 
@@ -185,7 +210,7 @@ cargo test startup_performance_test -- --nocapture
 - ✅ Background loading and performance optimizations
 - ✅ Circular navigation in device lists
 - ✅ Device details with MB units and full paths
-- ✅ Comprehensive test suite
+- ✅ Comprehensive test suite with MockDeviceManager
 - ✅ Operation status tracking and notifications
 - ✅ API level management with real-time installation
 - ✅ Device creation cache system (5-minute expiration)
@@ -195,6 +220,7 @@ cargo test startup_performance_test -- --nocapture
 - ✅ iOS Simulator.app automatic lifecycle management
 - ✅ Ultra-responsive keyboard input handling eliminating all input lag and key press ignoring
 - ✅ **Simplified architecture**: Removed environment variable complexity, all optimizations always active
+- ✅ **MockDeviceManager**: Emulator-independent testing infrastructure for CI/CD
 
 ### Known Issues & Limitations
 
@@ -340,7 +366,7 @@ cargo test startup_performance_test -- --nocapture
 - Ensure async operations work correctly
 - **Test all new constants**: Validate ranges, ordering, and type consistency
 - Use documentation tests for constants to verify runtime behavior
-- Current test coverage: 146+ tests with 95%+ coverage
+- Current test coverage: 180+ test functions, 16.9% line coverage
 
 ### Code Quality Requirements
 
