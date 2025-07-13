@@ -329,7 +329,6 @@ fn test_comprehensive_command_injection_prevention() {
 1. **Normal Path**
    - Device creation → start → stop → deletion
 2. **Error Path**
-
    - Creation attempts with invalid configuration values
    - Operation attempts on non-existent devices
    - Behavior during resource exhaustion
@@ -375,7 +374,6 @@ async fn test_device_lifecycle_with_resource_constraints() {
 #### Measurement Target Indicators
 
 1. **Response Time**
-
    - Startup time: < 150ms
    - Panel switching: < 100ms
    - Keyboard response: < 8ms
@@ -414,7 +412,6 @@ async fn test_panel_switching_performance() {
 #### Required Test Cases
 
 1. **Keyboard Navigation**
-
    - Tab key focus movement
    - Circular navigation
    - Shortcut keys
@@ -535,12 +532,10 @@ New test files are automatically included in the following workflows:
 ### Team Development Operations
 
 1. **Consultation Before Test Addition**
-
    - Discuss with team before large test additions
    - Verify duplication with existing tests
 
 2. **Incremental Implementation**
-
    - Basic feature tests → error cases → edge cases
    - Add incrementally with small pull requests
 

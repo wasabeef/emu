@@ -471,14 +471,12 @@ Add screenshots for UI changes
 ### What We Look For
 
 1. **Code Quality**
-
    - Clean, readable code
    - Proper error handling
    - Adequate test coverage
    - Performance considerations
 
 2. **Design Consistency**
-
    - Follows existing patterns
    - Maintains architectural principles
    - Proper separation of concerns

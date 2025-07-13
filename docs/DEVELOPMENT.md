@@ -1009,7 +1009,6 @@ impl DeviceConfig {
    ```
 
 3. Update `CHANGELOG.md` (optional - automated release notes are generated):
-
    - The release process will automatically generate release notes using git-cliff
    - Manual updates are only needed for major releases or special announcements
 
@@ -1029,7 +1028,6 @@ impl DeviceConfig {
    ```
 
 2. The GitHub Actions workflow will automatically:
-
    - Generate release notes from commit history using git-cliff
    - Build binaries for all platforms
    - Create a GitHub release with auto-generated release notes
