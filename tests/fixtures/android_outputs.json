@@ -1,0 +1,40 @@
+{
+  "avdmanager_list_avd": {
+    "empty": "",
+    "single_device": "Available Android Virtual Devices:\n    Name: Pixel_7_API_34\n    Device: pixel_7 (Pixel 7)\n    Path: /Users/user/.android/avd/Pixel_7_API_34.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis_playstore/arm64-v8a\n---------\n",
+    "multiple_devices": "Available Android Virtual Devices:\n    Name: Pixel_7_API_34\n    Device: pixel_7 (Pixel 7)\n    Path: /Users/user/.android/avd/Pixel_7_API_34.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis_playstore/arm64-v8a\n---------\n    Name: Pixel_Tablet_API_33\n    Device: pixel_tablet (Pixel Tablet)\n    Path: /Users/user/.android/avd/Pixel_Tablet_API_33.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 13.0 (API level 33) Tag/ABI: google_apis_playstore/x86_64\n---------\n    Name: Wear_OS_Round_API_30\n    Device: wear_round (Android Wear Round)\n    Path: /Users/user/.android/avd/Wear_OS_Round_API_30.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 11.0 (API level 30) Tag/ABI: google_apis_playstore/x86\n---------\n",
+    "with_spaces": "Available Android Virtual Devices:\n    Name: Pixel 7 API 34\n    Device: pixel_7 (Pixel 7)\n    Path: /Users/user/.android/avd/Pixel 7 API 34.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis_playstore/arm64-v8a\n---------\n"
+  },
+  "avdmanager_list_device": {
+    "comprehensive": "Available Android Virtual Devices:\n========\n    id: 0 or \"tv_1080p\"\n    Name: Android TV (1080p)\n    OEM : Google\n---------\n    id: 1 or \"tv_720p\"\n    Name: Android TV (720p)\n    OEM : Google\n---------\n    id: 2 or \"wear_round\"\n    Name: Android Wear Round\n    OEM : Google\n---------\n    id: 3 or \"wear_square\"\n    Name: Android Wear Square\n    OEM : Google\n---------\n    id: 4 or \"pixel_7\"\n    Name: Pixel 7\n    OEM : Google\n---------\n    id: 5 or \"pixel_7_pro\"\n    Name: Pixel 7 Pro\n    OEM : Google\n---------\n    id: 6 or \"pixel_tablet\"\n    Name: Pixel Tablet\n    OEM : Google\n---------\n    id: 7 or \"automotive_1024p\"\n    Name: Automotive (1024p landscape)\n    OEM : Google\n---------\n    id: 8 or \"galaxy_nexus\"\n    Name: Galaxy Nexus\n    OEM : Google\n---------\n    id: 9 or \"nexus_10\"\n    Name: Nexus 10\n    OEM : Google\n---------\n"
+  },
+  "adb_devices": {
+    "empty": "List of devices attached\n\n",
+    "single_device": "List of devices attached\nemulator-5554\tdevice\n",
+    "multiple_devices": "List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\nemulator-5558\toffline\n",
+    "with_physical": "List of devices attached\nemulator-5554\tdevice\nRZ8N123456\tdevice\n"
+  },
+  "adb_shell_getprop": {
+    "avd_name_pixel": "Pixel_7_API_34",
+    "avd_name_spaces": "Pixel 7 API 34",
+    "avd_name_wear": "Wear_OS_Round_API_30",
+    "empty": "",
+    "kernel_avd_name": "Pixel_7_API_34"
+  },
+  "adb_emu_avd_name": {
+    "success": "Pixel_7_API_34\nOK\n",
+    "with_spaces": "Pixel 7 API 34\nOK\n",
+    "error": "KO: unknown command\n"
+  },
+  "sdkmanager_list": {
+    "system_images": "Installed packages:=====================] 100% Fetch remote repository...\n  Path                                        | Version | Description                    | Location\n  -------                                     | ------- | -------                        | -------\n  build-tools;34.0.0                          | 34.0.0  | Android SDK Build-Tools 34     | build-tools/34.0.0\n  platforms;android-34                        | 3       | Android SDK Platform 34        | platforms/android-34\n  system-images;android-34;google_apis;arm64-v8a | 14      | Google APIs ARM 64 v8a System Image | system-images/android-34/google_apis/arm64-v8a\n  system-images;android-34;google_apis_playstore;arm64-v8a | 14 | Google Play ARM 64 v8a System Image | system-images/android-34/google_apis_playstore/arm64-v8a\n  system-images;android-33;google_apis;x86_64 | 13      | Google APIs Intel x86_64 System Image | system-images/android-33/google_apis/x86_64\n  system-images;android-30;google_apis;x86    | 30      | Google APIs Intel x86 System Image | system-images/android-30/google_apis/x86\n",
+    "platforms": "Installed packages:=====================] 100% Fetch remote repository...\n  Path                                        | Version | Description                    | Location\n  -------                                     | ------- | -------                        | -------\n  platforms;android-34                        | 3       | Android SDK Platform 34        | platforms/android-34 | Android API 34, revision 2 | Android 14\n  platforms;android-33                        | 3       | Android SDK Platform 33        | platforms/android-33 | Android API 33, revision 3 | Android 13\n  platforms;android-30                        | 3       | Android SDK Platform 30        | platforms/android-30 | Android API 30, revision 3 | Android 11\n"
+  },
+  "errors": {
+    "avdmanager_license_error": "Error: Failed to create avd: \nLICENSE ERROR: The build tools could not be found. Please install the build tools for the Android SDK.\n",
+    "avdmanager_invalid_device": "Error: Invalid device name: special-characters-not-allowed\n",
+    "avdmanager_existing_avd": "Error: Android Virtual Device 'Pixel_7_API_34' already exists.\nUse --force if you want to replace it.\n",
+    "adb_device_offline": "error: device offline\n",
+    "adb_no_devices": "error: no devices/emulators found\n"
+  }
+}

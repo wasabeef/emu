@@ -80,26 +80,28 @@ jobs:
       - name: Run MockDeviceManager tests
         run: |
           echo "🧪 Running emulator-independent tests..."
-          cargo test --features test-utils --test mock_device_manager_performance_test --verbose
-          cargo test --features test-utils --test mock_device_lifecycle_test --verbose
-          cargo test --features test-utils --test mock_error_handling_test --verbose
-          cargo test --features test-utils --test mock_scenario_builder_test --verbose
+          cargo test --features test-utils --test managers_mock_complete_test --verbose
           echo "✅ MockDeviceManager tests completed successfully"
 
-      - name: Run mock performance tests
+      - name: Run fixture-based tests
         run: |
-          echo "⚡ Running mock performance tests..."
-          cargo test --features test-utils --test startup_performance_mock_test --verbose
-          cargo test --features test-utils --test panel_switching_performance_mock_test --verbose
-          cargo test --features test-utils --test final_performance_mock_test --verbose
-          echo "✅ Mock performance tests completed successfully"
+          echo "⚡ Running fixture-based tests..."
+          cargo test --features test-utils --test fixture_integration_test --verbose
+          cargo test --features test-utils --test android_manager_fixture_test --verbose
+          cargo test --features test-utils --test ios_manager_fixture_test --verbose
+          cargo test --features test-utils --test app_integration_fixture_test --verbose
+          cargo test --features test-utils --test utils_command_fixture_test --verbose
+          echo "✅ Fixture-based tests completed successfully"
 
-      - name: Run mock integration tests
+      - name: Run comprehensive model tests
         run: |
-          echo "🔄 Running mock integration tests..."
-          cargo test --features test-utils --test comprehensive_integration_mock_test --verbose
-          cargo test --features test-utils --test panel_switching_integration_mock_test --verbose
-          echo "✅ Mock integration tests completed successfully"
+          echo "🔄 Running comprehensive model tests..."
+          cargo test --features test-utils --test models_comprehensive_test --verbose
+          cargo test --features test-utils --test models_api_level_complete_test --verbose
+          cargo test --features test-utils --test models_device_complete_test --verbose
+          cargo test --features test-utils --test models_error_complete_test --verbose
+          cargo test --features test-utils --test models_platform_complete_test --verbose
+          echo "✅ Comprehensive model tests completed successfully"
 
   # Build (only on Ubuntu for artifacts)
   build:
@@ -200,12 +202,12 @@ jobs:
           # Test category analysis
           TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test startup_performance_test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          MOCK_TESTS=$(cargo test --features test-utils --test mock_* 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          PERFORMANCE_TESTS=$(cargo test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          MOCK_TESTS=$(cargo test --features test-utils --test managers_mock_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
 
           # Count test files dynamically
           TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
-          MOCK_TEST_FILES=$(find tests/ -name "mock_*.rs" -type f | wc -l | tr -d ' ')
+          MOCK_TEST_FILES=$(find tests/ -name "managers_mock_complete_test.rs" -type f | wc -l | tr -d ' ')
 
           # Calculate mock test percentage
           MOCK_PERCENT=$(echo "scale=1; ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)

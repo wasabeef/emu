@@ -192,8 +192,9 @@ cargo tarpaulin --features test-utils --ignore-tests --exclude-files "*/tests/*"
 
 ### Test Coverage
 
-- **Current Coverage**: 16.9% (MockDeviceManager-based)
-- **Realistic Target**: 28% (without emulators)
+- **Current Coverage**: 16.91% (971/5,742 lines covered)
+- **Test Functions**: 149 test functions across 18+ test files
+- **Realistic Target**: 27.9% (フィクスチャーベーステスト戦略による改善)
 - **Coverage Limitations**: UI rendering (0% coverage) requires actual terminal
 - **Test Infrastructure**: MockDeviceManager enables emulator-independent testing
 
@@ -366,7 +367,7 @@ cargo tarpaulin --features test-utils --ignore-tests --exclude-files "*/tests/*"
 - Ensure async operations work correctly
 - **Test all new constants**: Validate ranges, ordering, and type consistency
 - Use documentation tests for constants to verify runtime behavior
-- Current test coverage: 180+ test functions, 16.9% line coverage
+- Current test coverage: 149 test functions, 22.33% line coverage
 
 ### Code Quality Requirements
 
