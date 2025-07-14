@@ -5,16 +5,16 @@ use emu::models::device_info::DynamicDeviceConfig;
 fn test_device_name_generation_preserves_spaces() {
     let mut form = CreateDeviceForm::new();
 
-    // テスト用のデバイスタイプとバージョンを設定
+    // Set device type and version for testing
     form.device_type = "Pixel Fold (Google)".to_string();
     form.device_type_id = "pixel_fold".to_string();
     form.version = "35".to_string();
     form.version_display = "API 35 - Android 15".to_string();
 
-    // プレースホルダー名を生成
+    // Generate placeholder name
     form.generate_placeholder_name();
 
-    // スペースが保持されていることを確認
+    // Verify that spaces are preserved
     assert!(form.name.contains(" "), "Device name should contain spaces");
     assert!(
         form.name.contains("Pixel"),
@@ -25,7 +25,7 @@ fn test_device_name_generation_preserves_spaces() {
         "Device name should contain API level"
     );
 
-    // 具体的な形式をテスト - 新しい動的パーサーは括弧内の内容を除外
+    // Test specific format - new dynamic parser excludes content in parentheses
     assert_eq!(form.name, "Pixel Fold API 35");
 
     let name = &form.name;
@@ -80,7 +80,7 @@ fn test_device_name_generation_various_formats() {
             device_type, form.name
         );
 
-        // 期待される部分が含まれていることを確認
+        // Verify that expected parts are included
         for expected_part in expected_parts {
             assert!(
                 form.name.contains(expected_part),
@@ -90,7 +90,7 @@ fn test_device_name_generation_various_formats() {
             );
         }
 
-        // 名前が空でないことを確認
+        // Verify that name is not empty
         assert!(
             !form.name.trim().is_empty(),
             "Device name should not be empty"
@@ -102,7 +102,7 @@ fn test_device_name_generation_various_formats() {
 fn test_device_name_fallback_when_empty() {
     let mut form = CreateDeviceForm::new();
 
-    // 空のデバイスタイプとバージョンを設定
+    // Set empty device type and version
     form.device_type = "".to_string();
     form.device_type_id = "".to_string();
     form.version = "35".to_string();
@@ -110,7 +110,7 @@ fn test_device_name_fallback_when_empty() {
 
     form.generate_placeholder_name();
 
-    // フォールバック名が生成されることを確認
+    // Verify that fallback name is generated
     assert_eq!(form.name, "Device API");
 
     let name = &form.name;
@@ -134,7 +134,7 @@ fn test_dynamic_device_config_parsing() {
 
         println!("Device '{device_name}' parsed to: {parsed_parts:?}");
 
-        // パースが失敗していないことを確認（空でない）
+        // Verify that parsing didn't fail (not empty)
         assert!(
             !parsed_parts.is_empty() || device_name.is_empty(),
             "{}",
@@ -147,7 +147,7 @@ fn test_dynamic_device_config_parsing() {
 fn test_create_device_form_android_initialization() {
     let form = CreateDeviceForm::for_android();
 
-    // Android フォームの初期化状態をテスト
+    // Test Android form initialization state
     assert_eq!(form.ram_size, "2048");
     assert_eq!(form.storage_size, "8192");
     assert!(form.available_device_types.is_empty());
@@ -163,7 +163,7 @@ fn test_create_device_form_android_initialization() {
 fn test_create_device_form_ios_initialization() {
     let form = CreateDeviceForm::for_ios();
 
-    // iOS フォームの初期化状態をテスト
+    // Test iOS form initialization state
     assert_eq!(form.ram_size, "2048");
     assert_eq!(form.storage_size, "8192");
     assert!(form.available_device_types.is_empty());
@@ -179,7 +179,7 @@ fn test_create_device_form_ios_initialization() {
 fn test_device_name_with_special_characters() {
     let mut form = CreateDeviceForm::new();
 
-    // 特殊文字を含むデバイス名をテスト
+    // Test device name with special characters
     form.device_type = "2.7\" QVGA (Small)".to_string();
     form.device_type_id = "qvga_2_7".to_string();
     form.version = "36".to_string();
@@ -187,33 +187,33 @@ fn test_device_name_with_special_characters() {
 
     form.generate_placeholder_name();
 
-    // 名前が生成されることを確認（スペースは保持）
+    // Verify that name is generated (spaces are preserved)
     assert!(!form.name.is_empty(), "Device name should not be empty");
     assert!(form.name.contains("2.7"), "Should contain screen size");
     assert!(form.name.contains("QVGA"), "Should contain resolution");
     assert!(form.name.contains("API 36"), "Should contain API level");
 
-    // 二重引用符が処理されていることを確認（表示名には残る）
+    // Verify that double quotes are processed (remain in display name)
     let name = &form.name;
     println!("Special character device name: '{name}'");
 }
 
 #[test]
 fn test_device_name_sanitization_for_avd_creation() {
-    // Android サニタイゼーション用テスト
+    // Test for Android sanitization
     let test_cases = vec![
         // (input, should_be_safe_for_avd)
-        ("Pixel 7 Pro API 34", true),    // 通常のケース
-        ("2.7\" QVGA API 36", true),     // 引用符付き（AVD では削除される）
-        ("Device with: colon", true),    // コロン付き（AVD では削除される）
-        ("Device/with/slash", true),     // スラッシュ付き（AVD では削除される）
-        ("Normal Device Name", true),    // 正常なケース
-        ("'Single Quote Device'", true), // シングルクォート付き
-        ("Device*with*asterisk", true),  // アスタリスク付き
+        ("Pixel 7 Pro API 34", true),    // Normal case
+        ("2.7\" QVGA API 36", true),     // With quotes (removed in AVD)
+        ("Device with: colon", true),    // With colon (removed in AVD)
+        ("Device/with/slash", true),     // With slash (removed in AVD)
+        ("Normal Device Name", true),    // Normal case
+        ("'Single Quote Device'", true), // With single quotes
+        ("Device*with*asterisk", true),  // With asterisk
     ];
 
     for (input, should_be_safe) in test_cases {
-        // AndroidManager の実際のサニタイゼーション処理をテスト（AVD 名用）
+        // Test actual AndroidManager sanitization process (for AVD names)
         let sanitized = input
             .chars()
             .filter_map(|c| match c {
@@ -232,7 +232,7 @@ fn test_device_name_sanitization_for_avd_creation() {
                 "{}",
                 format!("Sanitized name should not be empty for: '{input}'")
             );
-            // AVD 名ではスペースはアンダースコアに変換される
+            // In AVD names, spaces are converted to underscores
             if input.contains(' ') {
                 assert!(
                     sanitized.contains('_'),

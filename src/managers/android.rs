@@ -1386,13 +1386,13 @@ impl AndroidManager {
         if let Ok(android_home) = std::env::var(env_vars::ANDROID_HOME) {
             let android_path = std::path::PathBuf::from(&android_home);
 
-            // 1. 標準スキンディレクトリ
+            // 1. Standard skin directory
             let standard_skins = android_path.join("skins");
             if standard_skins.exists() {
                 self.scan_skin_directory(&standard_skins, &mut skins).await;
             }
 
-            // 2. プラットフォーム別スキンディレクトリを動的にスキャン
+            // 2. Dynamically scan platform-specific skin directories
             let platforms_dir = android_path.join("platforms");
             if platforms_dir.exists() {
                 if let Ok(mut platform_entries) = fs::read_dir(&platforms_dir).await {
@@ -1411,7 +1411,7 @@ impl AndroidManager {
                 }
             }
 
-            // 3. システムイメージ別スキンディレクトリを動的にスキャン
+            // 3. Dynamically scan system image-specific skin directories
             let system_images_dir = android_path.join("system-images");
             if system_images_dir.exists() {
                 self.scan_system_images_for_skins(&system_images_dir, &mut skins)

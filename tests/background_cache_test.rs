@@ -12,7 +12,7 @@ async fn test_device_cache_creation() {
     assert!(cache.ios_device_types.is_empty());
     assert!(cache.ios_runtimes.is_empty());
     assert!(!cache.is_loading);
-    assert!(!cache.is_stale()); // 新しく作成されたキャッシュは有効
+    assert!(!cache.is_stale()); // A newly created cache is valid
 
     println!("✅ Device cache created successfully");
 }
@@ -74,7 +74,7 @@ async fn test_device_cache_staleness() {
 
     assert!(cache.is_stale(), "Cache should be stale after 5+ minutes");
 
-    // キャッシュを更新
+    // Update cache
     cache.update_android_cache(vec![], vec![]);
 
     assert!(!cache.is_stale(), "Cache should be fresh after update");
@@ -86,17 +86,17 @@ async fn test_device_cache_staleness() {
 async fn test_app_state_cache_integration() {
     let app_state = AppState::new();
 
-    // キャッシュが初期化されていることを確認
+    // Verify that the cache is initialized
     {
         let cache = app_state.device_cache.read().await;
         assert!(cache.android_device_types.is_empty());
         assert!(cache.android_api_levels.is_empty());
     }
 
-    // Android キャッシュが利用できないことを確認
+    // Verify that Android cache is not available
     assert!(!app_state.is_cache_available(Panel::Android).await);
 
-    // iOS キャッシュが利用できないことを確認
+    // Verify that iOS cache is not available
     assert!(!app_state.is_cache_available(Panel::Ios).await);
 
     println!("✅ App state cache integration working");
@@ -106,7 +106,7 @@ async fn test_app_state_cache_integration() {
 async fn test_cache_population_to_form() {
     let mut app_state = AppState::new();
 
-    // キャッシュにテストデータを追加
+    // Add test data to cache
     {
         let mut cache = app_state.device_cache.write().await;
         cache.update_android_cache(
@@ -121,13 +121,13 @@ async fn test_cache_population_to_form() {
         );
     }
 
-    // Android キャッシュが利用可能になったことを確認
+    // Verify that Android cache has become available
     assert!(app_state.is_cache_available(Panel::Android).await);
 
-    // フォームにキャッシュデータを設定
+    // Set cache data to form
     app_state.populate_form_from_cache(Panel::Android).await;
 
-    // フォームにデータが設定されたことを確認
+    // Verify that data has been set to form
     assert!(!app_state
         .create_device_form
         .available_device_types
@@ -135,18 +135,18 @@ async fn test_cache_population_to_form() {
     assert!(!app_state.create_device_form.available_versions.is_empty());
     assert!(!app_state.create_device_form.is_loading_cache);
 
-    // 最初のデバイスタイプが選択されていることを確認
+    // Verify that the first device type is selected
     assert_eq!(app_state.create_device_form.device_type_id, "pixel_7");
     assert_eq!(app_state.create_device_form.device_type, "Pixel 7 (Google)");
 
-    // 最初のAPI レベルが選択されていることを確認
+    // Verify that the first API level is selected
     assert_eq!(app_state.create_device_form.version, "35");
     assert_eq!(
         app_state.create_device_form.version_display,
         "API 35 - Android 15"
     );
 
-    // プレースホルダー名が生成されていることを確認
+    // Verify that placeholder name has been generated
     assert!(!app_state.create_device_form.name.is_empty());
     assert!(app_state.create_device_form.name.contains("Pixel"));
     assert!(app_state.create_device_form.name.contains("API"));
@@ -161,13 +161,13 @@ async fn test_cache_population_to_form() {
 async fn test_background_cache_update_startup() {
     let mut app_state = AppState::new();
 
-    // バックグラウンド更新開始のテスト
+    // Test background update start
     app_state.start_background_cache_update().await;
 
-    // ロード中フラグが設定されていることを確認
+    // Verify that loading flag is set
     assert!(app_state.create_device_form.is_loading_cache);
 
-    // キャッシュのロード中フラグも確認
+    // Also verify cache loading flag
     {
         let cache = app_state.device_cache.read().await;
         assert!(cache.is_loading);
@@ -180,22 +180,22 @@ async fn test_background_cache_update_startup() {
 async fn test_cache_respects_staleness_policy() {
     let mut cache = DeviceCache::default();
 
-    // 新しいキャッシュは有効
+    // New cache is valid
     assert!(!cache.is_stale());
 
-    // データを追加
+    // Add data
     cache.update_android_cache(
         vec![("test".to_string(), "Test Device".to_string())],
         vec![("35".to_string(), "API 35".to_string())],
     );
 
-    // 更新後も有効
+    // Still valid after update
     assert!(!cache.is_stale());
 
-    // 手動で古い時刻に設定
+    // Manually set to old time
     cache.last_updated = std::time::Instant::now() - Duration::from_secs(400);
 
-    // 古くなったキャッシュは無効
+    // Stale cache is invalid
     assert!(cache.is_stale());
 
     println!("✅ Cache staleness policy working correctly");
@@ -203,14 +203,14 @@ async fn test_cache_respects_staleness_policy() {
 
 #[test]
 fn test_cache_thread_safety() {
-    // Arc<RwLock<DeviceCache>> のスレッドセーフティをテスト
+    // Test thread safety of Arc<RwLock<DeviceCache>>
     let cache = Arc::new(RwLock::new(DeviceCache::default()));
 
-    // 複数のスレッドから安全にアクセスできることを確認
+    // Verify safe access from multiple threads
     let _cache_clone = Arc::clone(&cache);
 
     let handle = std::thread::spawn(move || {
-        // 他のスレッドからキャッシュにアクセス
+        // Access cache from another thread
         println!("Cache accessed from another thread");
     });
 
@@ -223,7 +223,7 @@ fn test_cache_thread_safety() {
 async fn test_form_updates_from_cache_selection() {
     let mut app_state = AppState::new();
 
-    // フォームに選択肢を設定
+    // Set choices to form
     app_state.create_device_form.available_device_types = vec![
         ("pixel_7".to_string(), "Pixel 7 (Google)".to_string()),
         ("pixel_fold".to_string(), "Pixel Fold (Google)".to_string()),
@@ -234,7 +234,7 @@ async fn test_form_updates_from_cache_selection() {
         ("36".to_string(), "API 36 - Android 16".to_string()),
     ];
 
-    // デバイスタイプの選択を更新
+    // Update device type selection
     app_state.create_device_form.selected_device_type_index = 1;
     app_state.create_device_form.update_selected_device_type();
 
@@ -244,7 +244,7 @@ async fn test_form_updates_from_cache_selection() {
         "Pixel Fold (Google)"
     );
 
-    // API レベルの選択を更新
+    // Update API level selection
     app_state.create_device_form.selected_api_level_index = 1;
     app_state.create_device_form.update_selected_api_level();
 
@@ -254,7 +254,7 @@ async fn test_form_updates_from_cache_selection() {
         "API 36 - Android 16"
     );
 
-    // プレースホルダー名が更新されていることを確認
+    // Verify that placeholder name has been updated
     assert!(app_state.create_device_form.name.contains("Pixel Fold"));
     assert!(app_state.create_device_form.name.contains("API 36"));
 

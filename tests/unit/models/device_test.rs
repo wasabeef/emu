@@ -84,7 +84,7 @@ fn test_mock_device_trait_implementation() {
         details: Default::default(),
     };
     
-    // Device trait メソッドのテスト
+    // Test Device trait methods
     assert_eq!(mock.name(), "mock_device");
     assert_eq!(mock.id(), "mock-123");
     assert_eq!(mock.status(), DeviceStatus::Online);
@@ -102,7 +102,7 @@ fn test_mock_device_status_transitions() {
         details: Default::default(),
     };
     
-    // ステータス遷移のテスト
+    // Test status transitions
     assert_eq!(mock.status(), DeviceStatus::Offline);
     
     mock.status = DeviceStatus::Starting;

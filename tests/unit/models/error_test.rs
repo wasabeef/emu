@@ -50,7 +50,7 @@ fn test_format_user_error_with_chain() {
     
     let formatted = format_user_error(&top_error);
     
-    // すべてのエラーレベルが含まれることを確認
+    // Verify that all error levels are included
     assert!(formatted.contains("Device initialization failed"));
     assert!(formatted.contains("Failed to read config"));
     assert!(formatted.contains("No such file or directory"));
@@ -141,7 +141,7 @@ fn test_error_display_consistency() {
     let device_name = "pixel-8-api-34";
     let error = EmuError::DeviceNotFound(device_name.to_string());
     
-    // Display と Debug で一貫した情報が含まれることを確認
+    // Verify that Display and Debug contain consistent information
     let display_str = format!("{error}");
     let debug_str = format!("{error:?}");
     
