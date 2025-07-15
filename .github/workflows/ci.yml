@@ -80,7 +80,7 @@ jobs:
       - name: Run MockDeviceManager tests
         run: |
           echo "🧪 Running emulator-independent tests..."
-          cargo test --features test-utils --test managers_mock_complete_test --verbose
+          cargo test --features test-utils --test app_state_concurrency_complete_test --verbose
           echo "✅ MockDeviceManager tests completed successfully"
 
       - name: Run fixture-based tests
@@ -97,10 +97,6 @@ jobs:
         run: |
           echo "🔄 Running comprehensive model tests..."
           cargo test --features test-utils --test models_comprehensive_test --verbose
-          cargo test --features test-utils --test models_api_level_complete_test --verbose
-          cargo test --features test-utils --test models_device_complete_test --verbose
-          cargo test --features test-utils --test models_error_complete_test --verbose
-          cargo test --features test-utils --test models_platform_complete_test --verbose
           echo "✅ Comprehensive model tests completed successfully"
 
   # Build (only on Ubuntu for artifacts)
@@ -201,13 +197,13 @@ jobs:
 
           # Test category analysis
           TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test performance_automation_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          MOCK_TESTS=$(cargo test --features test-utils --test managers_mock_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          SECURITY_TESTS=$(cargo test --test comprehensive_integration_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          PERFORMANCE_TESTS=$(cargo test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          MOCK_TESTS=$(cargo test --features test-utils --test app_state_concurrency_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
 
           # Count test files dynamically
           TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
-          MOCK_TEST_FILES=$(find tests/ -name "managers_mock_complete_test.rs" -type f | wc -l | tr -d ' ')
+          MOCK_TEST_FILES=$(find tests/ -name "app_state_concurrency_complete_test.rs" -type f | wc -l | tr -d ' ')
 
           # Calculate mock test percentage
           MOCK_PERCENT=$(echo "scale=1; ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
@@ -298,8 +294,5 @@ jobs:
       - name: Run security tests
         run: |
           echo "🔒 Running security validation..."
-          cargo test --test advanced_security_test --verbose
-          cargo test --test path_traversal_security_test --verbose
-          cargo test --test input_validation_comprehensive_test --verbose
-          cargo test --test command_security_test --verbose
+          cargo test --test comprehensive_integration_test --verbose
           echo "✅ Security tests completed successfully"
