@@ -63,9 +63,6 @@ criterion = "0.5"
 name = "debug-avd"
 path = "src/bin/debug_avd.rs"
 
-[[bench]]
-name = "performance"
-harness = false
 
 [profile.release]
 codegen-units = 1
