@@ -202,7 +202,7 @@ jobs:
           # Test category analysis
           TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          PERFORMANCE_TESTS=$(cargo test --test performance_automation_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           MOCK_TESTS=$(cargo test --features test-utils --test managers_mock_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
 
           # Count test files dynamically
