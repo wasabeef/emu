@@ -300,6 +300,7 @@ use crate::{
     },
     models::{AndroidDevice, DeviceStatus},
     utils::command::CommandRunner,
+    utils::command_executor::CommandExecutor,
 };
 use anyhow::{bail, Context, Result};
 use lazy_static::lazy_static;
@@ -307,6 +308,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::fs;
 
 lazy_static! {
@@ -332,6 +334,94 @@ lazy_static! {
     static ref NUMBER_PATTERN_REGEX: Regex = Regex::new(r"(\d{2,3})").unwrap();
     static ref API_OR_ANDROID_REGEX: Regex = Regex::new(r"(?:API level |android-)(\d+)").unwrap();
 }
+
+/// AVD list parser for better testability
+struct AvdListParser<'a> {
+    lines: std::str::Lines<'a>,
+    current_device_info: Option<(String, String, String, String, String)>,
+    current_target_full: String,
+}
+
+impl<'a> AvdListParser<'a> {
+    fn new(output: &'a str) -> Self {
+        Self {
+            lines: output.lines(),
+            current_device_info: None,
+            current_target_full: String::new(),
+        }
+    }
+
+    fn parse_next_device(&mut self) -> Option<(String, String, String, String, String)> {
+        for line in self.lines.by_ref() {
+            let trimmed_line = line.trim();
+
+            if self.current_device_info.is_some() && line.starts_with("          Based on:") {
+                self.current_target_full.push(' ');
+                self.current_target_full.push_str(trimmed_line);
+            }
+
+            if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
+                if let Some((name, path, mut target, abi, device)) = self.current_device_info.take()
+                {
+                    if !self.current_target_full.is_empty() {
+                        target.push_str(&self.current_target_full);
+                        self.current_target_full.clear();
+                    }
+                    return Some((name, path, target, abi, device));
+                }
+                continue;
+            }
+
+            if let Some(captures) = AVD_NAME_REGEX.captures(trimmed_line) {
+                if let Some(name) = captures.get(1) {
+                    self.current_device_info = Some((
+                        name.as_str().to_string(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                    ));
+                }
+            } else if let Some(captures) = PATH_REGEX.captures(trimmed_line) {
+                if let Some(path) = captures.get(1) {
+                    if let Some(ref mut info) = self.current_device_info {
+                        info.1 = path.as_str().to_string();
+                    }
+                }
+            } else if let Some(captures) = TARGET_REGEX.captures(trimmed_line) {
+                if let Some(target) = captures.get(1) {
+                    if let Some(ref mut info) = self.current_device_info {
+                        info.2 = target.as_str().to_string();
+                    }
+                }
+            } else if let Some(captures) = ABI_REGEX.captures(trimmed_line) {
+                if let Some(abi) = captures.get(1) {
+                    if let Some(ref mut info) = self.current_device_info {
+                        info.3 = abi.as_str().to_string();
+                    }
+                }
+            } else if let Some(captures) = DEVICE_REGEX.captures(trimmed_line) {
+                if let Some(device) = captures.get(1) {
+                    if let Some(ref mut info) = self.current_device_info {
+                        info.4 = device.as_str().to_string();
+                    }
+                }
+            }
+        }
+
+        // Handle the last device if no closing line
+        if let Some((name, path, mut target, abi, device)) = self.current_device_info.take() {
+            if !self.current_target_full.is_empty() {
+                target.push_str(&self.current_target_full);
+                self.current_target_full.clear();
+            }
+            return Some((name, path, target, abi, device));
+        }
+
+        None
+    }
+}
+
 /// Android Virtual Device (AVD) manager implementation.
 ///
 /// This struct provides comprehensive management of Android emulators through
@@ -352,8 +442,8 @@ lazy_static! {
 /// - **sdkmanager**: For system image discovery and API level information
 #[derive(Clone)]
 pub struct AndroidManager {
-    /// Command runner for executing Android SDK tools
-    command_runner: CommandRunner,
+    /// Command executor for executing Android SDK tools (abstracted for testability)
+    command_executor: Arc<dyn CommandExecutor>,
     /// Path to Android SDK home directory (from ANDROID_HOME or ANDROID_SDK_ROOT)
     android_home: PathBuf,
     /// Path to avdmanager executable
@@ -377,12 +467,25 @@ impl AndroidManager {
     /// 1. `ANDROID_HOME` - Primary Android SDK location
     /// 2. `ANDROID_SDK_ROOT` - Alternative SDK location
     pub fn new() -> Result<Self> {
+        Self::with_executor(Arc::new(CommandRunner::new()))
+    }
+
+    /// Creates a new AndroidManager instance with a custom command executor.
+    /// This is primarily used for testing with mock executors.
+    ///
+    /// # Arguments
+    /// - `executor` - The command executor to use for external commands
+    ///
+    /// # Returns
+    /// - `Ok(AndroidManager)` - If Android SDK and tools are found
+    /// - `Err` - If Android SDK is not installed or tools are missing
+    pub fn with_executor(executor: Arc<dyn CommandExecutor>) -> Result<Self> {
         let android_home = Self::find_android_home()?;
         let avdmanager_path = Self::find_tool(&android_home, commands::AVDMANAGER)?;
         let emulator_path = Self::find_tool(&android_home, commands::EMULATOR)?;
 
         Ok(Self {
-            command_runner: CommandRunner::new(),
+            command_executor: executor,
             android_home,
             avdmanager_path,
             emulator_path,
@@ -459,16 +562,16 @@ impl AndroidManager {
         I: IntoIterator<Item = (S, Vec<S>)>,
         S: AsRef<str> + Send + 'static,
     {
-        let command_runner = self.command_runner.clone();
+        let command_executor = self.command_executor.clone();
         let handles: Vec<_> = commands
             .into_iter()
             .map(|(cmd, args)| {
-                let runner = command_runner.clone();
+                let executor = command_executor.clone();
                 let cmd_str = cmd.as_ref().to_string();
                 let args_vec: Vec<String> = args.iter().map(|s| s.as_ref().to_string()).collect();
 
                 tokio::spawn(async move {
-                    runner
+                    executor
                         .run(
                             &cmd_str,
                             &args_vec.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
@@ -497,7 +600,7 @@ impl AndroidManager {
 
         // Get list of running emulators
         let adb_output = self
-            .command_runner
+            .command_executor
             .run(commands::ADB, &[commands::adb::DEVICES])
             .await
             .unwrap_or_default();
@@ -511,7 +614,7 @@ impl AndroidManager {
 
                     // Method 1: Try to get AVD name from boot properties (most reliable)
                     if let Ok(boot_prop_output) = self
-                        .command_runner
+                        .command_executor
                         .run(
                             "adb",
                             &[
@@ -540,7 +643,7 @@ impl AndroidManager {
 
                     // Method 2: Try adb emu avd name (parse first line only)
                     if let Ok(avd_name_output) = self
-                        .command_runner
+                        .command_executor
                         .run("adb", &["-s", emulator_id, "emu", "avd", "name"])
                         .await
                     {
@@ -573,7 +676,7 @@ impl AndroidManager {
 
                     // Method 3: Try to get AVD name from kernel properties
                     if let Ok(prop_output) = self
-                        .command_runner
+                        .command_executor
                         .run(
                             "adb",
                             &[
@@ -706,8 +809,8 @@ impl AndroidManager {
     /// 3. Manufacturer (Google/Pixel prioritized)
     pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
         let output = self
-            .command_runner
-            .run(&self.avdmanager_path, &["list", "device"])
+            .command_executor
+            .run(self.avdmanager_path.to_str().unwrap(), &["list", "device"])
             .await
             .context("Failed to list Android devices")?;
 
@@ -884,9 +987,9 @@ impl AndroidManager {
 
         if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
             let output = self
-                .command_runner
+                .command_executor
                 .run(
-                    &sdkmanager_path,
+                    sdkmanager_path.to_str().unwrap(),
                     &["--list", "--verbose", "--include_obsolete"],
                 )
                 .await?;
@@ -954,8 +1057,8 @@ impl AndroidManager {
     /// Get the AVD directory path for a given AVD name
     async fn get_avd_path(&self, avd_name: &str) -> Result<Option<PathBuf>> {
         let avd_output = self
-            .command_runner
-            .run(&self.avdmanager_path, &["list", "avd"])
+            .command_executor
+            .run(self.avdmanager_path.to_str().unwrap(), &["list", "avd"])
             .await
             .context("Failed to list Android AVDs")?;
 
@@ -1291,7 +1394,11 @@ impl AndroidManager {
 
         // Try to parse from sdkmanager output
         if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
-            if let Ok(output) = self.command_runner.run(&sdkmanager_path, &["--list"]).await {
+            if let Ok(output) = self
+                .command_executor
+                .run(sdkmanager_path.to_str().unwrap(), &["--list"])
+                .await
+            {
                 // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
                 let pattern = format!(
                     r"platforms;android-{api_level}\s*\|\s*\d+\s*\|\s*Android SDK Platform"
@@ -1767,8 +1874,8 @@ impl AndroidManager {
     pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
         // Run avdmanager list and get_running_avd_names in parallel
         let avd_list_future = self
-            .command_runner
-            .run(&self.avdmanager_path, &["list", "avd"]);
+            .command_executor
+            .run(self.avdmanager_path.to_str().unwrap(), &["list", "avd"]);
         let running_avds_future = self.get_running_avd_names();
 
         let (avd_output_result, running_avds_result) =
@@ -1777,108 +1884,40 @@ impl AndroidManager {
         let avd_output = avd_output_result.context("Failed to list Android AVDs")?;
         let running_avds = running_avds_result?;
 
+        // Use the new parser for better testability
+        let mut parser = AvdListParser::new(&avd_output);
         let mut devices = Vec::new();
-        let mut current_device_info: Option<(String, String, String, String, String)> = None;
-        let mut current_target_full = String::new();
 
-        // Parse AVD list (same logic as before)
-        for line in avd_output.lines() {
-            let trimmed_line = line.trim();
+        while let Some((name, _path, target, _abi, device)) = parser.parse_next_device() {
+            let is_running = running_avds.contains_key(&name);
 
-            if current_device_info.is_some() && line.starts_with("          Based on:") {
-                current_target_full.push(' ');
-                current_target_full.push_str(trimmed_line);
-            }
+            // For now, still do API level detection synchronously
+            // (can be optimized further if needed)
+            let api_level = self.detect_api_level_for_device(&name, &target).await;
 
-            if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
-                if let Some((name, _path, mut target, _abi, device)) = current_device_info.take() {
-                    if !current_target_full.is_empty() {
-                        target.push_str(&current_target_full);
-                        current_target_full.clear();
-                    }
+            // For parallel version, use default values for now
+            // TODO: Optimize hardware property reading in parallel
+            let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
+            let storage_size = format!(
+                "{}M",
+                defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
+            );
 
-                    let is_running = running_avds.contains_key(&name);
-
-                    // For now, still do API level detection synchronously
-                    // (can be optimized further if needed)
-                    let api_level = self.detect_api_level_for_device(&name, &target).await;
-
-                    // For parallel version, use default values for now
-                    // TODO: Optimize hardware property reading in parallel
-                    let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
-                    let storage_size = format!(
-                        "{}M",
-                        defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
-                    );
-
-                    devices.push(AndroidDevice {
-                        name,
-                        device_type: device,
-                        api_level,
-                        status: if is_running {
-                            DeviceStatus::Running
-                        } else {
-                            DeviceStatus::Stopped
-                        },
-                        is_running,
-                        ram_size,
-                        storage_size,
-                    });
-                }
-                continue;
-            }
-
-            // Parse device info (same as original)
-            if trimmed_line.starts_with("Name:") {
-                if let Some(name) = trimmed_line.strip_prefix("Name:").map(|s| s.trim()) {
-                    current_device_info = Some((
-                        name.to_string(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                    ));
-                }
-            } else if let Some((
-                ref mut _name,
-                ref mut path,
-                ref mut target,
-                ref mut abi,
-                ref mut device,
-            )) = current_device_info
-            {
-                if trimmed_line.starts_with("Path:") {
-                    *path = trimmed_line
-                        .strip_prefix("Path:")
-                        .unwrap_or("")
-                        .trim()
-                        .to_string();
-                } else if trimmed_line.starts_with("Target:") {
-                    *target = trimmed_line
-                        .strip_prefix("Target:")
-                        .unwrap_or("")
-                        .trim()
-                        .to_string();
-                    current_target_full = target.clone();
-                } else if trimmed_line.starts_with("Tag/ABI:") {
-                    *abi = trimmed_line
-                        .strip_prefix("Tag/ABI:")
-                        .unwrap_or("")
-                        .trim()
-                        .to_string();
-                } else if trimmed_line.starts_with("Device:") {
-                    let device_info = trimmed_line.strip_prefix("Device:").unwrap_or("").trim();
-                    if let Some(paren_pos) = device_info.find(" (") {
-                        *device = device_info[paren_pos + 2..device_info.len() - 1].to_string();
-                    } else {
-                        *device = device_info.to_string();
-                    }
-                }
-            }
+            devices.push(AndroidDevice {
+                name,
+                device_type: device,
+                api_level,
+                status: if is_running {
+                    DeviceStatus::Running
+                } else {
+                    DeviceStatus::Stopped
+                },
+                is_running,
+                ram_size,
+                storage_size,
+            });
         }
 
-        // Sort devices by type for consistent ordering
-        // TODO: Implement device priority sorting
         Ok(devices)
     }
 
@@ -1958,8 +1997,8 @@ impl DeviceManager for AndroidManager {
             "-netfast",          // Faster network emulation
         ];
 
-        self.command_runner
-            .spawn(&self.emulator_path, &args)
+        self.command_executor
+            .spawn(self.emulator_path.to_str().unwrap(), &args)
             .await?;
         Ok(())
     }
@@ -1979,7 +2018,7 @@ impl DeviceManager for AndroidManager {
             // even when the emu TUI application exits, preventing accidental data loss
             // First try to send a shutdown broadcast to Android
             let shutdown_result = self
-                .command_runner
+                .command_executor
                 .run(
                     "adb",
                     &[
@@ -2003,13 +2042,13 @@ impl DeviceManager for AndroidManager {
 
                 // Then use reboot -p as a fallback to power off
                 let _ = self
-                    .command_runner
+                    .command_executor
                     .run("adb", &["-s", emulator_id, "shell", "reboot", "-p"])
                     .await;
             } else {
                 // If the graceful shutdown failed, fall back to emu kill
                 // but only as a last resort
-                self.command_runner
+                self.command_executor
                     .run("adb", &["-s", emulator_id, "emu", "kill"])
                     .await
                     .context(format!("Failed to stop emulator {emulator_id}"))?;
@@ -2131,7 +2170,10 @@ impl DeviceManager for AndroidManager {
             args.push(skin);
         }
 
-        let result = self.command_runner.run(&self.avdmanager_path, &args).await;
+        let result = self
+            .command_executor
+            .run(self.avdmanager_path.to_str().unwrap(), &args)
+            .await;
 
         // Retry without skin if skin error occurs
         let result = if result.is_err() && skin_name.is_some() {
@@ -2148,8 +2190,8 @@ impl DeviceManager for AndroidManager {
                     fallback_args.push("--device");
                     fallback_args.push(device_id);
                 }
-                self.command_runner
-                    .run(&self.avdmanager_path, &fallback_args)
+                self.command_executor
+                    .run(self.avdmanager_path.to_str().unwrap(), &fallback_args)
                     .await
             } else {
                 result
@@ -2271,8 +2313,11 @@ impl DeviceManager for AndroidManager {
         }
 
         // Delete the AVD
-        self.command_runner
-            .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
+        self.command_executor
+            .run(
+                self.avdmanager_path.to_str().unwrap(),
+                &["delete", "avd", "-n", identifier],
+            )
             .await
             .context(format!("Failed to delete Android AVD '{identifier}'"))?;
         Ok(())
