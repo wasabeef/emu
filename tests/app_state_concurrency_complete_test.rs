@@ -1,7 +1,7 @@
-//! App::State 並行性完全テスト
+//! App::State concurrency complete test
 //!
-//! このテストスイートは AppState の並行アクセスパターンと
-//! 状態管理の完全性を検証します。
+//! This test suite verifies concurrent access patterns and
+//! state management integrity of AppState.
 
 use emu::app::state::AppState;
 use emu::app::Panel;
@@ -16,7 +16,7 @@ async fn test_concurrent_panel_switching() {
 
     let mut handles = vec![];
 
-    // 10 個のタスクで並行してパネルを切り替え
+    // Switch panels concurrently with 10 tasks
     for i in 0..10 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -35,12 +35,12 @@ async fn test_concurrent_panel_switching() {
         handles.push(handle);
     }
 
-    // すべてのタスクが完了するまで待機
+    // Wait for all tasks to complete
     for handle in handles {
         handle.await.unwrap();
     }
 
-    // 最終状態を確認
+    // Verify final state
     let final_state = state.lock().unwrap();
     assert!(matches!(
         final_state.active_panel,
@@ -54,7 +54,7 @@ async fn test_concurrent_device_selection() {
 
     let mut handles = vec![];
 
-    // 並行してデバイス選択を実行
+    // Execute device selection concurrently
     for i in 0..5 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -85,7 +85,7 @@ async fn test_concurrent_device_list_updates() {
 
     let mut handles = vec![];
 
-    // 並行してデバイスリストを更新
+    // Update device lists concurrently
     for i in 0..3 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -123,7 +123,7 @@ async fn test_concurrent_loading_states() {
 
     let mut handles = vec![];
 
-    // 並行してローディング状態を切り替え
+    // Toggle loading state concurrently
     for i in 0..8 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -143,9 +143,9 @@ async fn test_concurrent_loading_states() {
     }
 
     let final_state = state.lock().unwrap();
-    // ローディング状態は boolean 値で、デッドロックがないことを確認
-    // 実際の値は並行処理の結果なので、boolean 値であることのみ確認
-    let _is_loading = final_state.is_loading; // 型が bool であることを確認
+    // Loading state is a boolean value, verify no deadlock occurs
+    // Actual value is result of concurrent processing, so only verify it's a boolean
+    let _is_loading = final_state.is_loading; // Verify type is bool
 }
 
 #[tokio::test]
@@ -154,7 +154,7 @@ async fn test_concurrent_error_handling() {
 
     let mut handles = vec![];
 
-    // 並行してエラー状態を設定
+    // Set error state concurrently
     for i in 0..5 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -193,7 +193,7 @@ async fn test_state_consistency_under_load() {
 
     let mut handles = vec![];
 
-    // 複数の操作を並行実行
+    // Execute multiple operations concurrently
     for i in 0..10 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -201,7 +201,7 @@ async fn test_state_consistency_under_load() {
                 {
                     let mut state = state_clone.lock().unwrap();
 
-                    // 複数の状態を同時に変更
+                    // Change multiple states simultaneously
                     state.active_panel = if (i + j) % 2 == 0 {
                         Panel::Android
                     } else {
@@ -211,7 +211,7 @@ async fn test_state_consistency_under_load() {
                     state.selected_ios = j;
                     state.is_loading = (i + j) % 3 == 0;
 
-                    // デバイスを追加
+                    // Add device
                     let device = AndroidDevice {
                         name: format!("consistency_test_{i}_{j}"),
                         device_type: "pixel_7".to_string(),
@@ -224,7 +224,7 @@ async fn test_state_consistency_under_load() {
                     state.android_devices.push(device);
                 }
 
-                // 短い待機
+                // Short wait
                 sleep(Duration::from_millis(1)).await;
             }
         });
@@ -235,7 +235,7 @@ async fn test_state_consistency_under_load() {
         handle.await.unwrap();
     }
 
-    // 最終状態の一貫性を確認
+    // Verify final state consistency
     let final_state = state.lock().unwrap();
     assert!(matches!(
         final_state.active_panel,
@@ -252,7 +252,7 @@ async fn test_concurrent_mixed_operations() {
 
     let mut handles = vec![];
 
-    // 読み取り専用操作
+    // Read-only operations
     for _i in 0..5 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -269,7 +269,7 @@ async fn test_concurrent_mixed_operations() {
         handles.push(handle);
     }
 
-    // 書き込み操作
+    // Write operations
     for i in 0..3 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -326,7 +326,7 @@ async fn test_high_contention_scenario() {
 
     let mut handles = vec![];
 
-    // 高い競合状態を作成
+    // Create high contention state
     for i in 0..20 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -334,7 +334,7 @@ async fn test_high_contention_scenario() {
                 {
                     let mut state = state_clone.lock().unwrap();
 
-                    // 短時間で多くの操作を実行
+                    // Execute many operations in short time
                     state.active_panel = if (i + j) % 2 == 0 {
                         Panel::Android
                     } else {
@@ -358,7 +358,7 @@ async fn test_high_contention_scenario() {
                     }
                 }
 
-                // 非常に短い待機
+                // Very short wait
                 if j % 50 == 0 {
                     sleep(Duration::from_millis(1)).await;
                 }
@@ -389,7 +389,7 @@ async fn test_state_performance_under_concurrency() {
 
     let mut handles = vec![];
 
-    // パフォーマンステスト: 並行操作が 100ms 以内に完了することを確認
+    // Performance test: verify concurrent operations complete within 100ms
     for i in 0..10 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {

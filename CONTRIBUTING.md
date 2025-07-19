@@ -374,7 +374,7 @@ cargo test --test device_creation_test
 cargo test -- --nocapture
 
 # Run performance tests
-cargo test startup_performance_test -- --nocapture
+cargo test responsiveness_validation_test -- --nocapture
 
 # Run tests for specific module
 cargo test android::

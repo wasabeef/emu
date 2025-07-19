@@ -1,7 +1,7 @@
-//! イベント処理システム完全テスト
+//! Event Processing System Complete Tests
 //!
-//! このテストスイートは アプリケーションのイベント処理システムの
-//! 完全性とパフォーマンスを検証します。
+//! This test suite verifies the completeness and performance of the application's
+//! event processing system.
 
 use emu::app::state::AppState;
 use emu::app::state::LogEntry;
@@ -15,7 +15,7 @@ use tokio::time::sleep;
 async fn test_event_processing_basic() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // 基本的なイベント処理テスト
+    // Basic event processing test
     {
         let mut state = state.lock().await;
         state.active_panel = Panel::Android;
@@ -31,7 +31,7 @@ async fn test_event_processing_basic() {
 async fn test_event_processing_panel_switching() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // パネル切り替えイベント処理
+    // Panel switching event processing
     {
         let mut state = state.lock().await;
         state.active_panel = Panel::Android;
@@ -46,10 +46,10 @@ async fn test_event_processing_panel_switching() {
 async fn test_event_processing_device_selection() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // デバイス選択イベント処理
+    // Device selection event processing
     {
         let mut state = state.lock().await;
-        // Android デバイスを追加
+        // Add Android devices
         state.android_devices.push(AndroidDevice {
             name: "test_device".to_string(),
             device_type: "pixel_7".to_string(),
@@ -73,10 +73,10 @@ async fn test_event_processing_device_selection() {
 async fn test_event_processing_device_navigation() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // デバイスナビゲーション処理
+    // Device navigation processing
     {
         let mut state = state.lock().await;
-        // 複数のデバイスを追加
+        // Add multiple devices
         for i in 0..5 {
             state.android_devices.push(AndroidDevice {
                 name: format!("device_{i}"),
@@ -92,15 +92,15 @@ async fn test_event_processing_device_navigation() {
         state.active_panel = Panel::Android;
         state.selected_android = 0;
 
-        // 下に移動
+        // Move down
         state.move_down();
         assert_eq!(state.selected_android, 1);
 
-        // 上に移動
+        // Move up
         state.move_up();
         assert_eq!(state.selected_android, 0);
 
-        // 最初で上に移動すると最後に循環
+        // Moving up at first wraps to last
         state.move_up();
         assert_eq!(state.selected_android, 4);
     }
@@ -116,7 +116,7 @@ async fn test_event_processing_concurrent_events() {
 
     let mut handles = vec![];
 
-    // 並行イベント処理
+    // Concurrent event processing
     for i in 0..10 {
         let state_clone = state.clone();
         let handle = tokio::spawn(async move {
@@ -154,12 +154,12 @@ async fn test_event_processing_concurrent_events() {
 async fn test_event_processing_loading_states() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // ローディング状態のイベント処理
+    // Loading state event processing
     {
         let mut state = state.lock().await;
         state.is_loading = true;
 
-        // ローディング中は操作が制限される場合をテスト
+        // Test case where operations are restricted during loading
         assert!(state.is_loading);
 
         state.is_loading = false;
@@ -174,11 +174,11 @@ async fn test_event_processing_loading_states() {
 async fn test_event_processing_log_events() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // ログイベント処理
+    // Log event processing
     {
         let mut state = state.lock().await;
 
-        // ログエントリを追加
+        // Add log entries
         state.device_logs.push_back(LogEntry {
             timestamp: "12:34:56".to_string(),
             level: "INFO".to_string(),
@@ -197,7 +197,7 @@ async fn test_event_processing_log_events() {
 
         assert_eq!(state.device_logs.len(), 3);
 
-        // ログスクロール
+        // Log scrolling
         state.log_scroll_offset = 1;
         assert_eq!(state.log_scroll_offset, 1);
     }
@@ -211,11 +211,11 @@ async fn test_event_processing_log_events() {
 async fn test_event_processing_notification_events() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // 通知イベント処理
+    // Notification event processing
     {
         let mut state = state.lock().await;
 
-        // 通知を追加
+        // Add notifications
         state
             .notifications
             .push_back(emu::app::state::Notification::success(
@@ -229,7 +229,7 @@ async fn test_event_processing_notification_events() {
 
         assert_eq!(state.notifications.len(), 2);
 
-        // 通知のタイプをテスト
+        // Test notification types
         assert_eq!(
             state.notifications[0].notification_type,
             emu::app::state::NotificationType::Success
@@ -248,11 +248,11 @@ async fn test_event_processing_notification_events() {
 async fn test_event_processing_device_operations() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // デバイス操作イベント処理
+    // Device operation event processing
     {
         let mut state = state.lock().await;
 
-        // デバイスを追加
+        // Add devices
         let device = AndroidDevice {
             name: "operation_device".to_string(),
             device_type: "pixel_7".to_string(),
@@ -264,7 +264,7 @@ async fn test_event_processing_device_operations() {
         };
         state.android_devices.push(device);
 
-        // 操作状態を設定
+        // Set operation state
         state.device_operation_status = Some("Starting device...".to_string());
 
         assert!(state.device_operation_status.is_some());
@@ -283,13 +283,13 @@ async fn test_event_processing_device_operations() {
 async fn test_event_processing_performance() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // パフォーマンステスト: イベント処理が高速であることを確認
+    // Performance test: Verify event processing is fast
     let start = std::time::Instant::now();
 
     {
         let mut state = state.lock().await;
 
-        // 大量のイベントを処理
+        // Process large number of events
         for i in 0..1000 {
             state.active_panel = if i % 2 == 0 {
                 Panel::Android
@@ -299,7 +299,7 @@ async fn test_event_processing_performance() {
             state.selected_android = i % 10;
             state.selected_ios = i % 5;
 
-            // デバイスを追加
+            // Add device
             if i % 100 == 0 {
                 state.android_devices.push(AndroidDevice {
                     name: format!("perf_device_{i}"),
@@ -332,18 +332,18 @@ async fn test_event_processing_performance() {
 async fn test_event_processing_error_handling() {
     let state = Arc::new(tokio::sync::Mutex::new(AppState::new()));
 
-    // エラーハンドリングイベント処理
+    // Error handling event processing
     {
         let mut state = state.lock().await;
 
-        // エラー状態を設定
+        // Set error state
         state
             .notifications
             .push_back(emu::app::state::Notification::error(
                 "Device operation failed".to_string(),
             ));
 
-        // 操作状態をクリア
+        // Clear operation state
         state.device_operation_status = None;
 
         assert!(state.device_operation_status.is_none());
