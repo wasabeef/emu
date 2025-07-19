@@ -10,11 +10,16 @@
     "lefthook": "lefthook",
     "format": "cargo fmt --all && prettier --write .",
     "lint": "cargo clippy --all-targets --all-features -- -D warnings",
-    "test": "cargo test --features test-utils",
-    "check": "bun run fmt && bun run lint && bun run test",
+    "test": "cargo test --bins --tests --features test-utils",
+    "test:report": "cargo tarpaulin --features test-utils --out Html --out Stdout --ignore-tests --exclude-files 'src/main.rs' --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' --exclude-files '*/tests/*' --exclude-files '*/examples/*' --exclude-files '*/benches/*' --timeout 180 --fail-under 0",
+    "test:report:open": "open tarpaulin-report.html",
+    "check": "npm run format && npm run lint && npm run test",
     "build": "cargo build --release",
     "dev": "cargo run",
-    "watch": "cargo watch -x run"
+    "watch": "cargo watch -x run",
+    "test:execution": "cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test",
+    "test:coverage:quick": "cargo tarpaulin --features test-utils --ignore-tests --exclude-files 'src/main.rs' --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' --exclude-files '*/tests/*' --exclude-files '*/examples/*' --exclude-files '*/benches/*' --timeout 60 --fail-under 0 --out Stdout",
+    "lint:fix": "cargo clippy --all-targets --all-features --fix -- -D warnings"
   },
   "devDependencies": {
     "lefthook": "^1.12.2",

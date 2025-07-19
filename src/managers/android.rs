@@ -573,7 +573,7 @@ impl AndroidManager {
                 tokio::spawn(async move {
                     executor
                         .run(
-                            &cmd_str,
+                            Path::new(&cmd_str),
                             &args_vec.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
                         )
                         .await
@@ -601,7 +601,10 @@ impl AndroidManager {
         // Get list of running emulators
         let adb_output = self
             .command_executor
-            .run(commands::ADB, &[commands::adb::DEVICES])
+            .run(
+                std::path::Path::new(commands::ADB),
+                &[commands::adb::DEVICES],
+            )
             .await
             .unwrap_or_default();
 
@@ -616,7 +619,7 @@ impl AndroidManager {
                     if let Ok(boot_prop_output) = self
                         .command_executor
                         .run(
-                            "adb",
+                            Path::new("adb"),
                             &[
                                 "-s",
                                 emulator_id,
@@ -644,7 +647,10 @@ impl AndroidManager {
                     // Method 2: Try adb emu avd name (parse first line only)
                     if let Ok(avd_name_output) = self
                         .command_executor
-                        .run("adb", &["-s", emulator_id, "emu", "avd", "name"])
+                        .run(
+                            std::path::Path::new("adb"),
+                            &["-s", emulator_id, "emu", "avd", "name"],
+                        )
                         .await
                     {
                         // Take only the first line to avoid "OK" or other status messages
@@ -678,7 +684,7 @@ impl AndroidManager {
                     if let Ok(prop_output) = self
                         .command_executor
                         .run(
-                            "adb",
+                            Path::new("adb"),
                             &[
                                 "-s",
                                 emulator_id,
@@ -810,7 +816,7 @@ impl AndroidManager {
     pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_executor
-            .run(self.avdmanager_path.to_str().unwrap(), &["list", "device"])
+            .run(&self.avdmanager_path, &["list", "device"])
             .await
             .context("Failed to list Android devices")?;
 
@@ -989,7 +995,7 @@ impl AndroidManager {
             let output = self
                 .command_executor
                 .run(
-                    sdkmanager_path.to_str().unwrap(),
+                    &sdkmanager_path,
                     &["--list", "--verbose", "--include_obsolete"],
                 )
                 .await?;
@@ -1058,7 +1064,7 @@ impl AndroidManager {
     async fn get_avd_path(&self, avd_name: &str) -> Result<Option<PathBuf>> {
         let avd_output = self
             .command_executor
-            .run(self.avdmanager_path.to_str().unwrap(), &["list", "avd"])
+            .run(&self.avdmanager_path, &["list", "avd"])
             .await
             .context("Failed to list Android AVDs")?;
 
@@ -1396,7 +1402,7 @@ impl AndroidManager {
         if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
             if let Ok(output) = self
                 .command_executor
-                .run(sdkmanager_path.to_str().unwrap(), &["--list"])
+                .run(&sdkmanager_path, &["--list"])
                 .await
             {
                 // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
@@ -1875,7 +1881,7 @@ impl AndroidManager {
         // Run avdmanager list and get_running_avd_names in parallel
         let avd_list_future = self
             .command_executor
-            .run(self.avdmanager_path.to_str().unwrap(), &["list", "avd"]);
+            .run(&self.avdmanager_path, &["list", "avd"]);
         let running_avds_future = self.get_running_avd_names();
 
         let (avd_output_result, running_avds_result) =
@@ -1998,7 +2004,7 @@ impl DeviceManager for AndroidManager {
         ];
 
         self.command_executor
-            .spawn(self.emulator_path.to_str().unwrap(), &args)
+            .spawn(&self.emulator_path, &args)
             .await?;
         Ok(())
     }
@@ -2020,7 +2026,7 @@ impl DeviceManager for AndroidManager {
             let shutdown_result = self
                 .command_executor
                 .run(
-                    "adb",
+                    Path::new("adb"),
                     &[
                         "-s",
                         emulator_id,
@@ -2043,13 +2049,16 @@ impl DeviceManager for AndroidManager {
                 // Then use reboot -p as a fallback to power off
                 let _ = self
                     .command_executor
-                    .run("adb", &["-s", emulator_id, "shell", "reboot", "-p"])
+                    .run(
+                        Path::new("adb"),
+                        &["-s", emulator_id, "shell", "reboot", "-p"],
+                    )
                     .await;
             } else {
                 // If the graceful shutdown failed, fall back to emu kill
                 // but only as a last resort
                 self.command_executor
-                    .run("adb", &["-s", emulator_id, "emu", "kill"])
+                    .run(Path::new("adb"), &["-s", emulator_id, "emu", "kill"])
                     .await
                     .context(format!("Failed to stop emulator {emulator_id}"))?;
             }
@@ -2172,7 +2181,7 @@ impl DeviceManager for AndroidManager {
 
         let result = self
             .command_executor
-            .run(self.avdmanager_path.to_str().unwrap(), &args)
+            .run(&self.avdmanager_path, &args)
             .await;
 
         // Retry without skin if skin error occurs
@@ -2191,7 +2200,7 @@ impl DeviceManager for AndroidManager {
                     fallback_args.push(device_id);
                 }
                 self.command_executor
-                    .run(self.avdmanager_path.to_str().unwrap(), &fallback_args)
+                    .run(&self.avdmanager_path, &fallback_args)
                     .await
             } else {
                 result
@@ -2314,10 +2323,7 @@ impl DeviceManager for AndroidManager {
 
         // Delete the AVD
         self.command_executor
-            .run(
-                self.avdmanager_path.to_str().unwrap(),
-                &["delete", "avd", "-n", identifier],
-            )
+            .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
             .await
             .context(format!("Failed to delete Android AVD '{identifier}'"))?;
         Ok(())

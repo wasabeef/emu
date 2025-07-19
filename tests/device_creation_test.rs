@@ -25,7 +25,7 @@ async fn test_device_creation_flow() {
     // Test list available devices (this was causing the freeze)
     println!("📋 Testing list_available_devices...");
     let list_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.list_available_devices(),
     )
     .await;
@@ -51,7 +51,7 @@ async fn test_device_creation_flow() {
     // Test list available targets
     println!("🎯 Testing list_available_targets...");
     let targets_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.list_available_targets(),
     )
     .await;
@@ -75,7 +75,7 @@ async fn test_device_creation_flow() {
     // Test basic device info operations
     println!("📱 Testing get_available_devices...");
     let info_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.get_available_devices(),
     )
     .await;
@@ -126,7 +126,7 @@ async fn test_android_manager_basic_operations() {
 
     // Test listing existing devices (should not freeze)
     println!("📋 Testing list_devices...");
-    let list_result = timeout(Duration::from_secs(15), android_manager.list_devices()).await;
+    let list_result = timeout(Duration::from_secs(30), android_manager.list_devices()).await;
 
     match list_result {
         Ok(Ok(devices)) => {

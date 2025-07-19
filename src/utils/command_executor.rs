@@ -14,18 +14,23 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait CommandExecutor: Send + Sync {
     /// Execute a command and return its output
-    async fn run(&self, command: &str, args: &[&str]) -> Result<String>;
+    async fn run(&self, command: &std::path::Path, args: &[&str]) -> Result<String>;
 
     /// Spawn a command and return its process ID
-    async fn spawn(&self, command: &str, args: &[&str]) -> Result<u32>;
+    async fn spawn(&self, command: &std::path::Path, args: &[&str]) -> Result<u32>;
 
     /// Execute a command with retry logic
-    async fn run_with_retry(&self, command: &str, args: &[&str], retries: u32) -> Result<String>;
+    async fn run_with_retry(
+        &self,
+        command: &std::path::Path,
+        args: &[&str],
+        retries: u32,
+    ) -> Result<String>;
 
     /// Execute a command, ignoring specific error patterns
     async fn run_ignoring_errors(
         &self,
-        command: &str,
+        command: &std::path::Path,
         args: &[&str],
         ignore_patterns: &[&str],
     ) -> Result<String>;
@@ -34,21 +39,26 @@ pub trait CommandExecutor: Send + Sync {
 /// Implementation of CommandExecutor for the actual CommandRunner
 #[async_trait]
 impl CommandExecutor for crate::utils::command::CommandRunner {
-    async fn run(&self, command: &str, args: &[&str]) -> Result<String> {
+    async fn run(&self, command: &std::path::Path, args: &[&str]) -> Result<String> {
         self.run(command, args).await
     }
 
-    async fn spawn(&self, command: &str, args: &[&str]) -> Result<u32> {
+    async fn spawn(&self, command: &std::path::Path, args: &[&str]) -> Result<u32> {
         self.spawn(command, args).await
     }
 
-    async fn run_with_retry(&self, command: &str, args: &[&str], retries: u32) -> Result<String> {
+    async fn run_with_retry(
+        &self,
+        command: &std::path::Path,
+        args: &[&str],
+        retries: u32,
+    ) -> Result<String> {
         self.run_with_retry(command, args, retries).await
     }
 
     async fn run_ignoring_errors(
         &self,
-        command: &str,
+        command: &std::path::Path,
         args: &[&str],
         ignore_patterns: &[&str],
     ) -> Result<String> {
@@ -126,12 +136,15 @@ pub mod mock {
 
     #[async_trait]
     impl CommandExecutor for MockCommandExecutor {
-        async fn run(&self, command: &str, args: &[&str]) -> Result<String> {
-            let key = format!("{} {}", command, args.join(" "));
+        async fn run(&self, command: &std::path::Path, args: &[&str]) -> Result<String> {
+            // Convert Path to string, falling back to lossy conversion for non-UTF8 paths
+            let command_string = command.to_string_lossy();
+            let command_str = command.to_str().unwrap_or_else(|| command_string.as_ref());
+            let key = format!("{} {}", command_str, args.join(" "));
 
             // Record the call
             self.call_history.lock().unwrap().push((
-                command.to_string(),
+                command_str.to_string(),
                 args.iter().map(|s| s.to_string()).collect(),
             ));
 
@@ -142,10 +155,10 @@ pub mod mock {
             }
 
             // If no exact match, try matching by command basename
-            let command_basename = std::path::Path::new(command)
+            let command_basename = command
                 .file_name()
                 .and_then(|name| name.to_str())
-                .unwrap_or(command);
+                .unwrap_or(command_str);
             let basename_key = format!("{} {}", command_basename, args.join(" "));
 
             responses
@@ -155,12 +168,15 @@ pub mod mock {
                 .map_err(|e| anyhow::anyhow!(e))
         }
 
-        async fn spawn(&self, command: &str, args: &[&str]) -> Result<u32> {
-            let key = format!("{} {}", command, args.join(" "));
+        async fn spawn(&self, command: &std::path::Path, args: &[&str]) -> Result<u32> {
+            // Convert Path to string, falling back to lossy conversion for non-UTF8 paths
+            let command_string = command.to_string_lossy();
+            let command_str = command.to_str().unwrap_or_else(|| command_string.as_ref());
+            let key = format!("{} {}", command_str, args.join(" "));
 
             // Record the call
             self.call_history.lock().unwrap().push((
-                command.to_string(),
+                command_str.to_string(),
                 args.iter().map(|s| s.to_string()).collect(),
             ));
 
@@ -171,10 +187,10 @@ pub mod mock {
             }
 
             // If no exact match, try matching by command basename
-            let command_basename = std::path::Path::new(command)
+            let command_basename = command
                 .file_name()
                 .and_then(|name| name.to_str())
-                .unwrap_or(command);
+                .unwrap_or(command_str);
             let basename_key = format!("{} {}", command_basename, args.join(" "));
 
             spawn_responses
@@ -185,7 +201,7 @@ pub mod mock {
 
         async fn run_with_retry(
             &self,
-            command: &str,
+            command: &std::path::Path,
             args: &[&str],
             _retries: u32,
         ) -> Result<String> {
@@ -195,7 +211,7 @@ pub mod mock {
 
         async fn run_ignoring_errors(
             &self,
-            command: &str,
+            command: &std::path::Path,
             args: &[&str],
             _ignore_patterns: &[&str],
         ) -> Result<String> {
@@ -214,7 +230,7 @@ mod tests {
     async fn test_mock_executor_success() {
         let executor = MockCommandExecutor::new().with_success("echo", &["hello"], "hello\n");
 
-        let result = executor.run("echo", &["hello"]).await;
+        let result = executor.run(std::path::Path::new("echo"), &["hello"]).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "hello\n");
 
@@ -229,7 +245,7 @@ mod tests {
     async fn test_mock_executor_error() {
         let executor = MockCommandExecutor::new().with_error("false", &[], "Command failed");
 
-        let result = executor.run("false", &[]).await;
+        let result = executor.run(std::path::Path::new("false"), &[]).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Command failed"));
     }
@@ -238,8 +254,30 @@ mod tests {
     async fn test_mock_executor_spawn() {
         let executor = MockCommandExecutor::new().with_spawn_response("sleep", &["10"], 12345);
 
-        let result = executor.spawn("sleep", &["10"]).await;
+        let result = executor.spawn(std::path::Path::new("sleep"), &["10"]).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 12345);
+    }
+
+    #[tokio::test]
+    async fn test_mock_executor_non_utf8_path() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        // Create a path with non-UTF8 bytes (only works on Unix)
+        #[cfg(unix)]
+        {
+            let non_utf8_bytes = vec![0x80, 0x81, 0x82]; // Invalid UTF-8
+            let non_utf8_path = std::path::Path::new(OsStr::from_bytes(&non_utf8_bytes));
+
+            let executor = MockCommandExecutor::new();
+            // The mock should handle non-UTF8 paths gracefully using lossy conversion
+            let result = executor.run(non_utf8_path, &["test"]).await;
+            assert!(result.is_err()); // Will fail because no mock response configured
+
+            // But it shouldn't panic, and the call should be recorded
+            let history = executor.call_history();
+            assert_eq!(history.len(), 1);
+        }
     }
 }

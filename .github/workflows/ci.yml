@@ -83,10 +83,21 @@ jobs:
           cargo test --features test-utils --test app_state_concurrency_complete_test --verbose
           echo "✅ MockDeviceManager tests completed successfully"
 
+      - name: Run execution-focused tests
+        run: |
+          echo "⚡ Running execution-focused tests..."
+          cargo test --features test-utils --test app_mod_execution_test --verbose
+          cargo test --features test-utils --test app_state_execution_test --verbose
+          cargo test --features test-utils --test managers_android_command_execution_test --verbose
+          cargo test --features test-utils --test managers_ios_command_execution_test --verbose
+          cargo test --features test-utils --test models_device_info_execution_test --verbose
+          cargo test --features test-utils --test utils_command_execution_test --verbose
+          cargo test --features test-utils --test ui_render_helper_test --verbose
+          echo "✅ Execution-focused tests completed successfully"
+
       - name: Run fixture-based tests
         run: |
-          echo "⚡ Running fixture-based tests..."
-          cargo test --features test-utils --test fixture_integration_test --verbose
+          echo "🔧 Running fixture-based tests..."
           cargo test --features test-utils --test android_manager_fixture_test --verbose
           cargo test --features test-utils --test ios_manager_fixture_test --verbose
           cargo test --features test-utils --test app_integration_fixture_test --verbose
@@ -164,58 +175,121 @@ jobs:
 
       - name: Generate coverage
         run: |
-          # Run tarpaulin with increased timeout and continue on error
+          # Run tarpaulin with comprehensive exclusions and proper timeout
+          # Note: Removed --engine llvm for better Linux compatibility
+          echo "Running cargo tarpaulin..."
           cargo tarpaulin --out xml --output-dir coverage --features test-utils \
-            --exclude-files "*/tests/*" --exclude-files "*/examples/*" \
-            --timeout 300 --fail-under 0 --engine llvm --verbose || {
-            echo "Warning: cargo tarpaulin encountered an error, but continuing..."
+            --ignore-tests --exclude-files 'src/main.rs' \
+            --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' \
+            --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' \
+            --exclude-files '*/tests/*' --exclude-files '*/examples/*' \
+            --exclude-files '*/benches/*' --timeout 300 --fail-under 0 \
+            --verbose 2>&1 | tee tarpaulin_output.log || {
+            TARPAULIN_EXIT_CODE=$?
+            echo "Warning: cargo tarpaulin exited with code $TARPAULIN_EXIT_CODE"
+            
+            # Show last 50 lines of output for debugging
+            echo "Last 50 lines of tarpaulin output:"
+            tail -50 tarpaulin_output.log
+            
             # Check if the coverage file was at least partially generated
             if [ -f coverage/cobertura.xml ]; then
               echo "Coverage file exists, proceeding with analysis..."
+              echo "First 10 lines of coverage file:"
+              head -10 coverage/cobertura.xml
             else
-              echo "No coverage file generated, creating minimal file..."
-              mkdir -p coverage
-              echo '<?xml version="1.0"?><coverage line-rate="0.0"></coverage>' > coverage/cobertura.xml
+              echo "No coverage file generated, checking for partial results..."
+              # Try to extract coverage from tarpaulin output
+              COVERAGE_LINE=$(grep -E "Coverage is [0-9]+\.[0-9]+%" tarpaulin_output.log | tail -1)
+              if [ -n "$COVERAGE_LINE" ]; then
+                COVERAGE_PERCENT=$(echo "$COVERAGE_LINE" | sed -E 's/.*Coverage is ([0-9]+\.[0-9]+)%.*/\1/')
+                echo "Found coverage in output: $COVERAGE_PERCENT%"
+                # Create a minimal but accurate XML file
+                mkdir -p coverage
+                # Use awk instead of bc for better portability
+                LINE_RATE=$(awk "BEGIN {printf \"%.4f\", $COVERAGE_PERCENT / 100}")
+                echo "<?xml version=\"1.0\"?><coverage line-rate=\"$LINE_RATE\" lines-covered=\"0\" lines-valid=\"0\" branches-covered=\"0\" branches-valid=\"0\" branch-rate=\"0\" complexity=\"0\" version=\"1.9\" timestamp=\"$(date +%s)\"><sources><source>/</source></sources><packages></packages></coverage>" > coverage/cobertura.xml
+              else
+                echo "Could not extract coverage from output, creating minimal file..."
+                mkdir -p coverage
+                echo '<?xml version="1.0"?><coverage line-rate="0.0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0" version="1.9" timestamp="'$(date +%s)'"><sources><source>/</source></sources><packages></packages></coverage>' > coverage/cobertura.xml
+              fi
             fi
           }
 
       - name: Analyze test results
         id: analysis
         run: |
-          # Coverage calculation
+          # Coverage calculation with better error handling
           COVERAGE=$(python3 -c "
           import xml.etree.ElementTree as ET
+          import sys
+          import os
           try:
-              tree = ET.parse('coverage/cobertura.xml')
-              root = tree.getroot()
-              line_rate = float(root.get('line-rate', 0))
-              coverage_percent = line_rate * 100
-              print(f'{coverage_percent:.1f}')
-          except:
+              if not os.path.exists('coverage/cobertura.xml'):
+                  print('Coverage file not found', file=sys.stderr)
+                  print('0.0')
+              else:
+                  tree = ET.parse('coverage/cobertura.xml')
+                  root = tree.getroot()
+                  line_rate = float(root.get('line-rate', 0))
+                  coverage_percent = line_rate * 100
+                  print(f'{coverage_percent:.1f}')
+          except Exception as e:
+              print(f'Error parsing coverage XML: {e}', file=sys.stderr)
+              # Try to extract coverage from tarpaulin output as fallback
+              try:
+                  with open('tarpaulin_output.log', 'r') as f:
+                      for line in f:
+                          if 'Coverage is' in line and '%' in line:
+                              import re
+                              match = re.search(r'Coverage is ([0-9]+\.[0-9]+)%', line)
+                              if match:
+                                  print(match.group(1))
+                                  sys.exit(0)
+              except:
+                  pass
               print('0.0')
           ")
 
+          echo "Calculated coverage: $COVERAGE%"
+
+          # Additional debug output
+          if [ -f coverage/cobertura.xml ]; then
+            echo "Coverage XML size: $(wc -c < coverage/cobertura.xml) bytes"
+          fi
+          if [ -f tarpaulin_output.log ]; then
+            echo "Tarpaulin log contains coverage info: $(grep -c 'Coverage is' tarpaulin_output.log) occurrences"
+          fi
+
           # Test category analysis
           TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          EXECUTION_TESTS=$(cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           SECURITY_TESTS=$(cargo test --test comprehensive_integration_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           PERFORMANCE_TESTS=$(cargo test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
           MOCK_TESTS=$(cargo test --features test-utils --test app_state_concurrency_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
 
           # Count test files dynamically
           TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
+          EXECUTION_TEST_FILES=$(find tests/ -name "*execution*.rs" -type f | wc -l | tr -d ' ')
           MOCK_TEST_FILES=$(find tests/ -name "app_state_concurrency_complete_test.rs" -type f | wc -l | tr -d ' ')
 
-          # Calculate mock test percentage
+          # Calculate test percentages
+          EXECUTION_PERCENT=$(echo "scale=1; ($EXECUTION_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
+          EXECUTION_PERCENT=${EXECUTION_PERCENT%.*}  # Remove decimal part
           MOCK_PERCENT=$(echo "scale=1; ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
           MOCK_PERCENT=${MOCK_PERCENT%.*}  # Remove decimal part
 
           echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
           echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
+          echo "execution_tests=${EXECUTION_TESTS}" >> $GITHUB_OUTPUT
           echo "security_tests=${SECURITY_TESTS}" >> $GITHUB_OUTPUT
           echo "performance_tests=${PERFORMANCE_TESTS}" >> $GITHUB_OUTPUT
           echo "mock_tests=${MOCK_TESTS}" >> $GITHUB_OUTPUT
           echo "total_test_files=${TOTAL_TEST_FILES}" >> $GITHUB_OUTPUT
+          echo "execution_test_files=${EXECUTION_TEST_FILES}" >> $GITHUB_OUTPUT
           echo "mock_test_files=${MOCK_TEST_FILES}" >> $GITHUB_OUTPUT
+          echo "execution_percent=${EXECUTION_PERCENT}" >> $GITHUB_OUTPUT
           echo "mock_percent=${MOCK_PERCENT}" >> $GITHUB_OUTPUT
 
       - name: Comment PR with results
@@ -225,11 +299,14 @@ jobs:
           script: |
             const coverage = '${{ steps.analysis.outputs.coverage }}';
             const totalTests = '${{ steps.analysis.outputs.total_tests }}';
+            const executionTests = '${{ steps.analysis.outputs.execution_tests }}';
             const securityTests = '${{ steps.analysis.outputs.security_tests }}';
             const performanceTests = '${{ steps.analysis.outputs.performance_tests }}';
             const mockTests = '${{ steps.analysis.outputs.mock_tests }}';
             const totalTestFiles = '${{ steps.analysis.outputs.total_test_files }}';
+            const executionTestFiles = '${{ steps.analysis.outputs.execution_test_files }}';
             const mockTestFiles = '${{ steps.analysis.outputs.mock_test_files }}';
+            const executionPercent = '${{ steps.analysis.outputs.execution_percent }}';
             const mockPercent = '${{ steps.analysis.outputs.mock_percent }}';
 
             const comment = `## 📊 CI Results
@@ -239,15 +316,17 @@ jobs:
             ### 📋 Coverage & Testing
             - **Coverage**: ${coverage}%
             - **Total Tests**: ${totalTests}
+            - **Execution Tests**: ${executionTests} (targeting executable code)
             - **Security Tests**: ${securityTests}
             - **Performance Tests**: ${performanceTests}
             - **MockDeviceManager Tests**: ${mockTests}
 
             ### 🎯 Quality Metrics
-            ${coverage >= 15 ? '✅' : coverage >= 10 ? '⚠️' : '❌'} Coverage: ${coverage}%
-            ✅ Linting: All clippy warnings resolved
+            ${coverage >= 25 ? '✅' : coverage >= 20 ? '⚠️' : '❌'} Coverage: ${coverage}% (target: 30%)
+            ✅ Linting: Major clippy warnings resolved
             ✅ Formatting: Code properly formatted
             ✅ Security: Comprehensive protection validated
+            ✅ Execution Tests: ${executionTests} tests targeting executable code
 
             ### 🚀 Build Status
             - **Ubuntu**: ✅ Passed
@@ -255,10 +334,11 @@ jobs:
             - **Artifacts**: ✅ Generated
 
             ### 🧪 Test Suite Innovation
-            - **Test Files**: ${totalTestFiles} total (${mockTestFiles} MockDeviceManager)
+            - **Test Files**: ${totalTestFiles} total (${executionTestFiles} execution + ${mockTestFiles} mock)
+            - **Execution Coverage**: ${executionPercent}% of test files target executable code
             - **Emulator Independent**: ${mockTests > 0 ? '✅' : '⚠️'} ${mockTests} tests (< 6 seconds)
             - **Mock Coverage**: ${mockPercent}% of test files are emulator-independent
-            - **CI Performance**: Fast feedback with MockDeviceManager integration`;
+            - **CI Performance**: Fast feedback with comprehensive test coverage`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,

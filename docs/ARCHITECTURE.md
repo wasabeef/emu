@@ -442,7 +442,7 @@ The project has 15 test files with 31+ test functions covering:
 #### Integration Tests (`tests/`)
 
 - **Device Lifecycle**: Complete device management workflows (`comprehensive_integration_test.rs`)
-- **Performance Tests**: Startup time and responsiveness validation (`startup_performance_test.rs`)
+- **Performance Tests**: Startup time and responsiveness validation (`responsiveness_validation_test.rs`)
 - **UI Tests**: Navigation, focus management, state coordination (`ui_focus_and_theme_test.rs`)
 - **Device Operations**: Creation, status tracking, operations (`device_operations_status_test.rs`)
 - **Navigation Tests**: Field navigation, circular navigation (`device_creation_navigation_test.rs`)

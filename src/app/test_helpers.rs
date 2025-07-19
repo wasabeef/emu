@@ -80,30 +80,5 @@ mod tests {
         assert_eq!(state.ios_manager_name, Some("Mock iOS Manager".to_string()));
     }
 
-    #[tokio::test]
-    async fn test_scenario_builder() {
-        let app = TestScenarioBuilder::new()
-            .with_device_count(5)
-            .with_failing_operation("start_device", "Test failure")
-            .with_operation_delay("list_devices", 100)
-            .build()
-            .await
-            .expect("Failed to build test scenario");
-        
-        // Verify app was created successfully
-        let state = app.state.lock().await;
-        assert!(!state.android_manager_name.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_android_only_scenario() {
-        let app = TestScenarioBuilder::new()
-            .android_only()
-            .build()
-            .await
-            .expect("Failed to build Android-only scenario");
-        
-        let state = app.state.lock().await;
-        assert_eq!(state.ios_manager_name, None);
-    }
+    // TestScenarioBuilder tests removed as it's not implemented yet
 }

@@ -11,188 +11,190 @@
 //! - **Graceful Error Handling**: Handles already-booted and already-shutdown states
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
 
-//! # xcrun simctl Command Reference
-//!
-//! ## Device Listing (`xcrun simctl list devices --json`)
-//! ```json
-//! {
-//!   "devices": {
-//!     "com.apple.CoreSimulator.SimRuntime.iOS-17-0": [
-//!       {
-//!         "lastBootedAt": "2024-01-15T10:30:00Z",
-//!         "dataPath": "/Users/.../CoreSimulator/Devices/{UUID}/data",
-//!         "logPath": "/Users/.../CoreSimulator/Devices/{UUID}/device.log",
-//!         "udid": "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6",
-//!         "isAvailable": true,
-//!         "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
-//!         "state": "Booted",
-//!         "name": "iPhone 15"
-//!       }
-//!     ]
-//!   }
-//! }
-//! ```
-//!
-//! **Device States**:
-//! - `Booted`: Device is running
-//! - `Shutdown`: Device is stopped
-//! - `Creating`: Device is being created
-//! - `Booting`: Device is starting up
-//! - `Shutting Down`: Device is stopping
-//!
-//! ## Device Types (`xcrun simctl list devicetypes --json`)
-//! ```json
-//! {
-//!   "devicetypes": [
-//!     {
-//!       "minRuntimeVersion": 917504,
-//!       "bundlePath": "/Applications/Xcode.app/.../iPhone 15.simdevicetype",
-//!       "maxRuntimeVersion": 4294967295,
-//!       "name": "iPhone 15",
-//!       "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
-//!       "productFamily": "iPhone"
-//!     }
-//!   ]
-//! }
-//! ```
-//!
-//! **Device Type Naming**:
-//! - Identifier format: `com.apple.CoreSimulator.SimDeviceType.{Device-Name}`
-//! - Display names extracted from JSON `name` field or parsed from identifier
-//! - Special handling for sizes: "12.9-inch" → "12.9\""
-//!
-//! ## Runtimes (`xcrun simctl list runtimes --json`)
-//! ```json
-//! {
-//!   "runtimes": [
-//!     {
-//!       "bundlePath": "/Library/.../iOS 17.0.simruntime",
-//!       "buildversion": "21A342",
-//!       "platform": "iOS",
-//!       "runtimeRoot": "/Library/.../iOS 17.0.simruntime/Contents/Resources/RuntimeRoot",
-//!       "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-17-0",
-//!       "version": "17.0",
-//!       "isInternal": false,
-//!       "isAvailable": true,
-//!       "name": "iOS 17.0",
-//!       "supportedDeviceTypes": [
-//!         "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
-//!         "com.apple.CoreSimulator.SimDeviceType.iPhone-15"
-//!       ]
-//!     }
-//!   ]
-//! }
-//! ```
-//!
-//! ## Common Operations
-//!
-//! ### Create Device
-//! ```bash
-//! xcrun simctl create "My iPhone" com.apple.CoreSimulator.SimDeviceType.iPhone-15 com.apple.CoreSimulator.SimRuntime.iOS-17-0
-//! # Returns: UUID of created device
-//! ```
-//!
-//! ### Boot Device
-//! ```bash
-//! xcrun simctl boot {UUID}
-//! # Note: Returns error if already booted - handled gracefully
-//! ```
-//!
-//! ### Shutdown Device
-//! ```bash
-//! xcrun simctl shutdown {UUID}
-//! # Note: Returns error if already shutdown - handled gracefully
-//! ```
-//!
-//! ### Delete Device
-//! ```bash
-//! xcrun simctl delete {UUID}
-//! # Note: Automatically shuts down device first if needed
-//! ```
-//!
-//! ### Erase Device (Wipe)
-//! ```bash
-//! xcrun simctl erase {UUID}
-//! # Resets device to factory settings
-//! ```
-//!
-//! ## Device Priority System
-//!
-//! Devices are sorted with the following priority (lower number = higher priority):
-//!
-//! 1. **iPhone** (0-99):
-//!    - Pro Max: 0
-//!    - Pro: 10
-//!    - Plus/Max: 20
-//!    - Mini: 30
-//!    - SE: 40
-//!    - Regular (by version): 50 - version
-//!
-//! 2. **iPad** (100-199):
-//!    - Pro 12.9": 100
-//!    - Pro 11": 110
-//!    - Air: 130
-//!    - Mini: 140
-//!    - Regular: 150
-//!
-//! 3. **Apple TV** (200-299):
-//!    - 4K: 200
-//!    - HD: 210
-//!
-//! 4. **Apple Watch** (300-399):
-//!    - Ultra: 300
-//!    - Series (by version): 310 - series_number
-//!    - SE: 330
-//!
-//! ## Error Handling
-//!
-//! ### Common Errors and Solutions
-//! - "Unable to boot device in current state: Booted" → Device already running (ignored)
-//! - "Unable to shutdown device in current state: Shutdown" → Device already stopped (ignored)
-//! - "Invalid device type" → Check available types with `xcrun simctl list devicetypes`
-//! - "Invalid runtime" → Check available runtimes with `xcrun simctl list runtimes`
-//!
-//! ### Simulator App Integration
-//! - Boot operations attempt to open Simulator.app automatically
-//! - Failures to open Simulator.app are logged but don't fail the operation
-//! - Devices can run in "headless" mode without the Simulator app
-//! - Automatic cleanup: Simulator.app quits when last device stops
-//! - Graceful shutdown: Uses AppleScript with killall fallback
-//!
-//! ## Log Streaming
-//!
-//! iOS simulator logs can be streamed using multiple approaches:
-//!
-//! ### Method 1: Direct simulator spawn (most reliable)
-//! ```bash
-//! xcrun simctl spawn {UUID} log stream
-//! ```
-//!
-//! ### Method 2: System log filtering
-//! ```bash
-//! log stream --predicate 'processImagePath contains "Simulator"'
-//! ```
-//!
-//! ### Method 3: Console app logs
-//! ```bash
-//! log stream --style compact
-//! ```
-//!
-//! **Log Level Detection**:
-//! - Keywords "error" or "Error" → ERROR level
-//! - Keywords "warning" or "Warning" → WARN level
-//! - All other logs → INFO level
-//!
-//! ## Implementation Notes
-//!
-//! ### State Detection Optimization
-//! The `start_device` method pre-checks device state to avoid redundant boot commands,
-//! preventing unnecessary error messages and improving user experience.
-//!
-//! ### Cross-Platform Safety
-//! - All iOS-specific code is gated with `#[cfg(target_os = "macos")]`
-//! - Non-macOS platforms get stub implementations that return appropriate errors
-//! - The `which` crate is used to verify `xcrun` availability at runtime
+use std::path::Path;
+
+// # xcrun simctl Command Reference
+//
+// ## Device Listing (`xcrun simctl list devices --json`)
+// ```json
+// {
+//   "devices": {
+//     "com.apple.CoreSimulator.SimRuntime.iOS-17-0": [
+//       {
+//         "lastBootedAt": "2024-01-15T10:30:00Z",
+//         "dataPath": "/Users/.../CoreSimulator/Devices/{UUID}/data",
+//         "logPath": "/Users/.../CoreSimulator/Devices/{UUID}/device.log",
+//         "udid": "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6",
+//         "isAvailable": true,
+//         "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+//         "state": "Booted",
+//         "name": "iPhone 15"
+//       }
+//     ]
+//   }
+// }
+// ```
+//
+// **Device States**:
+// - `Booted`: Device is running
+// - `Shutdown`: Device is stopped
+// - `Creating`: Device is being created
+// - `Booting`: Device is starting up
+// - `Shutting Down`: Device is stopping
+//
+// ## Device Types (`xcrun simctl list devicetypes --json`)
+// ```json
+// {
+//   "devicetypes": [
+//     {
+//       "minRuntimeVersion": 917504,
+//       "bundlePath": "/Applications/Xcode.app/.../iPhone 15.simdevicetype",
+//       "maxRuntimeVersion": 4294967295,
+//       "name": "iPhone 15",
+//       "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+//       "productFamily": "iPhone"
+//     }
+//   ]
+// }
+// ```
+//
+// **Device Type Naming**:
+// - Identifier format: `com.apple.CoreSimulator.SimDeviceType.{Device-Name}`
+// - Display names extracted from JSON `name` field or parsed from identifier
+// - Special handling for sizes: "12.9-inch" → "12.9\""
+//
+// ## Runtimes (`xcrun simctl list runtimes --json`)
+// ```json
+// {
+//   "runtimes": [
+//     {
+//       "bundlePath": "/Library/.../iOS 17.0.simruntime",
+//       "buildversion": "21A342",
+//       "platform": "iOS",
+//       "runtimeRoot": "/Library/.../iOS 17.0.simruntime/Contents/Resources/RuntimeRoot",
+//       "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-17-0",
+//       "version": "17.0",
+//       "isInternal": false,
+//       "isAvailable": true,
+//       "name": "iOS 17.0",
+//       "supportedDeviceTypes": [
+//         "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+//         "com.apple.CoreSimulator.SimDeviceType.iPhone-15"
+//       ]
+//     }
+//   ]
+// }
+// ```
+//
+// ## Common Operations
+//
+// ### Create Device
+// ```bash
+// xcrun simctl create "My iPhone" com.apple.CoreSimulator.SimDeviceType.iPhone-15 com.apple.CoreSimulator.SimRuntime.iOS-17-0
+// # Returns: UUID of created device
+// ```
+//
+// ### Boot Device
+// ```bash
+// xcrun simctl boot {UUID}
+// # Note: Returns error if already booted - handled gracefully
+// ```
+//
+// ### Shutdown Device
+// ```bash
+// xcrun simctl shutdown {UUID}
+// # Note: Returns error if already shutdown - handled gracefully
+// ```
+//
+// ### Delete Device
+// ```bash
+// xcrun simctl delete {UUID}
+// # Note: Automatically shuts down device first if needed
+// ```
+//
+// ### Erase Device (Wipe)
+// ```bash
+// xcrun simctl erase {UUID}
+// # Resets device to factory settings
+// ```
+//
+// ## Device Priority System
+//
+// Devices are sorted with the following priority (lower number = higher priority):
+//
+// 1. **iPhone** (0-99):
+//    - Pro Max: 0
+//    - Pro: 10
+//    - Plus/Max: 20
+//    - Mini: 30
+//    - SE: 40
+//    - Regular (by version): 50 - version
+//
+// 2. **iPad** (100-199):
+//    - Pro 12.9": 100
+//    - Pro 11": 110
+//    - Air: 130
+//    - Mini: 140
+//    - Regular: 150
+//
+// 3. **Apple TV** (200-299):
+//    - 4K: 200
+//    - HD: 210
+//
+// 4. **Apple Watch** (300-399):
+//    - Ultra: 300
+//    - Series (by version): 310 - series_number
+//    - SE: 330
+//
+// ## Error Handling
+//
+// ### Common Errors and Solutions
+// - "Unable to boot device in current state: Booted" → Device already running (ignored)
+// - "Unable to shutdown device in current state: Shutdown" → Device already stopped (ignored)
+// - "Invalid device type" → Check available types with `xcrun simctl list devicetypes`
+// - "Invalid runtime" → Check available runtimes with `xcrun simctl list runtimes`
+//
+// ### Simulator App Integration
+// - Boot operations attempt to open Simulator.app automatically
+// - Failures to open Simulator.app are logged but don't fail the operation
+// - Devices can run in "headless" mode without the Simulator app
+// - Automatic cleanup: Simulator.app quits when last device stops
+// - Graceful shutdown: Uses AppleScript with killall fallback
+//
+// ## Log Streaming
+//
+// iOS simulator logs can be streamed using multiple approaches:
+//
+// ### Method 1: Direct simulator spawn (most reliable)
+// ```bash
+// xcrun simctl spawn {UUID} log stream
+// ```
+//
+// ### Method 2: System log filtering
+// ```bash
+// log stream --predicate 'processImagePath contains "Simulator"'
+// ```
+//
+// ### Method 3: Console app logs
+// ```bash
+// log stream --style compact
+// ```
+//
+// **Log Level Detection**:
+// - Keywords "error" or "Error" → ERROR level
+// - Keywords "warning" or "Warning" → WARN level
+// - All other logs → INFO level
+//
+// ## Implementation Notes
+//
+// ### State Detection Optimization
+// The `start_device` method pre-checks device state to avoid redundant boot commands,
+// preventing unnecessary error messages and improving user experience.
+//
+// ### Cross-Platform Safety
+// - All iOS-specific code is gated with `#[cfg(target_os = "macos")]`
+// - Non-macOS platforms get stub implementations that return appropriate errors
+// - The `which` crate is used to verify `xcrun` availability at runtime
 
 #[cfg(target_os = "macos")]
 use crate::constants::ios::{
@@ -394,7 +396,7 @@ impl IosManager {
         // Get device information
         let device_output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "devices", "-j"])
+            .run(Path::new("xcrun"), &["simctl", "list", "devices", "-j"])
             .await
             .context("Failed to get device list")?;
 
@@ -528,7 +530,7 @@ impl IosManager {
 
     pub async fn erase_device(&self, udid: &str) -> Result<()> {
         self.command_executor
-            .run("xcrun", &["simctl", "erase", udid])
+            .run(Path::new("xcrun"), &["simctl", "erase", udid])
             .await
             .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
@@ -537,7 +539,10 @@ impl IosManager {
     pub async fn list_device_types(&self) -> Result<Vec<String>> {
         let output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
+            .run(
+                Path::new("xcrun"),
+                &["simctl", "list", "devicetypes", "--json"],
+            )
             .await
             .context("Failed to list device types")?;
         let json: Value =
@@ -559,7 +564,10 @@ impl IosManager {
     pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
+            .run(
+                Path::new("xcrun"),
+                &["simctl", "list", "devicetypes", "--json"],
+            )
             .await
             .context("Failed to list device types")?;
         let json: Value =
@@ -664,7 +672,10 @@ impl IosManager {
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "runtimes", "--json"])
+            .run(
+                Path::new("xcrun"),
+                &["simctl", "list", "runtimes", "--json"],
+            )
             .await
             .context("Failed to list runtimes")?;
         let json: Value = serde_json::from_str(&output).context("Failed to parse runtimes JSON")?;
@@ -749,7 +760,7 @@ impl IosManager {
                     // Quit Simulator.app gracefully
                     if let Err(e) = self
                         .command_executor
-                        .run("osascript", &["-e", SIMULATOR_QUIT_COMMAND])
+                        .run(Path::new("osascript"), &["-e", SIMULATOR_QUIT_COMMAND])
                         .await
                     {
                         log::warn!("Failed to quit Simulator.app gracefully: {e}");
@@ -757,7 +768,7 @@ impl IosManager {
                         // Fallback: Force quit using killall
                         if let Err(e2) = self
                             .command_executor
-                            .run("killall", &[SIMULATOR_APP_NAME])
+                            .run(Path::new("killall"), &[SIMULATOR_APP_NAME])
                             .await
                         {
                             log::warn!("Failed to force quit Simulator.app: {e2}");
@@ -781,7 +792,7 @@ impl DeviceManager for IosManager {
     async fn list_devices(&self) -> Result<Vec<Self::Device>> {
         let output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "devices", "--json"])
+            .run(Path::new("xcrun"), &["simctl", "list", "devices", "--json"])
             .await
             .context("Failed to list iOS devices")?;
         let json: Value =
@@ -831,7 +842,7 @@ impl DeviceManager for IosManager {
         // Check if device is already booted
         let status_output = self
             .command_executor
-            .run("xcrun", &["simctl", "list", "devices", "-j"])
+            .run(Path::new("xcrun"), &["simctl", "list", "devices", "-j"])
             .await
             .context("Failed to get device status")?;
 
@@ -864,7 +875,7 @@ impl DeviceManager for IosManager {
             // Boot the device
             let boot_result = self
                 .command_executor
-                .run("xcrun", &["simctl", "boot", identifier])
+                .run(Path::new("xcrun"), &["simctl", "boot", identifier])
                 .await;
 
             match boot_result {
@@ -883,7 +894,10 @@ impl DeviceManager for IosManager {
         // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
         if let Err(e) = self
             .command_executor
-            .spawn("open", &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME])
+            .spawn(
+                Path::new("open"),
+                &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME],
+            )
             .await
         {
             log::warn!("Failed to open Simulator app: {e}. Device might be booting in headless mode or Simulator app needs to be opened manually.");
@@ -896,7 +910,7 @@ impl DeviceManager for IosManager {
 
         let shutdown_result = self
             .command_executor
-            .run("xcrun", &["simctl", "shutdown", identifier])
+            .run(Path::new("xcrun"), &["simctl", "shutdown", identifier])
             .await;
 
         match shutdown_result {
@@ -937,7 +951,7 @@ impl DeviceManager for IosManager {
         let output = self
             .command_executor
             .run(
-                "xcrun",
+                Path::new("xcrun"),
                 &[
                     "simctl",
                     "create",
@@ -961,12 +975,12 @@ impl DeviceManager for IosManager {
         // First try to shutdown the device if it's running
         let _ = self
             .command_executor
-            .run("xcrun", &["simctl", "shutdown", identifier])
+            .run(Path::new("xcrun"), &["simctl", "shutdown", identifier])
             .await; // Ignore errors as device might already be shut down
 
         // Now delete the device
         self.command_executor
-            .run("xcrun", &["simctl", "delete", identifier])
+            .run(Path::new("xcrun"), &["simctl", "delete", identifier])
             .await
             .context(format!(
                 "Failed to delete iOS device {identifier}. Make sure the device exists and is not in use."
