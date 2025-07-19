@@ -164,7 +164,7 @@ tests/
 ├── device_creation_navigation_test.rs # UI navigation tests
 ├── device_operations_status_test.rs   # Operation status tests
 ├── ui_focus_and_theme_test.rs        # UI and theme tests
-├── startup_performance_test.rs        # Performance benchmarks
+├── responsiveness_validation_test.rs    # Performance and responsiveness tests
 ├── device_creation_test.rs           # Device creation workflows
 ├── device_name_sanitization_test.rs  # Input validation
 ├── integration_test.rs               # General integration
@@ -390,7 +390,7 @@ cargo test test_device_creation
 cargo test android::
 
 # Run performance tests
-cargo test startup_performance_test -- --nocapture
+cargo test responsiveness_validation_test -- --nocapture
 
 # Run tests with coverage (requires cargo-tarpaulin)
 cargo tarpaulin --out Html
@@ -529,7 +529,7 @@ perf report
 valgrind --tool=massif cargo run --release
 
 # Custom benchmarks
-cargo test startup_performance_test -- --nocapture
+cargo test responsiveness_validation_test -- --nocapture
 ```
 
 ## Debugging and Troubleshooting
@@ -665,7 +665,7 @@ cargo audit
 # Testing
 cargo test --bins --tests
 cargo test --test comprehensive_integration_test
-cargo test startup_performance_test -- --nocapture
+cargo test responsiveness_validation_test -- --nocapture
 
 # Documentation
 cargo doc

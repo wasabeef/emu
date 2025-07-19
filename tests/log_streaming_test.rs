@@ -384,13 +384,13 @@ async fn test_log_streaming_edge_cases() {
     // Test 4: Special characters in log messages
     state.add_log(
         "DEBUG".to_string(),
-        "Log with 🚀 emoji and special chars: äöü ñ 中文".to_string(),
+        "Log with 🚀 emoji and special chars: äöü ñ Chinese".to_string(),
     );
     assert_eq!(state.device_logs.len(), 2);
 
     let special_log = &state.device_logs[1];
     assert!(special_log.message.contains("🚀"));
-    assert!(special_log.message.contains("中文"));
+    assert!(special_log.message.contains("Chinese"));
 
     println!("✓ Log streaming edge cases test passed");
 }

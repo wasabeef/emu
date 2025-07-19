@@ -19,6 +19,14 @@ pub mod render;
 pub mod theme;
 pub mod widgets;
 
+// Testing infrastructure
+#[cfg(any(test, feature = "test-utils"))]
+pub mod mock_backend;
+
 // Re-export commonly used UI types
 pub use theme::Theme;
 pub use widgets::*;
+
+// Re-export testing utilities when available
+#[cfg(any(test, feature = "test-utils"))]
+pub use mock_backend::MockBackend;

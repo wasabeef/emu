@@ -1,0 +1,234 @@
+{
+  "android_errors": {
+    "sdk_not_found": {
+      "error_type": "environment",
+      "command": "avdmanager",
+      "stderr": "Error: ANDROID_HOME is not set and no 'avdmanager' command found in PATH.\n",
+      "exit_code": 1
+    },
+    "license_not_accepted": {
+      "error_type": "license",
+      "command": "avdmanager",
+      "args": [
+        "create",
+        "avd",
+        "--name",
+        "Test",
+        "--package",
+        "system-images;android-34;google_apis;x86_64"
+      ],
+      "stderr": "Error: Failed to create avd:\nLicenses for the following SDK components:\n  [Android SDK Platform 34]\nhave not been accepted.\n",
+      "exit_code": 1
+    },
+    "system_image_not_found": {
+      "error_type": "missing_package",
+      "command": "avdmanager",
+      "args": [
+        "create",
+        "avd",
+        "--name",
+        "Test",
+        "--package",
+        "system-images;android-35;google_apis;x86_64"
+      ],
+      "stderr": "Error: Package path is not valid. Valid system image paths are:\n  system-images;android-34;google_apis;x86_64\n  system-images;android-33;google_apis;x86_64\n",
+      "exit_code": 1
+    },
+    "avd_already_exists": {
+      "error_type": "duplicate",
+      "command": "avdmanager",
+      "args": [
+        "create",
+        "avd",
+        "--name",
+        "Pixel_7_API_34",
+        "--package",
+        "system-images;android-34;google_apis;x86_64"
+      ],
+      "stderr": "Error: Android Virtual Device 'Pixel_7_API_34' already exists.\nUse --force if you want to replace it.\n",
+      "exit_code": 1
+    },
+    "invalid_device_name": {
+      "error_type": "validation",
+      "command": "avdmanager",
+      "args": [
+        "create",
+        "avd",
+        "--name",
+        "invalid name with spaces",
+        "--package",
+        "system-images;android-34;google_apis;x86_64"
+      ],
+      "stderr": "Error: Invalid device name: invalid name with spaces\nDevice name must contain only alphanumeric characters, dots, hyphens, and underscores.\n",
+      "exit_code": 1
+    },
+    "adb_no_devices": {
+      "error_type": "no_devices",
+      "command": "adb",
+      "args": ["devices"],
+      "stdout": "List of devices attached\n\n",
+      "exit_code": 0
+    },
+    "adb_device_offline": {
+      "error_type": "device_offline",
+      "command": "adb",
+      "args": [
+        "-s",
+        "emulator-5554",
+        "shell",
+        "getprop",
+        "ro.boot.qemu.avd_name"
+      ],
+      "stderr": "error: device offline\n",
+      "exit_code": 1
+    },
+    "adb_unauthorized": {
+      "error_type": "unauthorized",
+      "command": "adb",
+      "args": [
+        "-s",
+        "emulator-5554",
+        "shell",
+        "getprop",
+        "ro.boot.qemu.avd_name"
+      ],
+      "stderr": "error: device unauthorized.\nThis adb server's $ADB_VENDOR_KEYS is not set\n",
+      "exit_code": 1
+    },
+    "emulator_boot_failure": {
+      "error_type": "boot_failure",
+      "command": "emulator",
+      "args": ["-avd", "Pixel_7_API_34"],
+      "stderr": "emulator: ERROR: x86_64 emulation currently requires hardware acceleration!\n",
+      "exit_code": 1
+    },
+    "emulator_port_conflict": {
+      "error_type": "port_conflict",
+      "command": "emulator",
+      "args": ["-avd", "Pixel_7_API_34"],
+      "stderr": "emulator: ERROR: Another emulator instance is running with the current AVD\n",
+      "exit_code": 1
+    },
+    "sdkmanager_network_error": {
+      "error_type": "network",
+      "command": "sdkmanager",
+      "args": ["--list"],
+      "stderr": "Warning: Failed to download package-list from https://dl.google.com/android/repository/repository2-3.xml\n",
+      "exit_code": 0
+    }
+  },
+  "ios_errors": {
+    "xcrun_not_found": {
+      "error_type": "environment",
+      "command": "xcrun",
+      "stderr": "xcrun: error: unable to find utility \"simctl\", not a developer tool or in PATH\n",
+      "exit_code": 1
+    },
+    "xcode_not_installed": {
+      "error_type": "dependency",
+      "command": "xcrun",
+      "args": ["simctl", "list", "devices"],
+      "stderr": "xcrun: error: active developer path (\"/Applications/Xcode.app/Contents/Developer\") does not exist\n",
+      "exit_code": 1
+    },
+    "device_already_booted": {
+      "error_type": "already_booted",
+      "command": "xcrun",
+      "args": ["simctl", "boot", "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6"],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=159):\nUnable to boot device in current state: Booted\n",
+      "exit_code": 1
+    },
+    "device_already_shutdown": {
+      "error_type": "already_shutdown",
+      "command": "xcrun",
+      "args": ["simctl", "shutdown", "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6"],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=159):\nUnable to shutdown device in current state: Shutdown\n",
+      "exit_code": 1
+    },
+    "device_not_found": {
+      "error_type": "not_found",
+      "command": "xcrun",
+      "args": ["simctl", "boot", "INVALID-UUID"],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=164):\nDevice not found: INVALID-UUID\n",
+      "exit_code": 1
+    },
+    "invalid_device_type": {
+      "error_type": "invalid_type",
+      "command": "xcrun",
+      "args": [
+        "simctl",
+        "create",
+        "Test Device",
+        "invalid.device.type",
+        "com.apple.CoreSimulator.SimRuntime.iOS-17-0"
+      ],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=163):\nInvalid device type: invalid.device.type\n",
+      "exit_code": 1
+    },
+    "invalid_runtime": {
+      "error_type": "invalid_runtime",
+      "command": "xcrun",
+      "args": [
+        "simctl",
+        "create",
+        "Test Device",
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "invalid.runtime"
+      ],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=163):\nInvalid runtime: invalid.runtime\n",
+      "exit_code": 1
+    },
+    "duplicate_device_name": {
+      "error_type": "duplicate",
+      "command": "xcrun",
+      "args": [
+        "simctl",
+        "create",
+        "iPhone 15",
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "com.apple.CoreSimulator.SimRuntime.iOS-17-0"
+      ],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=162):\nDevice already exists: iPhone 15\n",
+      "exit_code": 1
+    },
+    "runtime_unavailable": {
+      "error_type": "runtime_unavailable",
+      "command": "xcrun",
+      "args": [
+        "simctl",
+        "create",
+        "Test Device",
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+        "com.apple.CoreSimulator.SimRuntime.iOS-16-0"
+      ],
+      "stderr": "An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=165):\nRuntime unavailable: com.apple.CoreSimulator.SimRuntime.iOS-16-0\n",
+      "exit_code": 1
+    },
+    "simulator_app_not_found": {
+      "error_type": "app_not_found",
+      "command": "open",
+      "args": ["-a", "Simulator"],
+      "stderr": "The application /Applications/Simulator.app could not be found.\n",
+      "exit_code": 1
+    },
+    "permission_denied": {
+      "error_type": "permission",
+      "command": "xcrun",
+      "args": ["simctl", "erase", "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6"],
+      "stderr": "An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=1):\nOperation not permitted\n",
+      "exit_code": 1
+    }
+  },
+  "network_errors": {
+    "timeout": {
+      "error_type": "timeout",
+      "description": "Command execution timeout",
+      "typical_commands": ["sdkmanager --list", "xcrun simctl install"]
+    },
+    "connection_failed": {
+      "error_type": "connection",
+      "description": "Network connection failed",
+      "typical_commands": ["sdkmanager --update"]
+    }
+  }
+}

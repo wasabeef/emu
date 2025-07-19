@@ -223,9 +223,13 @@ use anyhow::{bail, Result};
 #[cfg(target_os = "macos")]
 use crate::utils::command::CommandRunner;
 #[cfg(target_os = "macos")]
+use crate::utils::command_executor::CommandExecutor;
+#[cfg(target_os = "macos")]
 use log;
 #[cfg(target_os = "macos")]
 use serde_json::Value;
+#[cfg(target_os = "macos")]
+use std::sync::Arc;
 #[cfg(target_os = "macos")]
 use which;
 
@@ -288,20 +292,25 @@ fn extract_ios_version(display_name: &str) -> f32 {
 /// - Real-time device status monitoring
 #[derive(Clone)]
 pub struct IosManager {
-    /// Command runner for executing xcrun simctl commands
-    command_runner: CommandRunner,
+    /// Command executor for executing xcrun simctl commands (abstracted for testability)
+    command_executor: Arc<dyn CommandExecutor>,
 }
 
 #[cfg(target_os = "macos")]
 impl IosManager {
     // Inherent methods
     pub fn new() -> Result<Self> {
+        Self::with_executor(Arc::new(CommandRunner::new()))
+    }
+
+    /// Creates a new IosManager instance with a custom command executor.
+    /// This is primarily used for testing with mock executors.
+    pub fn with_executor(executor: Arc<dyn CommandExecutor>) -> Result<Self> {
         if which::which("xcrun").is_err() {
             bail!("Xcode Command Line Tools not found. Please install Xcode or run 'xcode-select --install'.")
         }
 
         // Verify simctl is available
-        let runner = CommandRunner::new();
         if let Err(e) = std::process::Command::new("xcrun")
             .args(["simctl", "help"])
             .output()
@@ -313,7 +322,7 @@ impl IosManager {
         }
 
         Ok(Self {
-            command_runner: runner,
+            command_executor: executor,
         })
     }
 
@@ -384,7 +393,7 @@ impl IosManager {
     pub async fn get_device_details(&self, udid: &str) -> Result<crate::app::state::DeviceDetails> {
         // Get device information
         let device_output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "devices", "-j"])
             .await
             .context("Failed to get device list")?;
@@ -518,7 +527,7 @@ impl IosManager {
     }
 
     pub async fn erase_device(&self, udid: &str) -> Result<()> {
-        self.command_runner
+        self.command_executor
             .run("xcrun", &["simctl", "erase", udid])
             .await
             .context(format!("Failed to erase iOS device {udid}"))?;
@@ -527,7 +536,7 @@ impl IosManager {
 
     pub async fn list_device_types(&self) -> Result<Vec<String>> {
         let output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
             .await
             .context("Failed to list device types")?;
@@ -549,7 +558,7 @@ impl IosManager {
     /// Get device types with display names (similar to Android's approach)
     pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
         let output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "devicetypes", "--json"])
             .await
             .context("Failed to list device types")?;
@@ -654,7 +663,7 @@ impl IosManager {
 
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         let output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "runtimes", "--json"])
             .await
             .context("Failed to list runtimes")?;
@@ -739,7 +748,7 @@ impl IosManager {
 
                     // Quit Simulator.app gracefully
                     if let Err(e) = self
-                        .command_runner
+                        .command_executor
                         .run("osascript", &["-e", SIMULATOR_QUIT_COMMAND])
                         .await
                     {
@@ -747,7 +756,7 @@ impl IosManager {
 
                         // Fallback: Force quit using killall
                         if let Err(e2) = self
-                            .command_runner
+                            .command_executor
                             .run("killall", &[SIMULATOR_APP_NAME])
                             .await
                         {
@@ -771,7 +780,7 @@ impl DeviceManager for IosManager {
 
     async fn list_devices(&self) -> Result<Vec<Self::Device>> {
         let output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "devices", "--json"])
             .await
             .context("Failed to list iOS devices")?;
@@ -821,7 +830,7 @@ impl DeviceManager for IosManager {
 
         // Check if device is already booted
         let status_output = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "list", "devices", "-j"])
             .await
             .context("Failed to get device status")?;
@@ -854,7 +863,7 @@ impl DeviceManager for IosManager {
         } else {
             // Boot the device
             let boot_result = self
-                .command_runner
+                .command_executor
                 .run("xcrun", &["simctl", "boot", identifier])
                 .await;
 
@@ -873,7 +882,7 @@ impl DeviceManager for IosManager {
 
         // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
         if let Err(e) = self
-            .command_runner
+            .command_executor
             .spawn("open", &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME])
             .await
         {
@@ -886,7 +895,7 @@ impl DeviceManager for IosManager {
         log::info!("Attempting to stop iOS device: {identifier}");
 
         let shutdown_result = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "shutdown", identifier])
             .await;
 
@@ -926,7 +935,7 @@ impl DeviceManager for IosManager {
         // For iOS, config.version is the runtime identifier (e.g., com.apple.CoreSimulator.SimRuntime.iOS-17-0)
         // config.device_type is the device type identifier (e.g., com.apple.CoreSimulator.SimDeviceType.iPhone-15)
         let output = self
-            .command_runner
+            .command_executor
             .run(
                 "xcrun",
                 &[
@@ -951,12 +960,12 @@ impl DeviceManager for IosManager {
 
         // First try to shutdown the device if it's running
         let _ = self
-            .command_runner
+            .command_executor
             .run("xcrun", &["simctl", "shutdown", identifier])
             .await; // Ignore errors as device might already be shut down
 
         // Now delete the device
-        self.command_runner
+        self.command_executor
             .run("xcrun", &["simctl", "delete", identifier])
             .await
             .context(format!(

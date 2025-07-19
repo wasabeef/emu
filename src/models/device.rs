@@ -142,3 +142,64 @@ impl Default for AndroidDevice {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_android_device_trait_impl() {
+        let device = AndroidDevice {
+            name: "test_device".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 34,
+            status: DeviceStatus::Running,
+            is_running: true,
+            ram_size: "4096".to_string(),
+            storage_size: "8192".to_string(),
+        };
+
+        assert_eq!(device.id(), "test_device");
+        assert_eq!(device.name(), "test_device");
+        assert_eq!(*device.status(), DeviceStatus::Running);
+        assert!(device.is_running());
+    }
+
+    #[test]
+    fn test_ios_device_trait_impl() {
+        let device = IosDevice {
+            name: "iPhone 15".to_string(),
+            udid: "ABC123".to_string(),
+            device_type: "iPhone 15".to_string(),
+            ios_version: "17.0".to_string(),
+            runtime_version: "iOS 17.0".to_string(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+        };
+
+        assert_eq!(device.id(), "ABC123");
+        assert_eq!(device.name(), "iPhone 15");
+        assert_eq!(*device.status(), DeviceStatus::Stopped);
+        assert!(!device.is_running());
+    }
+
+    #[test]
+    fn test_device_status_equality() {
+        assert_eq!(DeviceStatus::Running, DeviceStatus::Running);
+        assert_ne!(DeviceStatus::Running, DeviceStatus::Stopped);
+        assert_eq!(DeviceStatus::Unknown, DeviceStatus::Unknown);
+    }
+
+    #[test]
+    fn test_android_device_default() {
+        let device = AndroidDevice::default();
+        assert_eq!(device.name, "");
+        assert_eq!(device.device_type, "");
+        assert_eq!(device.api_level, 0);
+        assert_eq!(device.status, DeviceStatus::Stopped);
+        assert!(!device.is_running);
+        assert_eq!(device.ram_size, DEFAULT_RAM_MB.to_string());
+        assert_eq!(device.storage_size, DEFAULT_STORAGE_FALLBACK);
+    }
+}

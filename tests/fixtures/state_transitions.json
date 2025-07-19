@@ -1,0 +1,33 @@
+{
+  "android_device_states": {
+    "stopped_to_running": {
+      "initial_adb_devices": "List of devices attached\n\n",
+      "after_start_adb_devices": "List of devices attached\nemulator-5554\tdevice\n",
+      "getprop_avd_name": "Pixel_7_API_34"
+    },
+    "running_to_stopped": {
+      "initial_adb_devices": "List of devices attached\nemulator-5554\tdevice\n",
+      "after_stop_adb_devices": "List of devices attached\n\n"
+    },
+    "multiple_devices_state": {
+      "two_running": "List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\n",
+      "one_stopped": "List of devices attached\nemulator-5554\tdevice\n",
+      "all_stopped": "List of devices attached\n\n"
+    }
+  },
+  "ios_device_states": {
+    "shutdown_to_booted": {
+      "initial_state": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Shutdown\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}",
+      "after_boot_state": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Booted\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}"
+    },
+    "booted_to_shutdown": {
+      "initial_state": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Booted\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}",
+      "after_shutdown_state": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Shutdown\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}"
+    },
+    "transitional_states": {
+      "booting": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Booting\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}",
+      "shutting_down": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Shutting Down\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}",
+      "creating": "{\n  \"devices\": {\n    \"com.apple.CoreSimulator.SimRuntime.iOS-17-0\": [\n      {\n        \"udid\": \"A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6\",\n        \"state\": \"Creating\",\n        \"name\": \"iPhone 15\"\n      }\n    ]\n  }\n}"
+    }
+  }
+}

@@ -1456,3 +1456,26 @@ impl ApiLevelManagementState {
         preferred_offset.min(max_offset)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_panel_toggle() {
+        assert_eq!(Panel::Android.toggle(), Panel::Ios);
+        assert_eq!(Panel::Ios.toggle(), Panel::Android);
+    }
+
+    #[test]
+    fn test_api_level_management_state_new() {
+        let state = ApiLevelManagementState::new();
+        assert_eq!(state.selected_index, 0);
+        assert!(state.api_levels.is_empty());
+        assert!(state.is_loading);
+        assert!(state.install_progress.is_none());
+        assert!(state.installing_package.is_none());
+        assert!(state.error_message.is_none());
+        assert_eq!(state.scroll_offset, 0);
+    }
+}

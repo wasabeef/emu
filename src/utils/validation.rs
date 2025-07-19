@@ -258,4 +258,160 @@ mod tests {
         assert!(validator.validate("16384").is_err()); // Too large
         assert!(validator.validate("abc").is_err()); // Not a number
     }
+
+    #[test]
+    fn test_device_name_validator_hint() {
+        let validator = DeviceNameValidator::new(DevicePlatform::Android);
+        assert_eq!(validator.hint(), DEVICE_NAME_HINT);
+    }
+
+    #[test]
+    fn test_device_name_validator_platform_specific() {
+        let android_validator = DeviceNameValidator::new(DevicePlatform::Android);
+        let ios_validator = DeviceNameValidator::new(DevicePlatform::Ios);
+
+        // Android-specific validation
+        assert!(android_validator.validate("-device").is_err());
+        assert!(android_validator.validate(".device").is_err());
+
+        // iOS should allow these (no specific restrictions)
+        assert!(ios_validator.validate("device_name").is_ok());
+        assert!(ios_validator.validate("Device-123").is_ok());
+    }
+
+    #[test]
+    fn test_device_name_validator_edge_cases() {
+        let validator = DeviceNameValidator::new(DevicePlatform::Android);
+
+        // Exactly at limit
+        let max_name = "a".repeat(DEVICE_NAME_VALIDATION_LIMIT);
+        assert!(validator.validate(&max_name).is_ok());
+
+        // Over limit
+        let over_limit = "a".repeat(DEVICE_NAME_VALIDATION_LIMIT + 1);
+        assert!(validator.validate(&over_limit).is_err());
+
+        // Single character
+        assert!(validator.validate("a").is_ok());
+
+        // All valid characters
+        assert!(validator.validate("aZ0._-").is_ok());
+    }
+
+    #[test]
+    fn test_numeric_range_validator_storage() {
+        let validator = NumericRangeValidator::storage_size();
+
+        // Valid storage values
+        assert!(validator.validate("1024").is_ok());
+        assert!(validator.validate("65536").is_ok());
+
+        // Invalid storage values
+        assert!(validator.validate("512").is_err()); // Too small for storage
+        assert!(validator.validate("131072").is_err()); // Too large
+    }
+
+    #[test]
+    fn test_numeric_range_validator_custom() {
+        let validator = NumericRangeValidator::new(10, 100, "units");
+
+        assert!(validator.validate("10").is_ok());
+        assert!(validator.validate("50").is_ok());
+        assert!(validator.validate("100").is_ok());
+
+        assert!(validator.validate("9").is_err());
+        assert!(validator.validate("101").is_err());
+
+        // Check error messages
+        let err = validator.validate("5").unwrap_err();
+        assert!(err.contains("at least 10 units"));
+
+        let err = validator.validate("200").unwrap_err();
+        assert!(err.contains("at most 100 units"));
+    }
+
+    #[test]
+    fn test_numeric_range_validator_hint() {
+        let validator = NumericRangeValidator::ram_size();
+        assert_eq!(validator.hint(), NUMERIC_VALUE_HINT);
+    }
+
+    #[test]
+    fn test_required_selection_validator() {
+        let validator = RequiredSelectionValidator::new("device type");
+
+        assert!(validator.validate("pixel_7").is_ok());
+        assert!(validator.validate("iPhone 15").is_ok());
+
+        let err = validator.validate("").unwrap_err();
+        assert!(err.contains("Please select a device type"));
+
+        assert_eq!(validator.hint(), REQUIRED_FIELD_HINT);
+    }
+
+    #[test]
+    fn test_composite_validator() {
+        let composite = CompositeValidator::new()
+            .with_validator(Box::new(RequiredSelectionValidator::new("value")))
+            .with_validator(Box::new(NumericRangeValidator::new(1, 10, "items")));
+
+        // Pass all validators
+        assert!(composite.validate("5").is_ok());
+
+        // Fail first validator (empty)
+        assert!(composite.validate("").is_err());
+
+        // Fail second validator (out of range)
+        assert!(composite.validate("15").is_err());
+
+        // Fail second validator (not numeric)
+        assert!(composite.validate("abc").is_err());
+    }
+
+    #[test]
+    fn test_composite_validator_hint() {
+        let composite = CompositeValidator::new()
+            .with_validator(Box::new(DeviceNameValidator::new(DevicePlatform::Android)));
+
+        assert_eq!(composite.hint(), DEVICE_NAME_HINT);
+
+        let empty_composite = CompositeValidator::new();
+        assert_eq!(empty_composite.hint(), DEFAULT_VALUE_HINT);
+    }
+
+    #[test]
+    fn test_validate_field_helper() {
+        let validator = DeviceNameValidator::new(DevicePlatform::Android);
+
+        let result = validate_field("Device Name", "my_device", &validator);
+        assert!(result.is_ok());
+
+        let result = validate_field("Device Name", "", &validator);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.starts_with("Device Name: "));
+        assert!(err.contains(DEVICE_NAME_EMPTY_ERROR));
+    }
+
+    #[test]
+    fn test_regex_initialization() {
+        // Ensure regex is initialized properly
+        let validator = DeviceNameValidator::new(DevicePlatform::Android);
+
+        // First call initializes
+        assert!(validator.validate("test123").is_ok());
+
+        // Second call uses cached regex
+        assert!(validator.validate("test456").is_ok());
+
+        // Verify pattern works correctly
+        assert!(validator.validate("test@123").is_err());
+    }
+
+    #[test]
+    fn test_default_composite_validator() {
+        let validator = CompositeValidator::default();
+        assert!(validator.validate("anything").is_ok());
+        assert_eq!(validator.hint(), DEFAULT_VALUE_HINT);
+    }
 }
