@@ -11,6 +11,7 @@
 //! - **Graceful Error Handling**: Handles already-booted and already-shutdown states
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
 
+#[cfg(target_os = "macos")]
 use std::path::Path;
 
 // # xcrun simctl Command Reference

@@ -20,10 +20,45 @@ fn setup_mock_android_sdk() -> tempfile::TempDir {
     std::fs::create_dir_all(sdk_path.join("platform-tools")).unwrap();
 
     // Create dummy executable files
-    std::fs::write(sdk_path.join("cmdline-tools/latest/bin/avdmanager"), "").unwrap();
-    std::fs::write(sdk_path.join("cmdline-tools/latest/bin/sdkmanager"), "").unwrap();
-    std::fs::write(sdk_path.join("emulator/emulator"), "").unwrap();
-    std::fs::write(sdk_path.join("platform-tools/adb"), "").unwrap();
+    std::fs::write(
+        sdk_path.join("cmdline-tools/latest/bin/avdmanager"),
+        "#!/bin/sh\n",
+    )
+    .unwrap();
+    std::fs::write(
+        sdk_path.join("cmdline-tools/latest/bin/sdkmanager"),
+        "#!/bin/sh\n",
+    )
+    .unwrap();
+    std::fs::write(sdk_path.join("emulator/emulator"), "#!/bin/sh\n").unwrap();
+    std::fs::write(sdk_path.join("platform-tools/adb"), "#!/bin/sh\n").unwrap();
+
+    // Make files executable on Unix-like systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = 0o755;
+        std::fs::set_permissions(
+            sdk_path.join("cmdline-tools/latest/bin/avdmanager"),
+            std::fs::Permissions::from_mode(mode),
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            sdk_path.join("cmdline-tools/latest/bin/sdkmanager"),
+            std::fs::Permissions::from_mode(mode),
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            sdk_path.join("emulator/emulator"),
+            std::fs::Permissions::from_mode(mode),
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            sdk_path.join("platform-tools/adb"),
+            std::fs::Permissions::from_mode(mode),
+        )
+        .unwrap();
+    }
 
     temp_dir
 }

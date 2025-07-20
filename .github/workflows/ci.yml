@@ -17,10 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ steps.asdf.outputs.rust }}
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -56,8 +59,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -117,8 +125,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -154,8 +167,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -171,13 +189,23 @@ jobs:
             cargo-${{ runner.os }}-
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+        run: |
+          echo "Installing cargo-tarpaulin..."
+          cargo install cargo-tarpaulin --locked || {
+            echo "Failed to install cargo-tarpaulin, trying without --locked"
+            cargo install cargo-tarpaulin
+          }
 
       - name: Generate coverage
         run: |
           # Run tarpaulin with comprehensive exclusions and proper timeout
           # Note: Removed --engine llvm for better Linux compatibility
           echo "Running cargo tarpaulin..."
+          echo "Current directory: $(pwd)"
+          echo "Checking if source files exist:"
+          ls -la src/ | head -10
+          echo "---"
+
           cargo tarpaulin --out xml --output-dir coverage --features test-utils \
             --ignore-tests --exclude-files 'src/main.rs' \
             --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' \
@@ -187,16 +215,20 @@ jobs:
             --verbose 2>&1 | tee tarpaulin_output.log || {
             TARPAULIN_EXIT_CODE=$?
             echo "Warning: cargo tarpaulin exited with code $TARPAULIN_EXIT_CODE"
-            
+
             # Show last 50 lines of output for debugging
             echo "Last 50 lines of tarpaulin output:"
             tail -50 tarpaulin_output.log
-            
+
             # Check if the coverage file was at least partially generated
             if [ -f coverage/cobertura.xml ]; then
               echo "Coverage file exists, proceeding with analysis..."
-              echo "First 10 lines of coverage file:"
-              head -10 coverage/cobertura.xml
+              echo "Coverage file size: $(wc -c < coverage/cobertura.xml) bytes"
+              echo "First 20 lines of coverage file:"
+              head -20 coverage/cobertura.xml
+              echo "---"
+              echo "Checking for packages in coverage file:"
+              grep -c "<package" coverage/cobertura.xml || echo "No packages found in coverage file"
             else
               echo "No coverage file generated, checking for partial results..."
               # Try to extract coverage from tarpaulin output
@@ -232,7 +264,11 @@ jobs:
               else:
                   tree = ET.parse('coverage/cobertura.xml')
                   root = tree.getroot()
+                  print(f'Root tag: {root.tag}, attributes: {root.attrib}', file=sys.stderr)
                   line_rate = float(root.get('line-rate', 0))
+                  lines_covered = root.get('lines-covered', '0')
+                  lines_valid = root.get('lines-valid', '0')
+                  print(f'line-rate={line_rate}, lines-covered={lines_covered}, lines-valid={lines_valid}', file=sys.stderr)
                   coverage_percent = line_rate * 100
                   print(f'{coverage_percent:.1f}')
           except Exception as e:
@@ -263,22 +299,48 @@ jobs:
           fi
 
           # Test category analysis
-          TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          EXECUTION_TESTS=$(cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          SECURITY_TESTS=$(cargo test --test comprehensive_integration_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          MOCK_TESTS=$(cargo test --features test-utils --test app_state_concurrency_complete_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          echo "Running individual test categories..."
+
+          # Count each test category - these work reliably in GitHub Actions
+          EXECUTION_TESTS=$(cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          SECURITY_TESTS=$(cargo test --test comprehensive_integration_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          PERFORMANCE_TESTS=$(cargo test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+          MOCK_TESTS=$(cargo test --features test-utils --test app_state_concurrency_complete_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+
+          # Count all tests first
+          echo "Counting all tests..."
+          ALL_TESTS=$(cargo test --features test-utils --tests 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
+
+          # Calculate total from all tests (most reliable method)
+          TOTAL_TESTS=$ALL_TESTS
+          echo "Total tests from direct count: $TOTAL_TESTS"
+
+          # For debugging, also show the sum of categories
+          CATEGORY_SUM=$((EXECUTION_TESTS + SECURITY_TESTS + PERFORMANCE_TESTS + MOCK_TESTS))
+          OTHER_TESTS=$((TOTAL_TESTS - CATEGORY_SUM))
+          echo "Category breakdown: Execution=$EXECUTION_TESTS, Security=$SECURITY_TESTS, Performance=$PERFORMANCE_TESTS, Mock=$MOCK_TESTS"
+          echo "Other tests (calculated): $OTHER_TESTS"
 
           # Count test files dynamically
           TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
           EXECUTION_TEST_FILES=$(find tests/ -name "*execution*.rs" -type f | wc -l | tr -d ' ')
           MOCK_TEST_FILES=$(find tests/ -name "app_state_concurrency_complete_test.rs" -type f | wc -l | tr -d ' ')
 
-          # Calculate test percentages
-          EXECUTION_PERCENT=$(echo "scale=1; ($EXECUTION_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
-          EXECUTION_PERCENT=${EXECUTION_PERCENT%.*}  # Remove decimal part
-          MOCK_PERCENT=$(echo "scale=1; ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
-          MOCK_PERCENT=${MOCK_PERCENT%.*}  # Remove decimal part
+          # Calculate test percentages using awk instead of bc for better portability
+          if [ "$TOTAL_TEST_FILES" -gt 0 ]; then
+            EXECUTION_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($EXECUTION_TEST_FILES / $TOTAL_TEST_FILES) * 100}")
+            MOCK_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100}")
+          else
+            EXECUTION_PERCENT=0
+            MOCK_PERCENT=0
+          fi
+
+          # Debug output
+          echo "Debug: TOTAL_TESTS=${TOTAL_TESTS}"
+          echo "Debug: EXECUTION_TESTS=${EXECUTION_TESTS}"
+          echo "Debug: SECURITY_TESTS=${SECURITY_TESTS}"
+          echo "Debug: PERFORMANCE_TESTS=${PERFORMANCE_TESTS}"
+          echo "Debug: MOCK_TESTS=${MOCK_TESTS}"
 
           echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
           echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
@@ -355,8 +417,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
