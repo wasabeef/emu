@@ -3,9 +3,10 @@
 //! These tests specifically exercise constants in realistic code scenarios
 //! to ensure they are properly covered by the testing suite.
 
+use emu::constants::messages::ui::{DEVICE_DETAILS_TITLE, LOADING, TERMINAL_TOO_SMALL};
 use emu::constants::{
-    commands::*, defaults::*, env_vars::*, limits::*, messages::ui::*, patterns::*, performance::*,
-    priorities::*, progress::*, ui_layout::*,
+    commands::*, defaults, env_vars::*, limits::*, patterns::*, performance::*, priorities::*,
+    progress::*, ui_layout::*,
 };
 use std::collections::HashMap;
 
@@ -16,8 +17,8 @@ mod constants_usage_coverage_tests {
     #[test]
     fn test_defaults_usage_in_device_configuration() {
         // Test that default values are used in device configuration
-        let ram = DEFAULT_RAM_MB;
-        let storage = DEFAULT_STORAGE_MB;
+        let ram = defaults::DEFAULT_RAM_MB;
+        let storage = defaults::DEFAULT_STORAGE_MB;
 
         // Simulate device configuration using defaults
         let config = DeviceConfig {
@@ -25,8 +26,8 @@ mod constants_usage_coverage_tests {
             storage_mb: storage,
         };
 
-        assert_eq!(config.ram_mb, DEFAULT_RAM_MB);
-        assert_eq!(config.storage_mb, DEFAULT_STORAGE_MB);
+        assert_eq!(config.ram_mb, defaults::DEFAULT_RAM_MB);
+        assert_eq!(config.storage_mb, defaults::DEFAULT_STORAGE_MB);
     }
 
     #[test]
@@ -185,7 +186,7 @@ mod constants_usage_coverage_tests {
         // Test message constants in user feedback
         let messages = vec![
             LOADING,
-            NO_DEVICE_SELECTED,
+            defaults::NO_DEVICE_SELECTED,
             TERMINAL_TOO_SMALL,
             DEVICE_DETAILS_TITLE,
         ];

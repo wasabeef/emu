@@ -279,11 +279,14 @@
 
 use crate::{
     constants::{
-        android, commands, defaults, env_vars, files,
+        android, commands, defaults,
+        env_vars::{self, HOME},
+        files,
         keywords::{LOG_LEVEL_ERROR, LOG_LEVEL_FAILED},
         limits::{
-            MAX_DEVICE_NAME_CREATE_LENGTH, MAX_DEVICE_NAME_PARTS_PROCESS, MAX_ERROR_MESSAGE_LENGTH,
-            MIN_STRING_LENGTH_FOR_MATCH, STORAGE_MB_TO_GB_DIVISOR,
+            ANDROID_COMMAND_PARTS_MINIMUM, MAX_DEVICE_NAME_CREATE_LENGTH,
+            MAX_DEVICE_NAME_PARTS_PROCESS, MAX_ERROR_MESSAGE_LENGTH, MIN_STRING_LENGTH_FOR_MATCH,
+            STORAGE_MB_TO_GB_DIVISOR, SYSTEM_IMAGE_PARTS_REQUIRED,
         },
         progress::{
             COMPLETION_THRESHOLD_PERCENTAGE, DOWNLOAD_PHASE_INCREMENT,
@@ -619,7 +622,7 @@ impl AndroidManager {
                     if let Ok(boot_prop_output) = self
                         .command_executor
                         .run(
-                            Path::new("adb"),
+                            Path::new(commands::ADB),
                             &[
                                 "-s",
                                 emulator_id,
@@ -648,7 +651,7 @@ impl AndroidManager {
                     if let Ok(avd_name_output) = self
                         .command_executor
                         .run(
-                            std::path::Path::new("adb"),
+                            std::path::Path::new(commands::ADB),
                             &["-s", emulator_id, "emu", "avd", "name"],
                         )
                         .await
@@ -684,7 +687,7 @@ impl AndroidManager {
                     if let Ok(prop_output) = self
                         .command_executor
                         .run(
-                            Path::new("adb"),
+                            Path::new(commands::ADB),
                             &[
                                 "-s",
                                 emulator_id,
@@ -765,7 +768,7 @@ impl AndroidManager {
         for image in installed_images {
             // Parse "system-images;android-XX;tag;abi" format
             let parts: Vec<&str> = image.split(';').collect();
-            if parts.len() >= 4 {
+            if parts.len() >= SYSTEM_IMAGE_PARTS_REQUIRED {
                 if let Some(api_level) = parts.get(1).and_then(|p| p.strip_prefix("android-")) {
                     // Track available tags for this API level
                     let tag_abi = format!("{};{}", parts[2], parts[3]);
@@ -1047,7 +1050,7 @@ impl AndroidManager {
         // Find system images for this API level
         for image in installed_images {
             let parts: Vec<&str> = image.split(';').collect();
-            if parts.len() >= 4 {
+            if parts.len() >= SYSTEM_IMAGE_PARTS_REQUIRED {
                 if let Some(android_part) = parts.get(1) {
                     if android_part == &format!("android-{api_level}") {
                         // Return first available tag and abi
@@ -1093,7 +1096,7 @@ impl AndroidManager {
         _abi: &str,
     ) -> Result<()> {
         if let Some(avd_path) = self.get_avd_path(avd_name).await? {
-            let config_path = avd_path.join("config.ini");
+            let config_path = avd_path.join(files::CONFIG_FILE);
 
             // Read existing config created by avdmanager
             let mut config_content = fs::read_to_string(&config_path)
@@ -1270,12 +1273,12 @@ impl AndroidManager {
         };
 
         // Read config.ini for additional details
-        if let Ok(home_dir) = std::env::var("HOME") {
+        if let Ok(home_dir) = std::env::var(HOME) {
             let config_path = std::path::PathBuf::from(home_dir)
-                .join(".android")
+                .join(files::android::AVD_DIR)
                 .join("avd")
                 .join(format!("{avd_name}.avd"))
-                .join("config.ini");
+                .join(files::CONFIG_FILE);
 
             if config_path.exists() {
                 if let Ok(config_content) = tokio::fs::read_to_string(&config_path).await {
@@ -1865,7 +1868,7 @@ impl AndroidManager {
         for image in images {
             if image.contains(&format!("android-{api_level}")) {
                 let parts: Vec<&str> = image.split(';').collect();
-                if parts.len() >= 3 {
+                if parts.len() >= ANDROID_COMMAND_PARTS_MINIMUM {
                     tags.insert(parts[2].to_string());
                 }
             }
@@ -1932,12 +1935,12 @@ impl AndroidManager {
         let mut api = 0u32;
 
         // Method 1: Try to read from config.ini in standard location
-        if let Ok(home) = std::env::var("HOME") {
+        if let Ok(home) = std::env::var(HOME) {
             let config_path = PathBuf::from(home)
-                .join(".android")
+                .join(files::android::AVD_DIR)
                 .join("avd")
                 .join(format!("{name}.avd"))
-                .join("config.ini");
+                .join(files::CONFIG_FILE);
 
             if let Ok(config_content) = fs::read_to_string(&config_path).await {
                 if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
@@ -1955,7 +1958,7 @@ impl AndroidManager {
         // Method 2: If still no API found, try get_avd_path method
         if api == 0 {
             if let Ok(Some(avd_path)) = self.get_avd_path(name).await {
-                let config_path = avd_path.join("config.ini");
+                let config_path = avd_path.join(files::CONFIG_FILE);
                 if let Ok(config_content) = fs::read_to_string(&config_path).await {
                     if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
                         if let Ok(parsed_api) = caps[1].parse::<u32>() {
@@ -2026,7 +2029,7 @@ impl DeviceManager for AndroidManager {
             let shutdown_result = self
                 .command_executor
                 .run(
-                    Path::new("adb"),
+                    Path::new(commands::ADB),
                     &[
                         "-s",
                         emulator_id,
@@ -2050,7 +2053,7 @@ impl DeviceManager for AndroidManager {
                 let _ = self
                     .command_executor
                     .run(
-                        Path::new("adb"),
+                        Path::new(commands::ADB),
                         &["-s", emulator_id, "shell", "reboot", "-p"],
                     )
                     .await;
@@ -2058,7 +2061,10 @@ impl DeviceManager for AndroidManager {
                 // If the graceful shutdown failed, fall back to emu kill
                 // but only as a last resort
                 self.command_executor
-                    .run(Path::new("adb"), &["-s", emulator_id, "emu", "kill"])
+                    .run(
+                        Path::new(commands::ADB),
+                        &["-s", emulator_id, "emu", "kill"],
+                    )
                     .await
                     .context(format!("Failed to stop emulator {emulator_id}"))?;
             }
@@ -2344,9 +2350,9 @@ impl DeviceManager for AndroidManager {
         }
 
         // Directly delete user data files from AVD directory instead of starting emulator
-        if let Ok(home_dir) = std::env::var("HOME") {
+        if let Ok(home_dir) = std::env::var(HOME) {
             let avd_path = std::path::PathBuf::from(home_dir)
-                .join(".android")
+                .join(files::android::AVD_DIR)
                 .join("avd")
                 .join(format!("{identifier}.avd"));
 
@@ -2456,7 +2462,7 @@ impl AndroidManager {
 
                     // Parse package components
                     let parts: Vec<&str> = package_id.split(';').collect();
-                    if parts.len() >= 4 {
+                    if parts.len() >= SYSTEM_IMAGE_PARTS_REQUIRED {
                         let variant = parts[2].to_string();
                         let architecture = parts[3].to_string();
 

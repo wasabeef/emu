@@ -68,3 +68,6 @@ pub const PROGRESS_MAX_BOUND: f64 = 1.0;
 
 /// Animation timing duration
 pub const ANIMATION_TIMING_DURATION_MS: u64 = 200;
+
+/// Event queue size multiplier
+pub const EVENT_QUEUE_SIZE_MULTIPLIER: usize = 2;

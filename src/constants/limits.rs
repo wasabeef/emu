@@ -105,3 +105,12 @@ pub const MIN_WORDS_FOR_DEVICE_NAME: usize = 1;
 pub const FIRST_WORD_INDEX: usize = 0;
 pub const SECOND_WORD_INDEX: usize = 1;
 pub const LAST_MATCH_INDEX: usize = 0;
+
+// API level validation
+pub const INVALID_API_LEVEL: u32 = 0;
+
+// System image format validation
+pub const SYSTEM_IMAGE_PARTS_REQUIRED: usize = 4;
+pub const ANDROID_COMMAND_PARTS_MINIMUM: usize = 3;
+pub const IOS_NAME_PARTS_MINIMUM: usize = 2;
+pub const SINGLE_VERSION_PART: usize = 1;

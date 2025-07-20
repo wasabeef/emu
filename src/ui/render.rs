@@ -20,6 +20,11 @@ use crate::{
             MESSAGE_TRUNCATE_SUFFIX_LENGTH, MIN_TERMINAL_HEIGHT, MIN_TERMINAL_WIDTH,
             NOTIFICATION_HEIGHT, SEPARATOR_LENGTH, STATUS_BAR_HEIGHT,
         },
+        ui_text::{
+            api_management::*, architectures::*, device_states::*, navigation::*,
+            notification_icons::*, progress::*, shortcuts::*, status_indicators::*,
+            text_formatting::*,
+        },
     },
     ui::{widgets::get_animated_moon, Theme},
 };
@@ -295,8 +300,15 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         .into_iter()
         .map(|(i, device)| {
             let selected = i == state.selected_android && is_active;
-            let status_indicator = if device.is_running { "●" } else { "○" };
-            let text = format!("{status_indicator} {}", device.name.replace('_', " "));
+            let status_indicator = if device.is_running {
+                ACTIVE_INDICATOR
+            } else {
+                INACTIVE_INDICATOR
+            };
+            let text = format!(
+                "{status_indicator} {}",
+                device.name.replace(UNDERSCORE_STR, SPACE_STR_SINGLE)
+            );
 
             let style = if selected {
                 Style::default().bg(theme.primary).fg(UI_COLOR_BACKGROUND)
@@ -315,16 +327,16 @@ fn render_android_panel(frame: &mut Frame, area: Rect, state: &mut AppState, the
         let position_info = format!("{}/{total_devices}", state.selected_android + 1);
         let scroll_indicator = if total_devices > available_height {
             if scroll_offset > 0 && scroll_offset + available_height < total_devices {
-                " [↕]" // Can scroll both ways
+                SCROLL_BOTH // Can scroll both ways
             } else if scroll_offset > 0 {
-                " [↑]" // Can scroll up
+                SCROLL_UP // Can scroll up
             } else if scroll_offset + available_height < total_devices {
-                " [↓]" // Can scroll down
+                SCROLL_DOWN // Can scroll down
             } else {
-                ""
+                SCROLL_NONE
             }
         } else {
-            ""
+            SCROLL_NONE
         };
         format!("🤖 Android ({position_info}){scroll_indicator}")
     } else {
@@ -383,11 +395,15 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
         .into_iter()
         .map(|(i, device)| {
             let selected = i == state.selected_ios && is_active;
-            let status_indicator = if device.is_running { "●" } else { "○" };
+            let status_indicator = if device.is_running {
+                ACTIVE_INDICATOR
+            } else {
+                INACTIVE_INDICATOR
+            };
             let availability = if device.is_available {
                 ""
             } else {
-                " (unavailable)"
+                IOS_UNAVAILABLE
             };
             let text = format!("{status_indicator} {}{availability}", device.name);
 
@@ -411,16 +427,16 @@ fn render_ios_panel(frame: &mut Frame, area: Rect, state: &mut AppState, theme: 
             let position_info = format!("{}/{total_devices}", state.selected_ios + 1);
             let scroll_indicator = if total_devices > available_height {
                 if scroll_offset > 0 && scroll_offset + available_height < total_devices {
-                    " [↕]" // Can scroll both ways
+                    SCROLL_BOTH // Can scroll both ways
                 } else if scroll_offset > 0 {
-                    " [↑]" // Can scroll up
+                    SCROLL_UP // Can scroll up
                 } else if scroll_offset + available_height < total_devices {
-                    " [↓]" // Can scroll down
+                    SCROLL_DOWN // Can scroll down
                 } else {
-                    ""
+                    SCROLL_NONE
                 }
             } else {
-                ""
+                SCROLL_NONE
             };
             format!("🍎 iOS ({position_info}){scroll_indicator}")
         } else {
@@ -1030,13 +1046,13 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
         if details.platform == crate::app::Panel::Android {
             if let Some(ref sys_img) = details.system_image {
                 let architecture = if sys_img.contains("arm64") {
-                    "arm64-v8a"
+                    ARM64
                 } else if sys_img.contains("x86_64") {
-                    "x86_64"
+                    X86_64
                 } else if sys_img.contains("x86") {
-                    "x86"
+                    X86
                 } else {
-                    "unknown"
+                    UNKNOWN
                 };
                 lines.push(Line::from(vec![
                     Span::raw("🔧 Arch: "),
@@ -1099,7 +1115,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         if is_loading {
             let moon_icon = get_animated_moon();
-            let loading_text = format!("{moon_icon} Loading");
+            let loading_text = format!("{moon_icon} {LOADING}");
             let loading_width = "🌙 Loading".len() as u16; // Use fixed width for consistent positioning
             let loading_area = Rect::new(
                 area.x
@@ -1161,10 +1177,10 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
 
         // Determine colors based on notification type
         let (border_color, text_color, icon) = match notification.notification_type {
-            NotificationType::Success => (STATUS_COLOR_SUCCESS, UI_COLOR_TEXT_BRIGHT, "✓"),
-            NotificationType::Error => (STATUS_COLOR_ERROR, UI_COLOR_TEXT_BRIGHT, "✗"),
-            NotificationType::Warning => (STATUS_COLOR_WARNING, UI_COLOR_BACKGROUND, "⚠"),
-            NotificationType::Info => (STATUS_COLOR_INFO, UI_COLOR_TEXT_BRIGHT, "ℹ"),
+            NotificationType::Success => (STATUS_COLOR_SUCCESS, UI_COLOR_TEXT_BRIGHT, SUCCESS),
+            NotificationType::Error => (STATUS_COLOR_ERROR, UI_COLOR_TEXT_BRIGHT, ERROR),
+            NotificationType::Warning => (STATUS_COLOR_WARNING, UI_COLOR_BACKGROUND, WARNING),
+            NotificationType::Info => (STATUS_COLOR_INFO, UI_COLOR_TEXT_BRIGHT, INFO),
         };
 
         let notification_block = Block::default()
@@ -1201,9 +1217,7 @@ fn render_notifications(frame: &mut Frame, state: &AppState, _theme: &Theme) {
 
 fn render_device_commands(frame: &mut Frame, area: Rect, state: &AppState, _theme: &Theme) {
     let device_text = match state.mode {
-        crate::app::Mode::Normal => {
-            "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe  📦 [i]nstall"
-        }
+        crate::app::Mode::Normal => NORMAL_MODE_SHORTCUTS,
         _ => "",
     };
 
@@ -1476,15 +1490,15 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     // Shortcuts at the bottom - dynamic based on selected item
     let shortcuts = if api_mgmt.install_progress.is_some() || api_mgmt.installing_package.is_some()
     {
-        "⏳ Processing... Please wait..."
+        PROCESSING_WAIT
     } else if let Some(selected_api) = api_mgmt.get_selected_api_level() {
         if selected_api.is_installed {
-            "[↑/↓/j/k] Navigate  [d] Uninstall Selected  [Esc] Cancel"
+            NAV_UNINSTALL
         } else {
-            "[↑/↓/j/k] Navigate  [Enter] Install Selected  [Esc] Cancel"
+            NAV_INSTALL
         }
     } else {
-        "[↑/↓/j/k] Navigate  [Enter] Install  [d] Uninstall  [Esc] Cancel"
+        NAV_GENERAL
     };
     let shortcuts_widget = Paragraph::new(shortcuts)
         .style(

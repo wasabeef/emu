@@ -3,6 +3,10 @@
 //! This module provides utility functions used across multiple test files
 //! to create consistent test data and perform common assertions.
 
+use emu::constants::{
+    TEST_ANDROID_DEVICE_TYPE, TEST_API_LEVEL_30, TEST_IOS_DEVICE_TYPE, TEST_IOS_RUNTIME_17,
+    TEST_IOS_VERSION_17, TEST_RAM_SIZE_DEFAULT, TEST_STORAGE_SIZE_DEFAULT,
+};
 use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
 
 /// Create a test AndroidDevice with sane defaults
@@ -10,12 +14,12 @@ use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
 pub fn create_test_android_device(name: &str) -> AndroidDevice {
     AndroidDevice {
         name: name.to_string(),
-        device_type: "pixel_4".to_string(),
-        api_level: 30,
+        device_type: TEST_ANDROID_DEVICE_TYPE.to_string(),
+        api_level: TEST_API_LEVEL_30,
         status: DeviceStatus::Stopped,
         is_running: false,
-        ram_size: "2048".to_string(),
-        storage_size: "8192M".to_string(),
+        ram_size: TEST_RAM_SIZE_DEFAULT.to_string(),
+        storage_size: TEST_STORAGE_SIZE_DEFAULT.to_string(),
     }
 }
 
@@ -24,12 +28,12 @@ pub fn create_test_android_device(name: &str) -> AndroidDevice {
 pub fn create_android_device_with_status(name: &str, status: DeviceStatus) -> AndroidDevice {
     AndroidDevice {
         name: name.to_string(),
-        device_type: "pixel_4".to_string(),
-        api_level: 30,
+        device_type: TEST_ANDROID_DEVICE_TYPE.to_string(),
+        api_level: TEST_API_LEVEL_30,
         status,
         is_running: status == DeviceStatus::Running,
-        ram_size: "2048".to_string(),
-        storage_size: "8192M".to_string(),
+        ram_size: TEST_RAM_SIZE_DEFAULT.to_string(),
+        storage_size: TEST_STORAGE_SIZE_DEFAULT.to_string(),
     }
 }
 
@@ -42,9 +46,9 @@ pub fn create_test_ios_device(name: &str) -> IosDevice {
             let clean_name = name.replace(' ', "-");
             format!("test-udid-{clean_name}")
         },
-        device_type: "iPhone 14".to_string(),
-        ios_version: "17.0".to_string(),
-        runtime_version: "iOS 17.0".to_string(),
+        device_type: TEST_IOS_DEVICE_TYPE.to_string(),
+        ios_version: TEST_IOS_VERSION_17.to_string(),
+        runtime_version: TEST_IOS_RUNTIME_17.to_string(),
         status: DeviceStatus::Stopped,
         is_running: false,
         is_available: true,
@@ -60,9 +64,9 @@ pub fn create_ios_device_with_status(name: &str, status: DeviceStatus) -> IosDev
             let clean_name = name.replace(' ', "-");
             format!("test-udid-{clean_name}")
         },
-        device_type: "iPhone 14".to_string(),
-        ios_version: "17.0".to_string(),
-        runtime_version: "iOS 17.0".to_string(),
+        device_type: TEST_IOS_DEVICE_TYPE.to_string(),
+        ios_version: TEST_IOS_VERSION_17.to_string(),
+        runtime_version: TEST_IOS_RUNTIME_17.to_string(),
         status,
         is_running: status == DeviceStatus::Running,
         is_available: true,

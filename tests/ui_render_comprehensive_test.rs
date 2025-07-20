@@ -3,6 +3,8 @@
 //! This test suite extensively tests UI rendering functionality
 //! to improve coverage of src/ui/render.rs
 
+#![cfg(feature = "test-utils")]
+
 use emu::app::AppState;
 use emu::app::Panel;
 use emu::models::{AndroidDevice, DeviceStatus, IosDevice};

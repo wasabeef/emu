@@ -61,3 +61,23 @@ pub mod errors {
     pub const ADB_KO: &str = "KO";
     pub const ADB_UNKNOWN_COMMAND: &str = "unknown command";
 }
+
+/// Character patterns for text processing
+pub mod text_patterns {
+    /// Inch measurement indicator
+    pub const INCH_INDICATOR: &str = "\"";
+
+    /// Memory specification brackets
+    pub const MEMORY_OPEN_BRACKET: &str = "(";
+    pub const MEMORY_CLOSE_BRACKET: &str = ")";
+
+    /// Apple device prefixes
+    pub const APPLE_DEVICE_PREFIX_I: &str = "i";
+    pub const APPLE_DEVICE_IPHONE: &str = "iPhone";
+    pub const APPLE_DEVICE_IPAD: &str = "iPad";
+    pub const APPLE_DEVICE_IPOD: &str = "iPod";
+
+    /// Chip identification prefixes
+    pub const CHIP_PREFIX_M: &str = "m";
+    pub const CHIP_PREFIX_A: &str = "a";
+}

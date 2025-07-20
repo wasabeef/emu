@@ -1,5 +1,7 @@
 //! iOS Device Display Debug Tests
 
+#![cfg(feature = "test-utils")]
+
 use emu::app::AppState;
 use emu::models::{DeviceStatus, IosDevice};
 use emu::ui::mock_backend::MockBackend;

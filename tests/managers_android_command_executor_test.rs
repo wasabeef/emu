@@ -84,7 +84,7 @@ async fn test_android_manager_create_device_success() {
     let mock_executor = MockCommandExecutor::new()
         // avdmanager list avd (empty initially)
         .with_success("avdmanager", &["list", "avd"], "Available Android Virtual Devices:\n")
-        .with_success(avdmanager_path.to_str().unwrap(), &["list", "avd"], "Available Android Virtual Devices:\n")
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "avd"], "Available Android Virtual Devices:\n")
         // avdmanager list device
         .with_success("avdmanager", &["list", "device"], r#"id: 0 or "Galaxy Nexus"
     Name: Galaxy Nexus
@@ -96,7 +96,7 @@ id: 1 or "pixel_7"
     OEM : Google
     Tag : google_apis_playstore
 ---------"#)
-        .with_success(avdmanager_path.to_str().unwrap(), &["list", "device"], r#"id: 0 or "Galaxy Nexus"
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "device"], r#"id: 0 or "Galaxy Nexus"
     Name: Galaxy Nexus
     OEM : Google
     Tag : google_tv
@@ -110,14 +110,22 @@ id: 1 or "pixel_7"
         .with_success("sdkmanager", &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:
   Path                                        | Version | Description
   -------                                     | ------- | -------
-  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image"#)
-        .with_success(sdkmanager_path.to_str().unwrap(), &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image
+
+Available Packages:
+  Path                                        | Version | Description
+  -------                                     | ------- | -------"#)
+        .with_success(&sdkmanager_path.to_string_lossy(), &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:
   Path                                        | Version | Description
   -------                                     | ------- | -------
-  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image"#)
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image
+
+Available Packages:
+  Path                                        | Version | Description
+  -------                                     | ------- | -------"#)
         // avdmanager list target
         .with_success("avdmanager", &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
-        .with_success(avdmanager_path.to_str().unwrap(), &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
         // avdmanager create
         .with_success(
             "avdmanager",
@@ -136,7 +144,7 @@ id: 1 or "pixel_7"
             "AVD 'Test_Device' created successfully",
         )
         .with_success(
-            avdmanager_path.to_str().unwrap(),
+            &avdmanager_path.to_string_lossy(),
             &[
                 "create",
                 "avd",
@@ -239,7 +247,7 @@ async fn test_android_manager_start_device() {
         // Handle both "emulator" and full path
         .with_spawn_response("emulator", &["-avd", "Test_Device"], 12345)
         .with_spawn_response(
-            emulator_path.to_str().unwrap(),
+            &emulator_path.to_string_lossy(),
             &[
                 "-avd",
                 "Test_Device",
@@ -252,7 +260,7 @@ async fn test_android_manager_start_device() {
         )
         // Add fallback for any emulator command variation
         .with_spawn_response(
-            emulator_path.to_str().unwrap(),
+            &emulator_path.to_string_lossy(),
             &["-avd", "Test_Device"],
             12345,
         );
@@ -369,7 +377,7 @@ async fn test_android_manager_wipe_device() {
     let mock_executor = MockCommandExecutor::new()
         .with_spawn_response("emulator", &["-avd", "Test_Device", "-wipe-data"], 12346)
         .with_spawn_response(
-            emulator_path.to_str().unwrap(),
+            &emulator_path.to_string_lossy(),
             &[
                 "-avd",
                 "Test_Device",
@@ -382,10 +390,10 @@ async fn test_android_manager_wipe_device() {
             12346,
         )
         .with_success("adb", &["wait-for-device"], "")
-        .with_success(adb_path.to_str().unwrap(), &["wait-for-device"], "")
+        .with_success(&adb_path.to_string_lossy(), &["wait-for-device"], "")
         .with_success("adb", &["shell", "getprop", "sys.boot_completed"], "1")
         .with_success(
-            adb_path.to_str().unwrap(),
+            &adb_path.to_string_lossy(),
             &["shell", "getprop", "sys.boot_completed"],
             "1",
         );
@@ -425,13 +433,13 @@ async fn test_command_error_propagation() {
             "Error: avdmanager not found",
         )
         .with_error(
-            avdmanager_path.to_str().unwrap(),
+            &avdmanager_path.to_string_lossy(),
             &["list", "avd"],
             "Error: avdmanager not found",
         )
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
-            adb_path.to_str().unwrap(),
+            &adb_path.to_string_lossy(),
             &["devices"],
             "List of devices attached\n",
         );

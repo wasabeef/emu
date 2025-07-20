@@ -205,10 +205,22 @@ use crate::constants::ios::{
 };
 #[cfg(target_os = "macos")]
 use crate::constants::{
-    ios_devices::*,
+    commands::{KILLALL, OSASCRIPT, SIMCTL, XCRUN},
+    defaults::UNKNOWN_VALUE,
+    ios_devices::{
+        DEVICE_KEYWORD_AIR, DEVICE_KEYWORD_IPAD, DEVICE_KEYWORD_IPHONE, DEVICE_KEYWORD_MINI,
+        DEVICE_KEYWORD_PLUS, DEVICE_KEYWORD_PRO, DEVICE_KEYWORD_PRO_MAX, DEVICE_KEYWORD_SE,
+        DEVICE_SIZE_11, DEVICE_SIZE_12_9, DEVICE_VERSION_13, DEVICE_VERSION_14, DEVICE_VERSION_15,
+        DEVICE_VERSION_16, *,
+    },
+    limits::{IOS_NAME_PARTS_MINIMUM, SINGLE_VERSION_PART},
     numeric::{
         BYTES_PER_MB, IOS_DEVICE_PARSE_BATCH_SIZE, VERSION_DEFAULT, VERSION_MINOR_DIVISOR,
         VERSION_PATCH_DIVISOR,
+    },
+    patterns::text_patterns::{
+        APPLE_DEVICE_IPAD, APPLE_DEVICE_IPHONE, APPLE_DEVICE_IPOD, APPLE_DEVICE_PREFIX_I,
+        CHIP_PREFIX_A, CHIP_PREFIX_M, INCH_INDICATOR, MEMORY_CLOSE_BRACKET, MEMORY_OPEN_BRACKET,
     },
     resolutions::*,
 };
@@ -254,7 +266,7 @@ fn extract_ios_version(display_name: &str) -> f32 {
 
         // Split version into parts
         let parts: Vec<&str> = version_str.split('.').collect();
-        if parts.len() >= 2 {
+        if parts.len() >= IOS_NAME_PARTS_MINIMUM {
             // Parse major.minor[.patch]
             let major = parts[0].parse::<f32>().unwrap_or(VERSION_DEFAULT);
             let minor = parts[1].parse::<f32>().unwrap_or(VERSION_DEFAULT) / VERSION_MINOR_DIVISOR;
@@ -264,7 +276,7 @@ fn extract_ios_version(display_name: &str) -> f32 {
                 VERSION_DEFAULT
             };
             major + minor + patch
-        } else if parts.len() == 1 {
+        } else if parts.len() == SINGLE_VERSION_PART {
             // Just major version
             parts[0].parse::<f32>().unwrap_or(VERSION_DEFAULT)
         } else {
@@ -308,13 +320,13 @@ impl IosManager {
     /// Creates a new IosManager instance with a custom command executor.
     /// This is primarily used for testing with mock executors.
     pub fn with_executor(executor: Arc<dyn CommandExecutor>) -> Result<Self> {
-        if which::which("xcrun").is_err() {
+        if which::which(XCRUN).is_err() {
             bail!("Xcode Command Line Tools not found. Please install Xcode or run 'xcode-select --install'.")
         }
 
         // Verify simctl is available
-        if let Err(e) = std::process::Command::new("xcrun")
-            .args(["simctl", "help"])
+        if let Err(e) = std::process::Command::new(XCRUN)
+            .args([SIMCTL, "help"])
             .output()
         {
             bail!(
@@ -336,7 +348,7 @@ impl IosManager {
         let device_name = device_json
             .get("name")
             .and_then(|v| v.as_str())
-            .unwrap_or("Unknown");
+            .unwrap_or(UNKNOWN_VALUE);
         let udid = device_json
             .get("udid")
             .and_then(|v| v.as_str())
@@ -349,7 +361,7 @@ impl IosManager {
         let state_str = device_json
             .get("state")
             .and_then(|v| v.as_str())
-            .unwrap_or("Unknown");
+            .unwrap_or(UNKNOWN_VALUE);
         let is_available_json = device_json
             .get("isAvailable")
             .and_then(|v| v.as_bool())
@@ -396,7 +408,7 @@ impl IosManager {
         // Get device information
         let device_output = self
             .command_executor
-            .run(Path::new("xcrun"), &["simctl", "list", "devices", "-j"])
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "devices", "-j"])
             .await
             .context("Failed to get device list")?;
 
@@ -416,13 +428,13 @@ impl IosManager {
                                 let name = device
                                     .get("name")
                                     .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown")
+                                    .unwrap_or(UNKNOWN_VALUE)
                                     .to_string();
 
                                 let state = device
                                     .get("state")
                                     .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown")
+                                    .unwrap_or(UNKNOWN_VALUE)
                                     .to_string();
 
                                 // Extract runtime version
@@ -485,40 +497,42 @@ impl IosManager {
         let device_lower = device_type.to_lowercase();
 
         // iPhone resolutions
-        if device_lower.contains("iphone") {
-            if device_lower.contains("16")
-                || device_lower.contains("15")
-                || device_lower.contains("14")
+        if device_lower.contains(DEVICE_KEYWORD_IPHONE) {
+            if device_lower.contains(DEVICE_VERSION_16)
+                || device_lower.contains(DEVICE_VERSION_15)
+                || device_lower.contains(DEVICE_VERSION_14)
             {
-                if device_lower.contains("pro max") {
+                if device_lower.contains(DEVICE_KEYWORD_PRO_MAX) {
                     return Some(IPHONE_15_PRO_MAX_RESOLUTION.to_string());
-                } else if device_lower.contains("pro") {
+                } else if device_lower.contains(DEVICE_KEYWORD_PRO) {
                     return Some(IPHONE_15_PRO_RESOLUTION.to_string());
-                } else if device_lower.contains("plus") {
+                } else if device_lower.contains(DEVICE_KEYWORD_PLUS) {
                     return Some(IPHONE_15_PRO_MAX_RESOLUTION.to_string());
                 } else {
                     return Some(IPHONE_15_RESOLUTION.to_string());
                 }
-            } else if device_lower.contains("se") {
+            } else if device_lower.contains(DEVICE_KEYWORD_SE) {
                 return Some(IPHONE_SE_RESOLUTION.to_string());
             }
         }
 
         // iPad resolutions
-        if device_lower.contains("ipad") {
-            if device_lower.contains("pro") {
-                if device_lower.contains("13") || device_lower.contains("12.9") {
+        if device_lower.contains(DEVICE_KEYWORD_IPAD) {
+            if device_lower.contains(DEVICE_KEYWORD_PRO) {
+                if device_lower.contains(DEVICE_VERSION_13)
+                    || device_lower.contains(DEVICE_SIZE_12_9)
+                {
                     return Some(IPAD_PRO_12_9_RESOLUTION.to_string());
-                } else if device_lower.contains("11") {
+                } else if device_lower.contains(DEVICE_SIZE_11) {
                     return Some(IPAD_PRO_11_RESOLUTION.to_string());
                 }
-            } else if device_lower.contains("air") {
-                if device_lower.contains("13") {
+            } else if device_lower.contains(DEVICE_KEYWORD_AIR) {
+                if device_lower.contains(DEVICE_VERSION_13) {
                     return Some(IPAD_AIR_13_RESOLUTION.to_string());
                 } else {
                     return Some(IPAD_AIR_RESOLUTION.to_string());
                 }
-            } else if device_lower.contains("mini") {
+            } else if device_lower.contains(DEVICE_KEYWORD_MINI) {
                 return Some(IPAD_MINI_RESOLUTION.to_string());
             } else {
                 return Some(IPAD_RESOLUTION.to_string()); // Regular iPad
@@ -530,7 +544,7 @@ impl IosManager {
 
     pub async fn erase_device(&self, udid: &str) -> Result<()> {
         self.command_executor
-            .run(Path::new("xcrun"), &["simctl", "erase", udid])
+            .run(Path::new(XCRUN), &[SIMCTL, "erase", udid])
             .await
             .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
@@ -539,10 +553,7 @@ impl IosManager {
     pub async fn list_device_types(&self) -> Result<Vec<String>> {
         let output = self
             .command_executor
-            .run(
-                Path::new("xcrun"),
-                &["simctl", "list", "devicetypes", "--json"],
-            )
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "devicetypes", "--json"])
             .await
             .context("Failed to list device types")?;
         let json: Value =
@@ -564,10 +575,7 @@ impl IosManager {
     pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_executor
-            .run(
-                Path::new("xcrun"),
-                &["simctl", "list", "devicetypes", "--json"],
-            )
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "devicetypes", "--json"])
             .await
             .context("Failed to list device types")?;
         let json: Value =
@@ -641,17 +649,17 @@ impl IosManager {
                     || word_lower == "pro"
                     || word_lower == "air"
                     || word_lower == "ultra"
-                    || word.contains("\"") // Inch measurements like 12.9"
-                    || word.contains("(") || word.contains(")") // Memory specs like (8GB)
-                    || (word.starts_with("i") && 
-                        (word.starts_with("iPhone") || word.starts_with("iPad") || word.starts_with("iPod")))
-                    || word_lower.starts_with("m") && word.len() <= 3 // M4, M3, M2, M1 chips
-                    || word_lower.starts_with("a") && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) // A17, A16 chips
+                    || word.contains(INCH_INDICATOR) // Inch measurements like 12.9"
+                    || word.contains(MEMORY_OPEN_BRACKET) || word.contains(MEMORY_CLOSE_BRACKET) // Memory specs like (8GB)
+                    || (word.starts_with(APPLE_DEVICE_PREFIX_I) &&
+                        (word.starts_with(APPLE_DEVICE_IPHONE) || word.starts_with(APPLE_DEVICE_IPAD) || word.starts_with(APPLE_DEVICE_IPOD)))
+                    || word_lower.starts_with(CHIP_PREFIX_M) && word.len() <= 3 // M4, M3, M2, M1 chips
+                    || word_lower.starts_with(CHIP_PREFIX_A) && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) // A17, A16 chips
                 {
                     // For chip names, ensure proper capitalization
-                    if word_lower.starts_with("m") && word.len() <= 3 {
+                    if word_lower.starts_with(CHIP_PREFIX_M) && word.len() <= 3 {
                         return word.to_uppercase(); // m4 -> M4
-                    } else if word_lower.starts_with("a") && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+                    } else if word_lower.starts_with(CHIP_PREFIX_A) && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
                         return word.to_uppercase(); // a17 -> A17
                     }
 
@@ -672,10 +680,7 @@ impl IosManager {
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         let output = self
             .command_executor
-            .run(
-                Path::new("xcrun"),
-                &["simctl", "list", "runtimes", "--json"],
-            )
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "runtimes", "--json"])
             .await
             .context("Failed to list runtimes")?;
         let json: Value = serde_json::from_str(&output).context("Failed to parse runtimes JSON")?;
@@ -760,7 +765,7 @@ impl IosManager {
                     // Quit Simulator.app gracefully
                     if let Err(e) = self
                         .command_executor
-                        .run(Path::new("osascript"), &["-e", SIMULATOR_QUIT_COMMAND])
+                        .run(Path::new(OSASCRIPT), &["-e", SIMULATOR_QUIT_COMMAND])
                         .await
                     {
                         log::warn!("Failed to quit Simulator.app gracefully: {e}");
@@ -768,7 +773,7 @@ impl IosManager {
                         // Fallback: Force quit using killall
                         if let Err(e2) = self
                             .command_executor
-                            .run(Path::new("killall"), &[SIMULATOR_APP_NAME])
+                            .run(Path::new(KILLALL), &[SIMULATOR_APP_NAME])
                             .await
                         {
                             log::warn!("Failed to force quit Simulator.app: {e2}");
@@ -792,7 +797,7 @@ impl DeviceManager for IosManager {
     async fn list_devices(&self) -> Result<Vec<Self::Device>> {
         let output = self
             .command_executor
-            .run(Path::new("xcrun"), &["simctl", "list", "devices", "--json"])
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "devices", "--json"])
             .await
             .context("Failed to list iOS devices")?;
         let json: Value =
@@ -842,7 +847,7 @@ impl DeviceManager for IosManager {
         // Check if device is already booted
         let status_output = self
             .command_executor
-            .run(Path::new("xcrun"), &["simctl", "list", "devices", "-j"])
+            .run(Path::new(XCRUN), &[SIMCTL, "list", "devices", "-j"])
             .await
             .context("Failed to get device status")?;
 
@@ -875,7 +880,7 @@ impl DeviceManager for IosManager {
             // Boot the device
             let boot_result = self
                 .command_executor
-                .run(Path::new("xcrun"), &["simctl", "boot", identifier])
+                .run(Path::new(XCRUN), &[SIMCTL, "boot", identifier])
                 .await;
 
             match boot_result {
@@ -910,7 +915,7 @@ impl DeviceManager for IosManager {
 
         let shutdown_result = self
             .command_executor
-            .run(Path::new("xcrun"), &["simctl", "shutdown", identifier])
+            .run(Path::new(XCRUN), &[SIMCTL, "shutdown", identifier])
             .await;
 
         match shutdown_result {
@@ -951,9 +956,9 @@ impl DeviceManager for IosManager {
         let output = self
             .command_executor
             .run(
-                Path::new("xcrun"),
+                Path::new(XCRUN),
                 &[
-                    "simctl",
+                    SIMCTL,
                     "create",
                     &config.name,
                     &config.device_type,
@@ -975,12 +980,12 @@ impl DeviceManager for IosManager {
         // First try to shutdown the device if it's running
         let _ = self
             .command_executor
-            .run(Path::new("xcrun"), &["simctl", "shutdown", identifier])
+            .run(Path::new(XCRUN), &[SIMCTL, "shutdown", identifier])
             .await; // Ignore errors as device might already be shut down
 
         // Now delete the device
         self.command_executor
-            .run(Path::new("xcrun"), &["simctl", "delete", identifier])
+            .run(Path::new(XCRUN), &[SIMCTL, "delete", identifier])
             .await
             .context(format!(
                 "Failed to delete iOS device {identifier}. Make sure the device exists and is not in use."

@@ -54,3 +54,28 @@ pub const TEST_DEVICE_NAME_33: &str = "test_debug_device_33";
 pub const TEST_DEVICE_TYPE: &str = "phone";
 pub const TEST_API_LEVEL_34: &str = "34";
 pub const TEST_API_LEVEL_33: &str = "33";
+
+/// Test hardware specifications
+pub const TEST_RAM_SIZE_DEFAULT: &str = "2048";
+pub const TEST_RAM_SIZE_HIGH: &str = "4096";
+pub const TEST_STORAGE_SIZE_DEFAULT: &str = "8192M";
+pub const TEST_STORAGE_SIZE_SIMPLE: &str = "8192";
+pub const TEST_STORAGE_SIZE_GB: &str = "8G";
+
+/// Test device types and models
+pub const TEST_ANDROID_DEVICE_TYPE: &str = "pixel_4";
+pub const TEST_IOS_DEVICE_TYPE: &str = "iPhone 14";
+pub const TEST_IOS_VERSION: &str = "16.0";
+pub const TEST_IOS_RUNTIME: &str = "iOS 16.0";
+pub const TEST_IOS_VERSION_17: &str = "17.0";
+pub const TEST_IOS_RUNTIME_17: &str = "iOS 17.0";
+
+/// Test API levels (numeric)
+pub const TEST_API_LEVEL_30: u32 = 30;
+pub const TEST_API_LEVEL_34_NUM: u32 = 34;
+pub const TEST_API_LEVEL_33_NUM: u32 = 33;
+
+/// Default fallback values when information is unavailable
+pub const UNKNOWN_VALUE: &str = "Unknown";
+pub const NO_DEVICE_SELECTED: &str = "No device selected";
+pub const DEFAULT_DEVICE_CATEGORY: &str = "all";

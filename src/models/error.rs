@@ -4,8 +4,9 @@
 //! and provides utilities for converting technical errors into user-friendly
 //! messages suitable for display in the TUI.
 
-use crate::constants::messages::error_formatting::{
-    ERROR_MESSAGE_TRUNCATED_LENGTH, MAX_ERROR_MESSAGE_LENGTH,
+use crate::constants::{
+    env_vars::{ANDROID_HOME, ANDROID_SDK_ROOT},
+    messages::error_formatting::{ERROR_MESSAGE_TRUNCATED_LENGTH, MAX_ERROR_MESSAGE_LENGTH},
 };
 use thiserror::Error;
 
@@ -198,8 +199,8 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
             .to_string();
     }
 
-    if error_str.contains("ANDROID_HOME") || error_str.contains("ANDROID_SDK_ROOT") {
-        return "Android SDK not found. Set ANDROID_HOME environment variable.".to_string();
+    if error_str.contains(ANDROID_HOME) || error_str.contains(ANDROID_SDK_ROOT) {
+        return format!("Android SDK not found. Set {ANDROID_HOME} environment variable.");
     }
 
     if error_str.contains("already exists") {

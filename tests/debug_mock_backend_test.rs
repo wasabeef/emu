@@ -2,6 +2,8 @@
 //!
 //! Verifies MockBackend behavior and tests text extraction functionality.
 
+#![cfg(feature = "test-utils")]
+
 use emu::app::AppState;
 use emu::models::{AndroidDevice, DeviceStatus};
 use emu::ui::mock_backend::MockBackend;

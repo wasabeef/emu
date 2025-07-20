@@ -2,6 +2,8 @@
 //!
 //! Check detailed output of failing test cases
 
+#![cfg(feature = "test-utils")]
+
 use emu::app::AppState;
 use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
 use emu::ui::mock_backend::MockBackend;

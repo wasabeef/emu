@@ -9,6 +9,8 @@ pub const SDKMANAGER: &str = "sdkmanager";
 /// iOS/macOS command-line tools
 pub const XCRUN: &str = "xcrun";
 pub const SIMCTL: &str = "simctl";
+pub const OSASCRIPT: &str = "osascript";
+pub const KILLALL: &str = "killall";
 
 /// ADB subcommands and arguments
 pub mod adb {

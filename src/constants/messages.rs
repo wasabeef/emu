@@ -120,6 +120,11 @@ pub mod ui {
 
     // Terminal size error message
     pub const TERMINAL_TOO_SMALL_ERROR: &str = "Terminal too small";
+
+    // Shortcut keys
+    pub const SHORTCUT_YES: &str = "y";
+    pub const SHORTCUT_NO: &str = "n";
+    pub const SHORTCUT_ESCAPE: &str = "Esc";
 }
 
 /// Device status values

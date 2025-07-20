@@ -4,6 +4,7 @@
 //! asynchronously. It handles command execution, output capture, error handling,
 //! and debug logging in a consistent manner across the application.
 
+use crate::constants::env_vars::RUST_LOG;
 use anyhow::{Context, Result};
 use std::ffi::OsStr;
 use tokio::process::Command;
@@ -93,7 +94,7 @@ impl CommandRunner {
             .collect();
 
         // Debug logging only when RUST_LOG=debug is set
-        if std::env::var("RUST_LOG")
+        if std::env::var(RUST_LOG)
             .unwrap_or_default()
             .contains("debug")
         {
@@ -119,7 +120,7 @@ impl CommandRunner {
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         // Debug logging only when RUST_LOG=debug is set
-        if std::env::var("RUST_LOG")
+        if std::env::var(RUST_LOG)
             .unwrap_or_default()
             .contains("debug")
         {
