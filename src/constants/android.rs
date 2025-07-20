@@ -57,3 +57,7 @@ pub const DEVICE_STATUS_CHECK_TIMEOUT_SECS: u64 = 2;
 
 /// Default API levels to use when system images are not available
 pub const ANDROID_DEFAULT_API_LEVELS: [u32; 8] = [35, 34, 33, 32, 31, 30, 29, 28];
+
+/// Android emulator port configuration
+pub const EMULATOR_PORT_BASE: u16 = 5554;
+pub const EMULATOR_PORT_INCREMENT: u16 = 2;

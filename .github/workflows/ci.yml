@@ -17,10 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ steps.asdf.outputs.rust }}
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -56,8 +59,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -76,30 +84,15 @@ jobs:
         run: cargo test --bins --lib
         env:
           RUST_BACKTRACE: 1
+          RUST_TEST_THREADS: 1
 
-      - name: Run MockDeviceManager tests
+      - name: Run all integration tests
         run: |
-          echo "🧪 Running emulator-independent tests..."
-          cargo test --features test-utils --test mock_device_manager_performance_test --verbose
-          cargo test --features test-utils --test mock_device_lifecycle_test --verbose
-          cargo test --features test-utils --test mock_error_handling_test --verbose
-          cargo test --features test-utils --test mock_scenario_builder_test --verbose
-          echo "✅ MockDeviceManager tests completed successfully"
-
-      - name: Run mock performance tests
-        run: |
-          echo "⚡ Running mock performance tests..."
-          cargo test --features test-utils --test startup_performance_mock_test --verbose
-          cargo test --features test-utils --test panel_switching_performance_mock_test --verbose
-          cargo test --features test-utils --test final_performance_mock_test --verbose
-          echo "✅ Mock performance tests completed successfully"
-
-      - name: Run mock integration tests
-        run: |
-          echo "🔄 Running mock integration tests..."
-          cargo test --features test-utils --test comprehensive_integration_mock_test --verbose
-          cargo test --features test-utils --test panel_switching_integration_mock_test --verbose
-          echo "✅ Mock integration tests completed successfully"
+          echo "🚀 Running all integration tests..."
+          cargo test --features test-utils --tests
+          echo "✅ All integration tests completed successfully"
+        env:
+          RUST_TEST_THREADS: 1
 
   # Build (only on Ubuntu for artifacts)
   build:
@@ -108,8 +101,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -145,8 +143,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
+          components: llvm-tools-preview
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -161,113 +165,23 @@ jobs:
           restore-keys: |
             cargo-${{ runner.os }}-
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+      - name: Install cargo-llvm-cov
+        run: |
+          cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage
         run: |
-          # Run tarpaulin with increased timeout and continue on error
-          cargo tarpaulin --out xml --output-dir coverage --features test-utils \
-            --exclude-files "*/tests/*" --exclude-files "*/examples/*" \
-            --timeout 300 --fail-under 0 --engine llvm --verbose || {
-            echo "Warning: cargo tarpaulin encountered an error, but continuing..."
-            # Check if the coverage file was at least partially generated
-            if [ -f coverage/cobertura.xml ]; then
-              echo "Coverage file exists, proceeding with analysis..."
-            else
-              echo "No coverage file generated, creating minimal file..."
-              mkdir -p coverage
-              echo '<?xml version="1.0"?><coverage line-rate="0.0"></coverage>' > coverage/cobertura.xml
-            fi
-          }
+          # Create coverage directory
+          mkdir -p coverage
 
-      - name: Analyze test results
-        id: analysis
-        run: |
-          # Coverage calculation
-          COVERAGE=$(python3 -c "
-          import xml.etree.ElementTree as ET
-          try:
-              tree = ET.parse('coverage/cobertura.xml')
-              root = tree.getroot()
-              line_rate = float(root.get('line-rate', 0))
-              coverage_percent = line_rate * 100
-              print(f'{coverage_percent:.1f}')
-          except:
-              print('0.0')
-          ")
+          # Generate coverage with cargo-llvm-cov
+          cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
+            --ignore-filename-regex '(tests/|src/main\.rs|src/bin/|src/app/test_helpers\.rs|src/fixtures/|src/managers/mock\.rs)'
+        env:
+          RUST_TEST_THREADS: 1
 
-          # Test category analysis
-          TOTAL_TESTS=$(cargo test --bins --tests --features test-utils 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          SECURITY_TESTS=$(cargo test --test advanced_security_test --test path_traversal_security_test --test input_validation_comprehensive_test --test command_security_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test startup_performance_test --test panel_switching_performance_test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          MOCK_TESTS=$(cargo test --features test-utils --test mock_* 2>&1 | grep "test result:" | sed 's/.*ok\. \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-
-          # Count test files dynamically
-          TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
-          MOCK_TEST_FILES=$(find tests/ -name "mock_*.rs" -type f | wc -l | tr -d ' ')
-
-          # Calculate mock test percentage
-          MOCK_PERCENT=$(echo "scale=1; ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100" | bc -l)
-          MOCK_PERCENT=${MOCK_PERCENT%.*}  # Remove decimal part
-
-          echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
-          echo "security_tests=${SECURITY_TESTS}" >> $GITHUB_OUTPUT
-          echo "performance_tests=${PERFORMANCE_TESTS}" >> $GITHUB_OUTPUT
-          echo "mock_tests=${MOCK_TESTS}" >> $GITHUB_OUTPUT
-          echo "total_test_files=${TOTAL_TEST_FILES}" >> $GITHUB_OUTPUT
-          echo "mock_test_files=${MOCK_TEST_FILES}" >> $GITHUB_OUTPUT
-          echo "mock_percent=${MOCK_PERCENT}" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const coverage = '${{ steps.analysis.outputs.coverage }}';
-            const totalTests = '${{ steps.analysis.outputs.total_tests }}';
-            const securityTests = '${{ steps.analysis.outputs.security_tests }}';
-            const performanceTests = '${{ steps.analysis.outputs.performance_tests }}';
-            const mockTests = '${{ steps.analysis.outputs.mock_tests }}';
-            const totalTestFiles = '${{ steps.analysis.outputs.total_test_files }}';
-            const mockTestFiles = '${{ steps.analysis.outputs.mock_test_files }}';
-            const mockPercent = '${{ steps.analysis.outputs.mock_percent }}';
-
-            const comment = `## 📊 CI Results
-
-            **✅ All Checks Passed**
-
-            ### 📋 Coverage & Testing
-            - **Coverage**: ${coverage}%
-            - **Total Tests**: ${totalTests}
-            - **Security Tests**: ${securityTests}
-            - **Performance Tests**: ${performanceTests}
-            - **MockDeviceManager Tests**: ${mockTests}
-
-            ### 🎯 Quality Metrics
-            ${coverage >= 15 ? '✅' : coverage >= 10 ? '⚠️' : '❌'} Coverage: ${coverage}%
-            ✅ Linting: All clippy warnings resolved
-            ✅ Formatting: Code properly formatted
-            ✅ Security: Comprehensive protection validated
-
-            ### 🚀 Build Status
-            - **Ubuntu**: ✅ Passed
-            - **macOS**: ✅ Passed
-            - **Artifacts**: ✅ Generated
-
-            ### 🧪 Test Suite Innovation
-            - **Test Files**: ${totalTestFiles} total (${mockTestFiles} MockDeviceManager)
-            - **Emulator Independent**: ${mockTests > 0 ? '✅' : '⚠️'} ${mockTests} tests (< 6 seconds)
-            - **Mock Coverage**: ${mockPercent}% of test files are emulator-independent
-            - **CI Performance**: Fast feedback with MockDeviceManager integration`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+      - name: Run octocov
+        uses: k1LoW/octocov-action@v1
 
   # Security-focused tests (separate job for clarity)
   security:
@@ -277,8 +191,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: wasabeef/import-asdf-tool-versions-action@v1.1.0
+        id: asdf
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.asdf.outputs.rust }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -296,8 +215,7 @@ jobs:
       - name: Run security tests
         run: |
           echo "🔒 Running security validation..."
-          cargo test --test advanced_security_test --verbose
-          cargo test --test path_traversal_security_test --verbose
-          cargo test --test input_validation_comprehensive_test --verbose
-          cargo test --test command_security_test --verbose
+          cargo test --test comprehensive_integration_test --verbose
           echo "✅ Security tests completed successfully"
+        env:
+          RUST_TEST_THREADS: 1

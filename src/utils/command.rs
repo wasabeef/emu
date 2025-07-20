@@ -4,6 +4,7 @@
 //! asynchronously. It handles command execution, output capture, error handling,
 //! and debug logging in a consistent manner across the application.
 
+use crate::constants::env_vars::RUST_LOG;
 use anyhow::{Context, Result};
 use std::ffi::OsStr;
 use tokio::process::Command;
@@ -93,7 +94,7 @@ impl CommandRunner {
             .collect();
 
         // Debug logging only when RUST_LOG=debug is set
-        if std::env::var("RUST_LOG")
+        if std::env::var(RUST_LOG)
             .unwrap_or_default()
             .contains("debug")
         {
@@ -119,7 +120,7 @@ impl CommandRunner {
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         // Debug logging only when RUST_LOG=debug is set
-        if std::env::var("RUST_LOG")
+        if std::env::var(RUST_LOG)
             .unwrap_or_default()
             .contains("debug")
         {
@@ -322,5 +323,96 @@ impl CommandRunner {
             "Command failed after {attempts} attempts",
             attempts = max_retries + 1
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_command_runner_new() {
+        let runner = CommandRunner::new();
+        // Test that we can create a CommandRunner instance
+        // The actual command execution tests are integration tests
+        assert!(std::ptr::eq(&runner, &runner));
+    }
+
+    #[tokio::test]
+    async fn test_run_simple_command() {
+        let runner = CommandRunner::new();
+        // Test with echo which should be available on all platforms
+        let result = runner.run("echo", &["test"]).await;
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("test"));
+    }
+
+    #[tokio::test]
+    async fn test_run_command_failure() {
+        let runner = CommandRunner::new();
+        // Test with a non-existent command
+        let empty_args: Vec<&str> = vec![];
+        let result = runner
+            .run("this_command_does_not_exist_12345", &empty_args)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_command() {
+        let runner = CommandRunner::new();
+        // Test spawning a simple command
+        let result = runner.spawn("echo", &["test"]).await;
+        assert!(result.is_ok());
+        let pid = result.unwrap();
+        assert!(pid > 0);
+    }
+
+    #[tokio::test]
+    async fn test_run_ignoring_errors() {
+        let runner = CommandRunner::new();
+        // Test ignoring specific error patterns
+        let result = runner
+            .run_ignoring_errors("echo", &["error: already exists"], &["already exists"])
+            .await;
+        assert!(result.is_ok());
+
+        // Test with error that shouldn't be ignored
+        let empty_args: Vec<&str> = vec![];
+        let result = runner
+            .run_ignoring_errors(
+                "this_command_does_not_exist_12345",
+                &empty_args,
+                &["different error"],
+            )
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_run_with_retry() {
+        let runner = CommandRunner::new();
+        // Test with a command that succeeds
+        let result = runner.run_with_retry("echo", &["test"], 2).await;
+        assert!(result.is_ok());
+
+        // Test with a command that fails
+        let empty_args: Vec<&str> = vec![];
+        let start = std::time::Instant::now();
+        let result = runner
+            .run_with_retry("this_command_does_not_exist_12345", &empty_args, 1)
+            .await;
+        let duration = start.elapsed();
+        assert!(result.is_err());
+        // Should have retried once with delay
+        assert!(duration.as_millis() >= 100);
+    }
+
+    #[test]
+    fn test_command_runner_send_sync() {
+        // Ensure CommandRunner is Send + Sync
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<CommandRunner>();
     }
 }

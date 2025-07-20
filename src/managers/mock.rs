@@ -3,6 +3,7 @@
 //! This module provides a mock implementation that doesn't require
 //! actual Android SDK or iOS tools, enabling true emulator-independent testing.
 
+use crate::constants::android::{EMULATOR_PORT_BASE, EMULATOR_PORT_INCREMENT};
 use crate::managers::common::{DeviceConfig, DeviceManager};
 use crate::models::{AndroidDevice, DeviceStatus, IosDevice};
 use anyhow::Result;
@@ -296,7 +297,11 @@ impl DeviceManager for MockDeviceManager {
         self.check_failure("create_device")?;
 
         let new_id = if self.platform == "android" {
-            format!("emulator-{}", self.devices.lock().unwrap().len() * 2 + 5554)
+            format!(
+                "emulator-{}",
+                self.devices.lock().unwrap().len() * EMULATOR_PORT_INCREMENT as usize
+                    + EMULATOR_PORT_BASE as usize
+            )
         } else {
             format!(
                 "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",

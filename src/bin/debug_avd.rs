@@ -5,7 +5,10 @@
 
 use anyhow::Result;
 use emu::{
-    constants::defaults::*,
+    constants::{
+        defaults::*,
+        env_vars::{ANDROID_HOME, ANDROID_SDK_ROOT},
+    },
     managers::{
         common::{DeviceConfig, DeviceManager},
         AndroidManager,
@@ -129,7 +132,7 @@ async fn main() -> Result<()> {
     println!("\n=== Debug Complete ===");
     println!("If you're still experiencing issues, check:");
     println!("1. Android SDK is properly installed");
-    println!("2. ANDROID_HOME or ANDROID_SDK_ROOT environment variable is set");
+    println!("2. {ANDROID_HOME} or {ANDROID_SDK_ROOT} environment variable is set");
     println!("3. System images are installed (use `sdkmanager --list` to check)");
     println!("4. Android SDK licenses are accepted (run `sdkmanager --licenses`)");
 

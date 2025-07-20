@@ -9,7 +9,8 @@
 
 #[allow(unused_imports)]
 use crate::constants::performance::{
-    EVENT_DEBOUNCE_TIMEOUT, NAVIGATION_BATCH_TIMEOUT, TEST_SLEEP_DURATION,
+    EVENT_DEBOUNCE_TIMEOUT, EVENT_QUEUE_SIZE_MULTIPLIER, NAVIGATION_BATCH_TIMEOUT,
+    TEST_SLEEP_DURATION,
 };
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::collections::VecDeque;
@@ -136,7 +137,7 @@ impl EventBatcher {
             event_queue: VecDeque::new(),
             max_batch_size,
             navigation_batcher: NavigationBatcher::new(NAVIGATION_BATCH_TIMEOUT.as_millis() as u64), // 50ms timeout
-            debouncer: EventDebouncer::new(5), // 5ms debounce
+            debouncer: EventDebouncer::new(EVENT_DEBOUNCE_TIMEOUT.as_millis() as u64), // 10ms debounce
         }
     }
 
@@ -171,7 +172,7 @@ impl EventBatcher {
         }
 
         // Add non-navigation events to queue
-        if self.event_queue.len() < self.max_batch_size * 2 {
+        if self.event_queue.len() < self.max_batch_size * EVENT_QUEUE_SIZE_MULTIPLIER {
             self.event_queue.push_back(event);
         }
     }

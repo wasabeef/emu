@@ -4,8 +4,9 @@
 //! and provides utilities for converting technical errors into user-friendly
 //! messages suitable for display in the TUI.
 
-use crate::constants::messages::error_formatting::{
-    ERROR_MESSAGE_TRUNCATED_LENGTH, MAX_ERROR_MESSAGE_LENGTH,
+use crate::constants::{
+    env_vars::{ANDROID_HOME, ANDROID_SDK_ROOT},
+    messages::error_formatting::{ERROR_MESSAGE_TRUNCATED_LENGTH, MAX_ERROR_MESSAGE_LENGTH},
 };
 use thiserror::Error;
 
@@ -198,8 +199,8 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
             .to_string();
     }
 
-    if error_str.contains("ANDROID_HOME") || error_str.contains("ANDROID_SDK_ROOT") {
-        return "Android SDK not found. Set ANDROID_HOME environment variable.".to_string();
+    if error_str.contains(ANDROID_HOME) || error_str.contains(ANDROID_SDK_ROOT) {
+        return format!("Android SDK not found. Set {ANDROID_HOME} environment variable.");
     }
 
     if error_str.contains("already exists") {
@@ -247,3 +248,239 @@ pub fn format_user_error(error: &anyhow::Error) -> String {
 /// This type alias simplifies function signatures throughout the codebase
 /// when returning results that may contain device-specific errors.
 pub type DeviceResult<T> = Result<T, DeviceError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_device_error_constructors() {
+        let err = DeviceError::not_found("test_device");
+        assert!(matches!(err, DeviceError::NotFound { name } if name == "test_device"));
+
+        let err = DeviceError::already_running("device1");
+        assert!(matches!(err, DeviceError::AlreadyRunning { name } if name == "device1"));
+
+        let err = DeviceError::not_running("device2");
+        assert!(matches!(err, DeviceError::NotRunning { name } if name == "device2"));
+
+        let err = DeviceError::start_failed("device3", "reason");
+        assert!(
+            matches!(err, DeviceError::StartFailed { name, reason } if name == "device3" && reason == "reason")
+        );
+
+        let err = DeviceError::stop_failed("device4", "failed");
+        assert!(
+            matches!(err, DeviceError::StopFailed { name, reason } if name == "device4" && reason == "failed")
+        );
+
+        let err = DeviceError::command_failed("adb devices");
+        assert!(matches!(err, DeviceError::CommandFailed { command } if command == "adb devices"));
+
+        let err = DeviceError::other("custom error");
+        assert!(matches!(err, DeviceError::Other { message } if message == "custom error"));
+    }
+
+    #[test]
+    fn test_user_friendly_messages() {
+        assert_eq!(
+            DeviceError::not_found("test").user_friendly_message(),
+            "Device 'test' not found"
+        );
+
+        assert_eq!(
+            DeviceError::already_running("test").user_friendly_message(),
+            "Device 'test' is already running"
+        );
+
+        assert_eq!(
+            DeviceError::not_running("test").user_friendly_message(),
+            "Device 'test' is not running"
+        );
+
+        assert_eq!(
+            DeviceError::start_failed("test", "unknown").user_friendly_message(),
+            "Failed to start device 'test'"
+        );
+
+        assert_eq!(
+            DeviceError::start_failed("test", "licenses not accepted").user_friendly_message(),
+            "Android SDK licenses not accepted. Run 'sdkmanager --licenses'"
+        );
+
+        assert_eq!(
+            DeviceError::start_failed("test", "system image not found").user_friendly_message(),
+            "Required system image not installed"
+        );
+
+        assert_eq!(
+            DeviceError::CreateFailed {
+                name: "test".to_string(),
+                reason: "already exists".to_string()
+            }
+            .user_friendly_message(),
+            "Device 'test' already exists"
+        );
+
+        assert_eq!(
+            DeviceError::PlatformNotSupported {
+                platform: "windows".to_string()
+            }
+            .user_friendly_message(),
+            "Platform 'windows' not supported"
+        );
+
+        assert_eq!(
+            DeviceError::SdkNotFound {
+                sdk: "Android".to_string()
+            }
+            .user_friendly_message(),
+            "Android SDK not found. Check environment variables"
+        );
+    }
+
+    #[test]
+    fn test_error_title() {
+        assert_eq!(
+            DeviceError::not_found("test").error_title(),
+            "Device Not Found"
+        );
+        assert_eq!(
+            DeviceError::already_running("test").error_title(),
+            "Device Running"
+        );
+        assert_eq!(
+            DeviceError::not_running("test").error_title(),
+            "Device Stopped"
+        );
+        assert_eq!(
+            DeviceError::start_failed("test", "reason").error_title(),
+            "Start Error"
+        );
+        assert_eq!(
+            DeviceError::stop_failed("test", "reason").error_title(),
+            "Stop Error"
+        );
+        assert_eq!(
+            DeviceError::CreateFailed {
+                name: "test".to_string(),
+                reason: "reason".to_string()
+            }
+            .error_title(),
+            "Creation Error"
+        );
+        assert_eq!(
+            DeviceError::DeleteFailed {
+                name: "test".to_string(),
+                reason: "reason".to_string()
+            }
+            .error_title(),
+            "Deletion Error"
+        );
+        assert_eq!(
+            DeviceError::command_failed("cmd").error_title(),
+            "Command Error"
+        );
+        assert_eq!(
+            DeviceError::PlatformNotSupported {
+                platform: "win".to_string()
+            }
+            .error_title(),
+            "Platform Error"
+        );
+        assert_eq!(
+            DeviceError::SdkNotFound {
+                sdk: "Android".to_string()
+            }
+            .error_title(),
+            "SDK Error"
+        );
+        assert_eq!(
+            DeviceError::InvalidConfig {
+                message: "msg".to_string()
+            }
+            .error_title(),
+            "Config Error"
+        );
+        assert_eq!(DeviceError::other("msg").error_title(), "Error");
+    }
+
+    #[test]
+    fn test_format_user_error() {
+        let anyhow_error = anyhow::anyhow!("licenses not accepted");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "Android SDK licenses not accepted. Run 'sdkmanager --licenses' in terminal to accept licenses."
+        );
+
+        let anyhow_error = anyhow::anyhow!("system image not found");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "Required system image not installed. Install system images using SDK Manager."
+        );
+
+        let anyhow_error = anyhow::anyhow!("ANDROID_HOME not set");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "Android SDK not found. Set ANDROID_HOME environment variable."
+        );
+
+        let anyhow_error = anyhow::anyhow!("avdmanager: command not found");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "avdmanager: command not found"
+        );
+
+        let anyhow_error = anyhow::anyhow!("permission denied");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "Permission error occurred. Check file/directory access permissions."
+        );
+
+        let anyhow_error = anyhow::anyhow!("operation timeout");
+        assert_eq!(
+            format_user_error(&anyhow_error),
+            "Operation timed out. Please try again later."
+        );
+
+        let long_error = "a".repeat(200);
+        let anyhow_error = anyhow::anyhow!(long_error);
+        let result = format_user_error(&anyhow_error);
+        assert!(result.ends_with("..."));
+        assert_eq!(result.len(), 150); // Truncated to exactly 150 characters
+    }
+
+    #[test]
+    fn test_error_display() {
+        let err = DeviceError::not_found("test");
+        assert_eq!(err.to_string(), "Device not found: test");
+
+        let err = DeviceError::CommandFailed {
+            command: "adb".to_string(),
+        };
+        assert_eq!(err.to_string(), "Command execution failed: adb");
+
+        let err = DeviceError::CreateFailed {
+            name: "test".to_string(),
+            reason: "invalid".to_string(),
+        };
+        assert_eq!(err.to_string(), "Failed to create device test: invalid");
+    }
+
+    #[test]
+    fn test_error_from_io() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let device_err = DeviceError::from(io_err);
+        assert!(matches!(device_err, DeviceError::Io(_)));
+    }
+
+    #[test]
+    fn test_error_from_serde() {
+        let json = "{ invalid json";
+        let parse_result: Result<serde_json::Value, _> = serde_json::from_str(json);
+        if let Err(e) = parse_result {
+            let device_err = DeviceError::from(e);
+            assert!(matches!(device_err, DeviceError::Parse(_)));
+        }
+    }
+}

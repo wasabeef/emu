@@ -6,6 +6,7 @@
 
 use crate::{
     constants::colors::*,
+    constants::limits::INVALID_API_LEVEL,
     constants::performance::*,
     constants::ui_layout::*,
     models::{AndroidDevice, DeviceStatus, IosDevice},
@@ -220,7 +221,7 @@ impl EnhancedDeviceListWidget {
                             DeviceStatus::Unknown => "⚪",
                         };
 
-                        let api_display = if device.api_level > 0 {
+                        let api_display = if device.api_level > INVALID_API_LEVEL {
                             format!("API {}", device.api_level)
                         } else {
                             "Unknown API".to_string()

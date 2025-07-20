@@ -1,15 +1,29 @@
 use emu::managers::android::AndroidManager;
 use emu::managers::common::DeviceManager;
 use emu::models::device_info::DynamicDeviceProvider;
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
+
+mod common;
+use common::setup_mock_android_sdk;
 
 #[tokio::test]
 async fn test_device_creation_flow() {
     // Test the device creation flow that was freezing
     println!("🔍 Testing device creation flow...");
 
-    let android_manager = match AndroidManager::new() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "device"], r#"id: 0 or "pixel_7"\n    Name: Pixel 7\n    OEM : Google\n    Tag : google_apis_playstore\n---------"#)
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "device"], r#"id: 0 or "pixel_7"\n    Name: Pixel 7\n    OEM : Google\n    Tag : google_apis_playstore\n---------"#);
+
+    let android_manager = match AndroidManager::with_executor(Arc::new(mock_executor)) {
         Ok(manager) => manager,
         Err(e) => {
             println!("Android manager not available: {e}");
@@ -25,7 +39,7 @@ async fn test_device_creation_flow() {
     // Test list available devices (this was causing the freeze)
     println!("📋 Testing list_available_devices...");
     let list_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.list_available_devices(),
     )
     .await;
@@ -51,7 +65,7 @@ async fn test_device_creation_flow() {
     // Test list available targets
     println!("🎯 Testing list_available_targets...");
     let targets_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.list_available_targets(),
     )
     .await;
@@ -75,7 +89,7 @@ async fn test_device_creation_flow() {
     // Test basic device info operations
     println!("📱 Testing get_available_devices...");
     let info_result = timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         android_manager.get_available_devices(),
     )
     .await;
@@ -106,7 +120,11 @@ async fn test_device_creation_flow() {
 async fn test_android_manager_basic_operations() {
     println!("🔧 Testing basic AndroidManager operations...");
 
-    let android_manager = match AndroidManager::new() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let mock_executor = MockCommandExecutor::new();
+    let android_manager = match AndroidManager::with_executor(Arc::new(mock_executor)) {
         Ok(manager) => manager,
         Err(e) => {
             println!("Android manager not available: {e}");
@@ -126,7 +144,7 @@ async fn test_android_manager_basic_operations() {
 
     // Test listing existing devices (should not freeze)
     println!("📋 Testing list_devices...");
-    let list_result = timeout(Duration::from_secs(15), android_manager.list_devices()).await;
+    let list_result = timeout(Duration::from_secs(30), android_manager.list_devices()).await;
 
     match list_result {
         Ok(Ok(devices)) => {

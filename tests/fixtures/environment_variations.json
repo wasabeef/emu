@@ -1,0 +1,233 @@
+{
+  "android_environments": {
+    "sdk_locations": {
+      "android_home": {
+        "description": "ANDROID_HOME environment variable set",
+        "env_var": "ANDROID_HOME",
+        "typical_path": "/Users/user/Library/Android/sdk"
+      },
+      "android_sdk_root": {
+        "description": "ANDROID_SDK_ROOT environment variable set",
+        "env_var": "ANDROID_SDK_ROOT",
+        "typical_path": "/opt/android-sdk"
+      },
+      "path_only": {
+        "description": "Tools available in PATH without env vars",
+        "tools_in_path": ["adb", "avdmanager", "emulator", "sdkmanager"]
+      }
+    },
+    "sdk_structures": {
+      "cmdline_tools_latest": {
+        "description": "Modern SDK with command-line tools in latest/",
+        "structure": [
+          "cmdline-tools/latest/bin/avdmanager",
+          "cmdline-tools/latest/bin/sdkmanager",
+          "emulator/emulator",
+          "platform-tools/adb"
+        ]
+      },
+      "tools_legacy": {
+        "description": "Legacy SDK with tools in tools/bin/",
+        "structure": [
+          "tools/bin/avdmanager",
+          "tools/bin/sdkmanager",
+          "emulator/emulator",
+          "platform-tools/adb"
+        ]
+      },
+      "mixed_structure": {
+        "description": "Mixed SDK with some tools in different locations",
+        "structure": [
+          "cmdline-tools/latest/bin/sdkmanager",
+          "tools/bin/avdmanager",
+          "emulator/emulator",
+          "platform-tools/adb"
+        ]
+      }
+    },
+    "api_levels": {
+      "minimal": {
+        "description": "Minimal API level setup",
+        "installed_apis": ["android-34"],
+        "system_images": ["system-images;android-34;google_apis;x86_64"]
+      },
+      "comprehensive": {
+        "description": "Comprehensive API level setup",
+        "installed_apis": [
+          "android-30",
+          "android-31",
+          "android-32",
+          "android-33",
+          "android-34"
+        ],
+        "system_images": [
+          "system-images;android-30;google_apis;x86",
+          "system-images;android-31;google_apis;x86_64",
+          "system-images;android-32;google_apis;x86_64",
+          "system-images;android-33;google_apis;x86_64",
+          "system-images;android-34;google_apis;x86_64",
+          "system-images;android-34;google_apis_playstore;x86_64"
+        ]
+      }
+    },
+    "device_configurations": {
+      "minimal": {
+        "description": "Minimal device configuration",
+        "avd_count": 1,
+        "devices": ["Pixel_7_API_34"]
+      },
+      "mixed_categories": {
+        "description": "Mixed device categories",
+        "avd_count": 5,
+        "devices": [
+          "Pixel_7_API_34",
+          "Pixel_Tablet_API_33",
+          "Wear_OS_Round_API_30",
+          "Android_TV_API_33",
+          "Automotive_API_32"
+        ]
+      }
+    }
+  },
+  "ios_environments": {
+    "xcode_versions": {
+      "xcode_15": {
+        "description": "Xcode 15.x",
+        "version": "15.2",
+        "ios_versions": ["17.0", "16.4", "15.5"],
+        "device_types": [
+          "iPhone-15",
+          "iPhone-15-Pro",
+          "iPhone-14",
+          "iPad-Pro-12-9-inch-6th-generation"
+        ]
+      },
+      "xcode_14": {
+        "description": "Xcode 14.x",
+        "version": "14.3",
+        "ios_versions": ["16.4", "15.5", "14.4"],
+        "device_types": [
+          "iPhone-14",
+          "iPhone-14-Pro",
+          "iPhone-13",
+          "iPad-Pro-12-9-inch-5th-generation"
+        ]
+      }
+    },
+    "runtime_configurations": {
+      "ios_only": {
+        "description": "Only iOS runtimes installed",
+        "platforms": ["iOS"],
+        "runtimes": [
+          "com.apple.CoreSimulator.SimRuntime.iOS-17-0",
+          "com.apple.CoreSimulator.SimRuntime.iOS-16-4"
+        ]
+      },
+      "multi_platform": {
+        "description": "Multiple platforms installed",
+        "platforms": ["iOS", "watchOS", "tvOS"],
+        "runtimes": [
+          "com.apple.CoreSimulator.SimRuntime.iOS-17-0",
+          "com.apple.CoreSimulator.SimRuntime.iOS-16-4",
+          "com.apple.CoreSimulator.SimRuntime.watchOS-10-0",
+          "com.apple.CoreSimulator.SimRuntime.tvOS-17-0"
+        ]
+      }
+    },
+    "device_configurations": {
+      "iphone_only": {
+        "description": "Only iPhone devices",
+        "device_count": 3,
+        "devices": ["iPhone 15", "iPhone 15 Pro", "iPhone 14"]
+      },
+      "mixed_devices": {
+        "description": "Mixed device types",
+        "device_count": 7,
+        "devices": [
+          "iPhone 15",
+          "iPhone 15 Pro",
+          "iPad Pro 12.9\" (6th generation)",
+          "iPad Air (5th generation)",
+          "Apple Watch Series 9 (45mm)",
+          "Apple Watch Ultra 2 (49mm)",
+          "Apple TV 4K (3rd generation)"
+        ]
+      }
+    },
+    "simulator_app_states": {
+      "not_installed": {
+        "description": "Simulator.app not installed",
+        "app_path": null,
+        "expected_error": "The application /Applications/Simulator.app could not be found."
+      },
+      "installed": {
+        "description": "Simulator.app installed and available",
+        "app_path": "/Applications/Simulator.app",
+        "can_launch": true
+      },
+      "permission_denied": {
+        "description": "Simulator.app exists but permission denied",
+        "app_path": "/Applications/Simulator.app",
+        "can_launch": false,
+        "expected_error": "Operation not permitted"
+      }
+    }
+  },
+  "system_variations": {
+    "macos_versions": {
+      "ventura": {
+        "version": "13.x",
+        "xcode_support": ["14.x", "15.x"],
+        "ios_support": ["16.x", "17.x"]
+      },
+      "monterey": {
+        "version": "12.x",
+        "xcode_support": ["13.x", "14.x"],
+        "ios_support": ["15.x", "16.x"]
+      },
+      "big_sur": {
+        "version": "11.x",
+        "xcode_support": ["12.x", "13.x"],
+        "ios_support": ["14.x", "15.x"]
+      }
+    },
+    "hardware_variations": {
+      "intel_mac": {
+        "architecture": "x86_64",
+        "android_abi_support": ["x86", "x86_64"],
+        "emulator_acceleration": "HAXM"
+      },
+      "apple_silicon": {
+        "architecture": "arm64",
+        "android_abi_support": ["arm64-v8a", "x86_64"],
+        "emulator_acceleration": "Hypervisor.framework"
+      }
+    },
+    "path_variations": {
+      "homebrew": {
+        "description": "Tools installed via Homebrew",
+        "android_sdk_path": "/opt/homebrew/share/android-sdk",
+        "tool_locations": {
+          "adb": "/opt/homebrew/bin/adb",
+          "avdmanager": "/opt/homebrew/bin/avdmanager"
+        }
+      },
+      "android_studio": {
+        "description": "Tools installed via Android Studio",
+        "android_sdk_path": "/Users/user/Library/Android/sdk",
+        "tool_locations": {
+          "adb": "/Users/user/Library/Android/sdk/platform-tools/adb",
+          "avdmanager": "/Users/user/Library/Android/sdk/cmdline-tools/latest/bin/avdmanager"
+        }
+      },
+      "manual_install": {
+        "description": "Manually installed SDK",
+        "android_sdk_path": "/opt/android-sdk",
+        "tool_locations": {
+          "adb": "/opt/android-sdk/platform-tools/adb",
+          "avdmanager": "/opt/android-sdk/tools/bin/avdmanager"
+        }
+      }
+    }
+  }
+}

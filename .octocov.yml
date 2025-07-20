@@ -1,0 +1,7 @@
+# octocov configuration for Rust project
+coverage:
+  paths:
+    - coverage/lcov.info
+
+comment:
+  hideFooterLink: true

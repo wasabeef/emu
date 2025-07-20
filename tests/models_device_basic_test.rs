@@ -1,0 +1,287 @@
+//! Basic tests for models/device.rs
+//!
+//! Tests basic functionality, validation, and Trait implementations of device models.
+
+use emu::models::device::Device;
+use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
+
+#[test]
+fn test_android_device_creation() {
+    let device = AndroidDevice {
+        name: "TestDevice".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "4096".to_string(),
+        storage_size: "16384M".to_string(),
+    };
+
+    assert_eq!(device.name, "TestDevice");
+    assert_eq!(device.device_type, "pixel_7");
+    assert_eq!(device.api_level, 34);
+    assert_eq!(device.status, DeviceStatus::Stopped);
+    assert!(!device.is_running);
+    assert_eq!(device.ram_size, "4096");
+    assert_eq!(device.storage_size, "16384M");
+}
+
+#[test]
+fn test_ios_device_creation() {
+    let device = IosDevice {
+        name: "TestiPhone".to_string(),
+        udid: "TEST-UUID-TestiPhone".to_string(),
+        device_type: "iPhone 15 Pro".to_string(),
+        ios_version: "17.0".to_string(),
+        runtime_version: "iOS 17.0".to_string(),
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        is_available: true,
+    };
+
+    assert_eq!(device.name, "TestiPhone");
+    assert_eq!(device.udid, "TEST-UUID-TestiPhone");
+    assert_eq!(device.device_type, "iPhone 15 Pro");
+    assert_eq!(device.ios_version, "17.0");
+    assert_eq!(device.status, DeviceStatus::Stopped);
+    assert!(!device.is_running);
+}
+
+#[test]
+fn test_android_device_trait_implementation() {
+    let device = AndroidDevice {
+        name: "TraitTest".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "4096".to_string(),
+        storage_size: "16384M".to_string(),
+    };
+
+    // Test Device trait methods
+    assert_eq!(device.id(), "TraitTest");
+    assert_eq!(device.name(), "TraitTest");
+    assert_eq!(*device.status(), DeviceStatus::Stopped);
+    assert!(!device.is_running());
+}
+
+#[test]
+fn test_ios_device_trait_implementation() {
+    let device = IosDevice {
+        name: "iOSTraitTest".to_string(),
+        udid: "TEST-UUID-iOSTraitTest".to_string(),
+        device_type: "iPhone 15 Pro".to_string(),
+        ios_version: "17.0".to_string(),
+        runtime_version: "iOS 17.0".to_string(),
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        is_available: true,
+    };
+
+    // Test Device trait methods
+    assert_eq!(device.id(), "TEST-UUID-iOSTraitTest");
+    assert_eq!(device.name(), "iOSTraitTest");
+    assert_eq!(*device.status(), DeviceStatus::Stopped);
+    assert!(!device.is_running());
+}
+
+#[test]
+fn test_device_status_variants() {
+    let statuses = vec![
+        DeviceStatus::Running,
+        DeviceStatus::Stopped,
+        DeviceStatus::Starting,
+        DeviceStatus::Stopping,
+        DeviceStatus::Creating,
+        DeviceStatus::Error,
+        DeviceStatus::Unknown,
+    ];
+
+    for status in statuses {
+        let device = AndroidDevice {
+            name: "StatusTest".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 34,
+            status,
+            is_running: status == DeviceStatus::Running,
+            ram_size: "4096".to_string(),
+            storage_size: "16384M".to_string(),
+        };
+
+        assert_eq!(device.status, status);
+        assert_eq!(device.is_running, status == DeviceStatus::Running);
+    }
+}
+
+#[test]
+fn test_android_device_with_different_api_levels() {
+    let api_levels = vec![28, 29, 30, 31, 32, 33, 34];
+
+    for api_level in api_levels {
+        let device = AndroidDevice {
+            name: "APITest".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level,
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "4096".to_string(),
+            storage_size: "16384M".to_string(),
+        };
+
+        assert_eq!(device.api_level, api_level);
+        assert!(device.api_level >= 28 && device.api_level <= 34);
+    }
+}
+
+#[test]
+fn test_device_default_values() {
+    let device = AndroidDevice::default();
+
+    assert_eq!(device.name, "");
+    assert_eq!(device.device_type, "");
+    assert_eq!(device.api_level, 0);
+    assert_eq!(device.status, DeviceStatus::Stopped);
+    assert!(!device.is_running);
+    assert!(!device.ram_size.is_empty());
+    assert!(!device.storage_size.is_empty());
+}
+
+#[test]
+fn test_device_status_equality() {
+    assert_eq!(DeviceStatus::Running, DeviceStatus::Running);
+    assert_ne!(DeviceStatus::Running, DeviceStatus::Stopped);
+    assert_eq!(DeviceStatus::Unknown, DeviceStatus::Unknown);
+}
+
+#[test]
+fn test_device_clone() {
+    let device = AndroidDevice {
+        name: "CloneTest".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "4096".to_string(),
+        storage_size: "16384M".to_string(),
+    };
+
+    let cloned = device.clone();
+
+    assert_eq!(device.name, cloned.name);
+    assert_eq!(device.api_level, cloned.api_level);
+    assert_eq!(device.status, cloned.status);
+    assert_eq!(device.is_running, cloned.is_running);
+}
+
+#[test]
+fn test_device_serialization() {
+    let device = AndroidDevice {
+        name: "SerializationTest".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "4096".to_string(),
+        storage_size: "16384M".to_string(),
+    };
+
+    // Actual serialization/deserialization
+    let serialized = serde_json::to_string(&device).unwrap();
+    let deserialized: AndroidDevice = serde_json::from_str(&serialized).unwrap();
+
+    assert_eq!(device.name, deserialized.name);
+    assert_eq!(device.api_level, deserialized.api_level);
+    assert_eq!(device.status, deserialized.status);
+}
+
+#[test]
+fn test_device_debug_format() {
+    let device = AndroidDevice {
+        name: "DebugTest".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "4096".to_string(),
+        storage_size: "16384M".to_string(),
+    };
+
+    let debug_str = format!("{device:?}");
+
+    assert!(debug_str.contains("AndroidDevice"));
+    assert!(debug_str.contains("DebugTest"));
+    assert!(debug_str.contains("api_level"));
+}
+
+#[test]
+fn test_device_list_operations() {
+    let devices = vec![
+        AndroidDevice {
+            name: "TestDevice_0".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 34,
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "4096".to_string(),
+            storage_size: "16384M".to_string(),
+        },
+        AndroidDevice {
+            name: "TestDevice_1".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 34,
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "4096".to_string(),
+            storage_size: "16384M".to_string(),
+        },
+    ];
+
+    assert_eq!(devices.len(), 2);
+    assert_eq!(devices[0].name, "TestDevice_0");
+    assert_eq!(devices[1].name, "TestDevice_1");
+
+    // Verify each device is created correctly
+    for device in &devices {
+        assert_eq!(device.device_type, "pixel_7");
+        assert_eq!(device.api_level, 34);
+        assert_eq!(device.status, DeviceStatus::Stopped);
+    }
+}
+
+#[test]
+fn test_ios_device_list_operations() {
+    let devices = vec![
+        IosDevice {
+            name: "TestiPhone_0".to_string(),
+            udid: "TEST-UUID-TestiPhone_0".to_string(),
+            device_type: "iPhone 15 Pro".to_string(),
+            ios_version: "17.0".to_string(),
+            runtime_version: "iOS 17.0".to_string(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+        },
+        IosDevice {
+            name: "TestiPhone_1".to_string(),
+            udid: "TEST-UUID-TestiPhone_1".to_string(),
+            device_type: "iPhone 15 Pro".to_string(),
+            ios_version: "17.0".to_string(),
+            runtime_version: "iOS 17.0".to_string(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+        },
+    ];
+
+    assert_eq!(devices.len(), 2);
+    assert_eq!(devices[0].name, "TestiPhone_0");
+    assert_eq!(devices[1].name, "TestiPhone_1");
+
+    // Verify each device is created correctly
+    for device in &devices {
+        assert_eq!(device.device_type, "iPhone 15 Pro");
+        assert_eq!(device.ios_version, "17.0");
+        assert_eq!(device.status, DeviceStatus::Stopped);
+    }
+}

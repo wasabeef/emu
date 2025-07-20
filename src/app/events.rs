@@ -269,3 +269,220 @@ impl Default for EventHandler {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn test_app_event_from_key_quit() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL));
+        assert_eq!(event, Some(AppEvent::Quit));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert_eq!(event, Some(AppEvent::Quit));
+    }
+
+    #[test]
+    fn test_app_event_from_key_navigation() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::MoveUp));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::MoveDown));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::PageUp));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::PageDown));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::Home));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::End));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::NextPanel));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::PreviousPanel));
+    }
+
+    #[test]
+    fn test_app_event_from_key_device_operations() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::Refresh));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::ToggleDevice));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::ToggleDevice));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::StartDevice));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('S'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::StopDevice));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::EnterCreateMode));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::EnterDeleteMode));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::WipeDevice));
+    }
+
+    #[test]
+    fn test_app_event_from_key_mode_changes() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::ExitMode));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::EnterHelpMode));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::EnterHelpMode));
+    }
+
+    #[test]
+    fn test_app_event_from_key_text_input() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::Input('a')));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Char('Z'), KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::Input('Z')));
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        assert_eq!(event, Some(AppEvent::Backspace));
+    }
+
+    #[test]
+    fn test_app_event_from_key_unmapped() {
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE));
+        assert_eq!(event, None);
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Insert, KeyModifiers::NONE));
+        assert_eq!(event, None);
+
+        let event = AppEvent::from_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(event, None);
+    }
+
+    #[test]
+    fn test_app_event_is_navigation() {
+        assert!(AppEvent::MoveUp.is_navigation());
+        assert!(AppEvent::MoveDown.is_navigation());
+        assert!(AppEvent::PageUp.is_navigation());
+        assert!(AppEvent::PageDown.is_navigation());
+        assert!(AppEvent::Home.is_navigation());
+        assert!(AppEvent::End.is_navigation());
+        assert!(AppEvent::NextPanel.is_navigation());
+        assert!(AppEvent::PreviousPanel.is_navigation());
+
+        assert!(!AppEvent::Quit.is_navigation());
+        assert!(!AppEvent::Refresh.is_navigation());
+        assert!(!AppEvent::ToggleDevice.is_navigation());
+        assert!(!AppEvent::EnterCreateMode.is_navigation());
+    }
+
+    #[test]
+    fn test_app_event_is_action() {
+        assert!(AppEvent::ToggleDevice.is_action());
+        assert!(AppEvent::StartDevice.is_action());
+        assert!(AppEvent::StopDevice.is_action());
+        assert!(AppEvent::CreateDevice.is_action());
+        assert!(AppEvent::DeleteDevice.is_action());
+        assert!(AppEvent::WipeDevice.is_action());
+        assert!(AppEvent::Refresh.is_action());
+
+        assert!(!AppEvent::MoveUp.is_action());
+        assert!(!AppEvent::NextPanel.is_action());
+        assert!(!AppEvent::EnterCreateMode.is_action());
+        assert!(!AppEvent::Quit.is_action());
+    }
+
+    #[test]
+    fn test_app_event_is_mode_change() {
+        assert!(AppEvent::EnterCreateMode.is_mode_change());
+        assert!(AppEvent::EnterDeleteMode.is_mode_change());
+        assert!(AppEvent::EnterHelpMode.is_mode_change());
+        assert!(AppEvent::ExitMode.is_mode_change());
+
+        assert!(!AppEvent::MoveUp.is_mode_change());
+        assert!(!AppEvent::ToggleDevice.is_mode_change());
+        assert!(!AppEvent::Refresh.is_mode_change());
+        assert!(!AppEvent::Quit.is_mode_change());
+    }
+
+    #[test]
+    fn test_event_handler_new() {
+        let handler = EventHandler::new();
+        assert!(!handler.should_quit());
+    }
+
+    #[test]
+    fn test_event_handler_default() {
+        let handler = EventHandler::default();
+        assert!(!handler.should_quit());
+    }
+
+    #[test]
+    fn test_event_handler_handle_quit() {
+        let mut handler = EventHandler::new();
+        assert!(!handler.should_quit());
+
+        let result = handler.handle_event(AppEvent::Quit);
+        assert_eq!(result, None); // Quit event is consumed
+        assert!(handler.should_quit());
+    }
+
+    #[test]
+    fn test_event_handler_pass_through_events() {
+        let mut handler = EventHandler::new();
+
+        let result = handler.handle_event(AppEvent::MoveUp);
+        assert_eq!(result, Some(AppEvent::MoveUp));
+        assert!(!handler.should_quit());
+
+        let result = handler.handle_event(AppEvent::Refresh);
+        assert_eq!(result, Some(AppEvent::Refresh));
+        assert!(!handler.should_quit());
+
+        let result = handler.handle_event(AppEvent::EnterCreateMode);
+        assert_eq!(result, Some(AppEvent::EnterCreateMode));
+        assert!(!handler.should_quit());
+    }
+
+    #[test]
+    fn test_app_event_equality() {
+        assert_eq!(AppEvent::Quit, AppEvent::Quit);
+        assert_ne!(AppEvent::Quit, AppEvent::Refresh);
+
+        assert_eq!(AppEvent::Input('a'), AppEvent::Input('a'));
+        assert_ne!(AppEvent::Input('a'), AppEvent::Input('b'));
+
+        assert_eq!(AppEvent::Resize(100, 50), AppEvent::Resize(100, 50));
+        assert_ne!(AppEvent::Resize(100, 50), AppEvent::Resize(200, 50));
+    }
+
+    #[test]
+    fn test_app_event_clone() {
+        let event = AppEvent::MoveUp;
+        let cloned = event.clone();
+        assert_eq!(event, cloned);
+
+        let event = AppEvent::Input('x');
+        let cloned = event.clone();
+        assert_eq!(event, cloned);
+
+        let event = AppEvent::Resize(80, 24);
+        let cloned = event.clone();
+        assert_eq!(event, cloned);
+    }
+}

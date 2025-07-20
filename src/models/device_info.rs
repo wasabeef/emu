@@ -3,6 +3,22 @@ use anyhow::Result;
 use crate::constants::{
     keywords::*,
     limits::{MAX_DEVICE_NAME_PARTS_DISPLAY, MAX_VERSION_NUMBER},
+    numeric::{
+        ASUS_OEM_PRIORITY, AUTOMOTIVE_PRIORITY_OFFSET, DEVICE_CATEGORY_AUTOMOTIVE_FALLBACK,
+        DEVICE_CATEGORY_FALLBACK_PRIORITY, DEVICE_CATEGORY_PHONE_FALLBACK,
+        DEVICE_CATEGORY_TABLET_FALLBACK, DEVICE_CATEGORY_TV_FALLBACK,
+        DEVICE_CATEGORY_UNKNOWN_FALLBACK, DEVICE_CATEGORY_WEAR_FALLBACK,
+        FOLDABLE_CATEGORY_PRIORITY_BASE, FOLDABLE_PRIORITY_OFFSET, HUAWEI_OEM_PRIORITY,
+        INITIAL_CATEGORY_PRIORITY, INVALID_VERSION, LENOVO_OEM_PRIORITY, MAX_VERSION_FOR_PRIORITY,
+        MOTOROLA_OEM_PRIORITY, NOKIA_OEM_PRIORITY, OEM_BONUS_WEIGHT_FULL, OEM_BONUS_WEIGHT_HALF,
+        OEM_GENERIC_PRIORITY, ONEPLUS_OEM_PRIORITY, OPPO_OEM_PRIORITY,
+        PHONE_CATEGORY_PRIORITY_BASE, PHONE_PRIORITY_OFFSET, REGEX_GROUP_FIRST,
+        SAMSUNG_OEM_PRIORITY, SCREEN_SIZE_EXTRA_LARGE_TABLET, SCREEN_SIZE_LARGE_TABLET,
+        SCREEN_SIZE_MEDIUM_TABLET, SCREEN_SIZE_PHONE_LARGE, SCREEN_SIZE_PHONE_MEDIUM,
+        SONY_OEM_PRIORITY, TABLET_CATEGORY_PRIORITY_BASE, TABLET_PRIORITY_OFFSET,
+        TV_PRIORITY_OFFSET, UNKNOWN_DEVICE_PRIORITY, UNKNOWN_PRIORITY_OFFSET,
+        VERSION_PRIORITY_BASE, WEAR_PRIORITY_OFFSET, XIAOMI_OEM_PRIORITY,
+    },
     priorities::{
         IOS_IPAD_AIR_PRIORITY_VALUE, IOS_IPAD_DEFAULT_PRIORITY, IOS_IPAD_MINI_PRIORITY_CALC,
         IOS_IPAD_PRO_11_PRIORITY_VALUE, IOS_IPAD_PRO_12_9_PRIORITY, IOS_IPAD_PRO_OTHER_PRIORITY,
@@ -348,13 +364,15 @@ impl DynamicDeviceConfig {
 
         // For phones (category 0), emphasize version differences more
         // This ensures newer devices come before older devices in the same category
-        if category_priority == 0 {
-            // Start from 30 to leave room for Pixel devices (0-20)
-            return PHONE_CATEGORY_BASE_PRIORITY + version_bonus + (oem_bonus / 2);
+        if category_priority == INITIAL_CATEGORY_PRIORITY {
+            // Start from PIXEL_PRIORITY_OFFSET to leave room for Pixel devices (0-FOLDABLE_CATEGORY_PRIORITY_BASE)
+            return PHONE_CATEGORY_BASE_PRIORITY
+                + version_bonus
+                + (oem_bonus / OEM_BONUS_WEIGHT_HALF);
         }
 
         // For other categories, maintain manufacturer preference
-        category_priority + (oem_bonus * 2) + version_bonus
+        category_priority + (oem_bonus * OEM_BONUS_WEIGHT_FULL) + version_bonus
     }
 
     /// Calculate device priority for iOS devices  
@@ -377,14 +395,14 @@ impl DynamicDeviceConfig {
                 return IOS_IPHONE_SE_PRIORITY_CALC;
             } else {
                 let version = Self::extract_ios_version(&name_lower);
-                if version > 0 {
+                if version > INVALID_VERSION {
                     return IOS_IPHONE_DEFAULT_BASE - version.min(IOS_IPHONE_VERSION_OFFSET);
                 }
                 return MAX_VERSION_NUMBER;
             }
         }
 
-        // iPad priorities (100-199)
+        // iPad priorities (IPAD_PRIORITY_MIN-IPAD_PRIORITY_MAX)
         if name_lower.contains(DEVICE_KEYWORD_IPAD) {
             if name_lower.contains(DEVICE_KEYWORD_PRO) {
                 if name_lower.contains(DEVICE_KEYWORD_12_9) {
@@ -418,7 +436,7 @@ impl DynamicDeviceConfig {
                 return IOS_WATCH_ULTRA_PRIORITY;
             } else if name_lower.contains(DEVICE_KEYWORD_SERIES) {
                 let version = Self::extract_ios_version(&name_lower);
-                if version > 0 {
+                if version > INVALID_VERSION {
                     return IOS_WATCH_SERIES_BASE - version.min(IOS_WATCH_SERIES_OFFSET);
                 }
                 return IOS_WATCH_DEFAULT_PRIORITY;
@@ -442,17 +460,20 @@ impl DynamicDeviceConfig {
 
         // Foldable devices (check first to avoid phone categorization)
         if combined.contains(DEVICE_KEYWORD_FOLD) || combined.contains(DEVICE_KEYWORD_FLIP) {
-            return 20;
+            return FOLDABLE_CATEGORY_PRIORITY_BASE;
         }
 
         // Tablets (check before phones to catch "pixel_tablet")
         if combined.contains(DEVICE_KEYWORD_TABLET)
             || combined.contains(DEVICE_KEYWORD_PAD)
-            || (combined.contains("10") && combined.contains("inch"))
-            || (combined.contains("11") && combined.contains("inch"))
-            || (combined.contains("12") && combined.contains("inch"))
+            || (combined.contains(&SCREEN_SIZE_MEDIUM_TABLET.to_string())
+                && combined.contains("inch"))
+            || (combined.contains(&SCREEN_SIZE_LARGE_TABLET.to_string())
+                && combined.contains("inch"))
+            || (combined.contains(&SCREEN_SIZE_EXTRA_LARGE_TABLET.to_string())
+                && combined.contains("inch"))
         {
-            return 100;
+            return TABLET_CATEGORY_PRIORITY_BASE;
         }
 
         // Phone category gets highest priority
@@ -464,13 +485,15 @@ impl DynamicDeviceConfig {
                 && !combined.contains(DEVICE_KEYWORD_FOLD)
                 && !combined.contains(DEVICE_KEYWORD_TABLET))
             || combined.contains(DEVICE_KEYWORD_ONEPLUS)
-            || (combined.contains("5") && combined.contains("inch"))
-            || (combined.contains("6") && combined.contains("inch"))
+            || (combined.contains(&SCREEN_SIZE_PHONE_MEDIUM.to_string())
+                && combined.contains("inch"))
+            || (combined.contains(&SCREEN_SIZE_PHONE_LARGE.to_string())
+                && combined.contains("inch"))
             || (combined.contains(DEVICE_KEYWORD_PRO)
                 && !combined.contains(DEVICE_KEYWORD_TABLET)
                 && !combined.contains(DEVICE_KEYWORD_FOLD))
         {
-            return 0;
+            return PHONE_CATEGORY_PRIORITY_BASE;
         }
 
         // TV devices
@@ -509,12 +532,12 @@ impl DynamicDeviceConfig {
 
         // Samsung devices get second priority
         if combined.contains(DEVICE_KEYWORD_SAMSUNG) || combined.contains(DEVICE_KEYWORD_GALAXY) {
-            return 10;
+            return SAMSUNG_OEM_PRIORITY;
         }
 
         // OnePlus devices
         if combined.contains(DEVICE_KEYWORD_ONEPLUS) {
-            return 20;
+            return ONEPLUS_OEM_PRIORITY;
         }
 
         // Extract manufacturer from parentheses
@@ -522,26 +545,26 @@ impl DynamicDeviceConfig {
             if let Some(end) = display_name.find(')') {
                 let oem_part = &display_name[start + 1..end].to_lowercase();
                 if oem_part == DEVICE_KEYWORD_XIAOMI {
-                    return 30;
+                    return XIAOMI_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_ASUS {
-                    return 35;
+                    return ASUS_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_OPPO {
-                    return 40;
+                    return OPPO_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_VIVO {
-                    return 45;
+                    return NOKIA_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_HUAWEI {
-                    return 50;
+                    return HUAWEI_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_MOTOROLA {
-                    return 55;
+                    return MOTOROLA_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_LENOVO {
-                    return 60;
+                    return LENOVO_OEM_PRIORITY;
                 } else if oem_part == DEVICE_KEYWORD_SONY {
-                    return 65;
+                    return SONY_OEM_PRIORITY;
                 }
             }
         }
 
-        100
+        OEM_GENERIC_PRIORITY
     }
 
     /// Extract device version from string
@@ -551,15 +574,15 @@ impl DynamicDeviceConfig {
         // First, try to extract numbers that appear after known device names
         // This makes it future-proof for Pixel 10, 11, etc.
         let device_patterns = [
-            (r"pixel[_\s]?(\d+)", 1),                   // Pixel 9, pixel_9, etc.
-            (r"galaxy[_\s]?s(\d+)", 1),                 // Galaxy S24
-            (r"galaxy[_\s]?z[_\s]?fold[_\s]?(\d+)", 1), // Galaxy Z Fold 5
-            (r"galaxy[_\s]?z[_\s]?flip[_\s]?(\d+)", 1), // Galaxy Z Flip 5
-            (r"oneplus[_\s]?(\d+)", 1),                 // OnePlus 11
-            (r"nexus[_\s]?(\d+)", 1),                   // Nexus 5
-            (r"(\d+)[_\s]?pro", 1),                     // 8 Pro, 9_pro
-            (r"(\d+)[_\s]?plus", 1),                    // 8 Plus
-            (r"(\d+)[_\s]?ultra", 1),                   // 24 Ultra
+            (r"pixel[_\s]?(\d+)", REGEX_GROUP_FIRST), // Pixel 9, pixel_9, etc.
+            (r"galaxy[_\s]?s(\d+)", REGEX_GROUP_FIRST), // Galaxy S24
+            (r"galaxy[_\s]?z[_\s]?fold[_\s]?(\d+)", REGEX_GROUP_FIRST), // Galaxy Z Fold 5
+            (r"galaxy[_\s]?z[_\s]?flip[_\s]?(\d+)", REGEX_GROUP_FIRST), // Galaxy Z Flip 5
+            (r"oneplus[_\s]?(\d+)", REGEX_GROUP_FIRST), // OnePlus 11
+            (r"nexus[_\s]?(\d+)", REGEX_GROUP_FIRST), // Nexus 5
+            (r"(\d+)[_\s]?pro", REGEX_GROUP_FIRST),   // 8 Pro, 9_pro
+            (r"(\d+)[_\s]?plus", REGEX_GROUP_FIRST),  // 8 Plus
+            (r"(\d+)[_\s]?ultra", REGEX_GROUP_FIRST), // 24 Ultra
         ];
 
         // Try each pattern
@@ -570,7 +593,7 @@ impl DynamicDeviceConfig {
                         if let Ok(version) = version_str.as_str().parse::<u32>() {
                             // Higher version = lower priority number (newer devices first)
                             // This ensures Pixel 10 (priority 90) comes before Pixel 9 (priority 91)
-                            return 100 - version.min(99);
+                            return VERSION_PRIORITY_BASE - version.min(MAX_VERSION_FOR_PRIORITY);
                         }
                     }
                 }
@@ -593,7 +616,7 @@ impl DynamicDeviceConfig {
 
         // Use the highest version number found
         if let Some(&max_version) = versions.iter().max() {
-            return 100 - max_version.min(99);
+            return VERSION_PRIORITY_BASE - max_version.min(99);
         }
 
         // Return 50 for devices without version numbers (middle priority)
@@ -648,7 +671,7 @@ impl DynamicDeviceConfig {
         if let Some(device) = self.device_cache.get(device_id) {
             self.calculate_priority_from_device_info(device)
         } else {
-            999 // Unknown devices go to the end
+            UNKNOWN_DEVICE_PRIORITY // Unknown devices go to the end
         }
     }
 
@@ -681,24 +704,24 @@ impl DynamicDeviceConfig {
         // Extract version numbers if possible
         if let Some(version) = self.extract_version_number(&device_lower, &display_lower) {
             match device.category {
-                DeviceCategory::Foldable => version, // Highest priority
-                DeviceCategory::Phone => 100 + version,
-                DeviceCategory::Tablet => 200 + version,
-                DeviceCategory::Wear => 300 + version,
-                DeviceCategory::TV => 400 + version,
-                DeviceCategory::Automotive => 500 + version,
-                DeviceCategory::Unknown => 900 + version,
+                DeviceCategory::Foldable => FOLDABLE_PRIORITY_OFFSET + version, // Highest priority
+                DeviceCategory::Phone => PHONE_PRIORITY_OFFSET + version,
+                DeviceCategory::Tablet => TABLET_PRIORITY_OFFSET + version,
+                DeviceCategory::Wear => WEAR_PRIORITY_OFFSET + version,
+                DeviceCategory::TV => TV_PRIORITY_OFFSET + version,
+                DeviceCategory::Automotive => AUTOMOTIVE_PRIORITY_OFFSET + version,
+                DeviceCategory::Unknown => UNKNOWN_PRIORITY_OFFSET + version,
             }
         } else {
             // Fallback to category-based priority
             match device.category {
-                DeviceCategory::Foldable => 50,
-                DeviceCategory::Phone => 150,
-                DeviceCategory::Tablet => 250,
-                DeviceCategory::Wear => 350,
-                DeviceCategory::TV => 450,
-                DeviceCategory::Automotive => 550,
-                DeviceCategory::Unknown => 999,
+                DeviceCategory::Foldable => DEVICE_CATEGORY_FALLBACK_PRIORITY,
+                DeviceCategory::Phone => DEVICE_CATEGORY_PHONE_FALLBACK,
+                DeviceCategory::Tablet => DEVICE_CATEGORY_TABLET_FALLBACK,
+                DeviceCategory::Wear => DEVICE_CATEGORY_WEAR_FALLBACK,
+                DeviceCategory::TV => DEVICE_CATEGORY_TV_FALLBACK,
+                DeviceCategory::Automotive => DEVICE_CATEGORY_AUTOMOTIVE_FALLBACK,
+                DeviceCategory::Unknown => DEVICE_CATEGORY_UNKNOWN_FALLBACK,
             }
         }
     }
@@ -711,7 +734,7 @@ impl DynamicDeviceConfig {
             if let Ok(num) = part.parse::<u32>() {
                 if num > 0 && num <= MAX_VERSION_NUMBER {
                     // Reasonable device version range
-                    return Some(100 - num); // Newer versions get lower numbers (higher priority)
+                    return Some(VERSION_PRIORITY_BASE - num); // Newer versions get lower numbers (higher priority)
                 }
             }
 
@@ -720,7 +743,7 @@ impl DynamicDeviceConfig {
                 if let Some(num_part) = part.split('_').next_back() {
                     if let Ok(num) = num_part.parse::<u32>() {
                         if num > 0 && num <= MAX_VERSION_NUMBER {
-                            return Some(100 - num);
+                            return Some(VERSION_PRIORITY_BASE - num);
                         }
                     }
                 }

@@ -28,6 +28,7 @@
 //! - [`resolutions`] - Screen resolution definitions
 //! - [`timeouts`] - Operation timeout values
 //! - [`ui_layout`] - UI layout dimensions and spacing
+//! - [`ui_text`] - UI text, symbols, and interface strings
 //!
 //! # Usage
 //!
@@ -57,6 +58,7 @@ pub mod progress;
 pub mod resolutions;
 pub mod timeouts;
 pub mod ui_layout;
+pub mod ui_text;
 
 // Re-export commonly used constants for convenience
 pub use colors::*;
@@ -64,7 +66,6 @@ pub use commands::*;
 pub use defaults::*;
 pub use env_vars::*;
 pub use files::*;
-pub use ios_devices::*;
 pub use keywords::*;
 pub use limits::*;
 pub use numeric::*;
