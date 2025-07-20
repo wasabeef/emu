@@ -39,63 +39,82 @@ Emu プロジェクトにおけるテスト品質向上とテストパフォー�
 - **テスト安定性**: 一貫した出力による信頼性向上
 - **デバッグ効率**: 予測可能なテストデータ
 
-### フェーズ 2: Managers 層テスト強化 🔄
+### フェーズ 2: Managers 層テスト強化 ✅
 
 #### AndroidManager テスト拡張
 
-- **AVD 管理機能**: `create_device()`, `delete_device()`, `list_devices()`
-- **状態管理**: デバイス起動・停止・ステータス監視
-- **パーサーテスト**: 実際のコマンド出力のパース検証
-- **エラーハンドリング**: 各種エラーシナリオの対応
+- **AVD 管理機能**: `create_device()`, `delete_device()`, `list_devices()` ✅
+- **状態管理**: デバイス起動・停止・ステータス監視 ✅
+- **パーサーテスト**: 実際のコマンド出力のパース検証 ✅
+- **エラーハンドリング**: 各種エラーシナリオの対応 ✅
+- **MockCommandExecutor 使用**: 全テストでモック化を実現 ✅
 
 #### iOSManager テスト拡張
 
-- **Simulator 管理**: xcrun simctl コマンドの完全テスト
-- **JSON パーサー**: 構造化された出力データの解析
-- **状態遷移**: Boot/Shutdown プロセスの検証
-- **プラットフォーム判定**: macOS 環境での動作保証
+- **Simulator 管理**: xcrun simctl コマンドの完全テスト ✅
+- **JSON パーサー**: 構造化された出力データの解析 ✅
+- **状態遷移**: Boot/Shutdown プロセスの検証 ✅
+- **プラットフォーム判定**: macOS 環境での動作保証 ✅
+- **非 macOS 対応**: スタブ実装の適切なテスト ✅
 
 #### 実装手法
 
 ```rust
-// フィクスチャーベースのテスト例
+// MockCommandExecutor によるテスト例
 fn test_android_device_creation() {
-    let mock = MockDeviceManager::new()
-        .with_fixture_outputs("android_device_creation");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["create", "avd"], "AVD created successfully")
+        .with_success("adb", &["devices"], "List of devices attached\n");
 
-    let result = mock.create_device(&device_config).await;
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+    let result = manager.create_device(&device_config).await;
     assert!(result.is_ok());
 }
 ```
 
-### フェーズ 3: 統合テスト実装 🔄
+### フェーズ 3: 統合テスト実装 ✅
 
 #### Utils/Command.rs テスト強化
 
-- **外部コマンド実行**: フィクスチャーによるモック化
-- **リトライ機能**: 失敗・成功パターンの検証
-- **タイムアウト処理**: 長時間実行コマンドの対応
-- **エラー無視実行**: `run_ignoring_errors()` の完全テスト
+- **外部コマンド実行**: MockCommandExecutor によるモック化 ✅
+- **リトライ機能**: 失敗・成功パターンの検証 ✅
+- **タイムアウト処理**: 長時間実行コマンドの対応 ✅
+- **エラー無視実行**: `run_ignoring_errors()` の完全テスト ✅
 
 #### Models 層完全テスト
 
-- **Error.rs**: 全エラータイプとユーザーフレンドリメッセージ
-- **Platform.rs**: プラットフォーム判定ロジックの完全検証
-- **Device.rs**: デバイス情報の検証とバリデーション
+- **Error.rs**: 全エラータイプとユーザーフレンドリメッセージ ✅
+- **Platform.rs**: プラットフォーム判定ロジックの完全検証 ✅
+- **Device.rs**: デバイス情報の検証とバリデーション ✅
 
 #### App 層統合テスト
 
-- **Events.rs**: キーボード入力のイベント変換
-- **EventProcessing.rs**: 非同期イベント処理とデバウンス
-- **State.rs**: アプリケーション状態管理の統合テスト
+- **Events.rs**: キーボード入力のイベント変換 ✅
+- **EventProcessing.rs**: 非同期イベント処理とデバウンス ✅
+- **State.rs**: アプリケーション状態管理の統合テスト ✅
 
-### フェーズ 4: CI/CD 最適化 🔄
+#### 共通テストインフラストラクチャ
+
+- **tests/common/mod.rs**: テストユーティリティの集約 ✅
+- **setup_mock_android_sdk()**: モック SDK ディレクトリ作成 ✅
+- **コード重複削減**: ~450 行のテストコード削減 ✅
+
+### フェーズ 4: CI/CD 最適化 ✅
 
 #### テスト実行環境
 
-- **並列実行**: MockDeviceManager による高速テスト
-- **環境依存排除**: エミュレータ・ SDK 不要の実行
-- **キャッシュ活用**: フィクスチャーデータの効率的管理
+- **並列実行**: MockDeviceManager による高速テスト ✅
+- **環境依存排除**: エミュレータ・ SDK 不要の実行 ✅
+- **キャッシュ活用**: フィクスチャーデータの効率的管理 ✅
+- **MockCommandExecutor**: Android SDK コマンドの完全モック化 ✅
+- **共通テストモジュール**: `tests/common/mod.rs` による重複削減 ✅
+
+#### CI 環境の改善
+
+- **Android SDK 不要化**: `setup_mock_android_sdk()` によるモック SDK 作成 ✅
+- **環境変数設定**: `ANDROID_HOME` の自動設定 ✅
+- **Coverage 生成修正**: `mkdir -p coverage` によるディレクトリ作成 ✅
+- **iOS テスト修正**: 非 macOS 環境での適切な処理 ✅
 
 #### 品質保証プロセス
 
@@ -233,10 +252,17 @@ tests/fixtures/
 
 ### 実装時の考慮点
 
-- **段階的実装**: 一度にすべてを変更せず、フェーズごとに確実に実装
-- **既存テスト保持**: 現在のテストを維持しながら新テストを追加
-- **データ品質**: フィクスチャーデータの定期的な検証と更新
-- **ドキュメント維持**: テスト手法の文書化とチーム共有
+- **段階的実装**: 一度にすべてを変更せず、フェーズごとに確実に実装 ✅
+- **既存テスト保持**: 現在のテストを維持しながら新テストを追加 ✅
+- **データ品質**: フィクスチャーデータの定期的な検証と更新 ✅
+- **ドキュメント維持**: テスト手法の文書化とチーム共有 ✅
+
+### テストインフラストラクチャの改善点
+
+- **MockCommandExecutor**: Android SDK コマンドの完全モック化を実現
+- **共通テストモジュール**: `tests/common/mod.rs` による重複コードの削減
+- **環境変数自動設定**: `ANDROID_HOME` の自動設定でテスト実行を簡素化
+- **CI 互換性**: GitHub Actions での安定したテスト実行を実現
 
 ### パフォーマンス最適化
 
