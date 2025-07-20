@@ -6,9 +6,15 @@
 use emu::app::App;
 use std::time::Duration;
 
+mod common;
+use common::setup_mock_android_sdk;
+
 /// Test app initialization with state management
 #[tokio::test]
 async fn test_app_with_state_management() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let app_result = App::new().await;
 
     match app_result {
@@ -36,6 +42,9 @@ async fn test_app_with_state_management() {
 /// Test app behavior during rapid operations
 #[tokio::test]
 async fn test_app_rapid_operations() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     for round in 0..5 {
         let start = std::time::Instant::now();
         let app_result = App::new().await;
@@ -72,6 +81,9 @@ async fn test_app_rapid_operations() {
 /// Test app manager coordination
 #[tokio::test]
 async fn test_manager_coordination() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let app_result = App::new().await;
 
     match app_result {
@@ -104,6 +116,9 @@ async fn test_manager_coordination() {
 /// Test background task lifecycle
 #[tokio::test]
 async fn test_background_task_lifecycle() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let app_result = App::new().await;
 
     match app_result {
@@ -137,6 +152,9 @@ async fn test_background_task_lifecycle() {
 /// Test resource management patterns
 #[tokio::test]
 async fn test_resource_management() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // Test pattern: create, use briefly, drop
     for cycle in 0..3 {
         let app_result = App::new().await;
@@ -172,6 +190,9 @@ async fn test_resource_management() {
 /// Test cross-platform initialization paths
 #[tokio::test]
 async fn test_cross_platform_paths() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let app_result = App::new().await;
 
     match app_result {

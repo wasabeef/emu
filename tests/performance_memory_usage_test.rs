@@ -13,9 +13,18 @@ use std::time::{Duration, Instant};
 const MEMORY_LEAK_DETECTION_CYCLES: usize = 100;
 const CACHE_PERFORMANCE_TARGET_MS: u64 = 300;
 
+mod common;
+use common::setup_mock_android_sdk;
+
 /// Memory efficiency benchmark
 #[tokio::test]
 async fn test_memory_efficiency_benchmark() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     println!("📊 Memory efficiency benchmark:");
 
     let device_counts = vec![50, 100];
@@ -25,7 +34,17 @@ async fn test_memory_efficiency_benchmark() {
 
         let mock_executor = MockCommandExecutor::new()
             .with_success("avdmanager", &["list", "avd"], &avd_output)
-            .with_success("adb", &["devices"], "List of devices attached\n");
+            .with_success(
+                &avdmanager_path.to_string_lossy(),
+                &["list", "avd"],
+                &avd_output,
+            )
+            .with_success("adb", &["devices"], "List of devices attached\n")
+            .with_success(
+                &adb_path.to_string_lossy(),
+                &["devices"],
+                "List of devices attached\n",
+            );
 
         let start_memory = get_memory_usage_estimate();
         let start_time = Instant::now();
@@ -60,6 +79,12 @@ async fn test_memory_efficiency_benchmark() {
 #[ignore = "Takes too long for CI environments"]
 #[tokio::test]
 async fn test_memory_leak_detection() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     println!("🔍 Memory leak detection test:");
 
     let avd_output = create_large_device_list(100);
@@ -70,7 +95,17 @@ async fn test_memory_leak_detection() {
     for cycle in 0..MEMORY_LEAK_DETECTION_CYCLES {
         let mock_executor = MockCommandExecutor::new()
             .with_success("avdmanager", &["list", "avd"], &avd_output)
-            .with_success("adb", &["devices"], "List of devices attached\n");
+            .with_success(
+                &avdmanager_path.to_string_lossy(),
+                &["list", "avd"],
+                &avd_output,
+            )
+            .with_success("adb", &["devices"], "List of devices attached\n")
+            .with_success(
+                &adb_path.to_string_lossy(),
+                &["devices"],
+                "List of devices attached\n",
+            );
 
         let android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
         let _devices = android_manager.list_devices().await.unwrap();
@@ -116,11 +151,27 @@ async fn test_memory_leak_detection() {
 /// Cache performance test
 #[tokio::test]
 async fn test_cache_performance() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     let avd_output = create_large_device_list(50);
 
     let mock_executor = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], &avd_output)
-        .with_success("adb", &["devices"], "List of devices attached\n");
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            &avd_output,
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
 
     let android_manager = Arc::new(AndroidManager::with_executor(Arc::new(mock_executor)).unwrap());
 
@@ -206,11 +257,27 @@ async fn test_large_dataset_memory_efficiency() {
 /// Memory safety test during concurrent access
 #[tokio::test]
 async fn test_concurrent_memory_safety() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     let avd_output = create_large_device_list(100);
 
     let mock_executor = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], &avd_output)
-        .with_success("adb", &["devices"], "List of devices attached\n");
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            &avd_output,
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
 
     let android_manager = Arc::new(AndroidManager::with_executor(Arc::new(mock_executor)).unwrap());
 
@@ -251,6 +318,12 @@ async fn test_concurrent_memory_safety() {
 /// Garbage collection efficiency test (Rust drop efficiency)
 #[tokio::test]
 async fn test_resource_cleanup_efficiency() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     println!("🧹 Resource cleanup efficiency test:");
 
     let cleanup_cycles = 100;
@@ -266,7 +339,17 @@ async fn test_resource_cleanup_efficiency() {
             let avd_output = create_large_device_list(100);
             let mock_executor = MockCommandExecutor::new()
                 .with_success("avdmanager", &["list", "avd"], &avd_output)
-                .with_success("adb", &["devices"], "List of devices attached\n");
+                .with_success(
+                    &avdmanager_path.to_string_lossy(),
+                    &["list", "avd"],
+                    &avd_output,
+                )
+                .with_success("adb", &["devices"], "List of devices attached\n")
+                .with_success(
+                    &adb_path.to_string_lossy(),
+                    &["devices"],
+                    "List of devices attached\n",
+                );
 
             let _android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
 

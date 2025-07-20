@@ -13,49 +13,30 @@ use tokio::sync::Mutex;
 
 #[cfg(test)]
 impl App {
-    /// Creates a new App instance configured for testing with mock device managers.
+    /// Creates a new App instance configured for testing.
     ///
-    /// This method creates an App with MockDeviceManager instances instead of
-    /// real Android/iOS managers, allowing tests to run without requiring
-    /// actual SDK tools or emulator environments.
+    /// This method creates an App instance suitable for testing environments.
+    /// It assumes that test setup (like `setup_mock_android_sdk()`) has been
+    /// done to provide mock SDK tools.
     ///
     /// # Example
     ///
     /// ```rust,no_run
+    /// use crate::common::setup_mock_android_sdk;
+    /// 
     /// #[tokio::test]
     /// async fn test_app_functionality() {
+    ///     let _temp_dir = setup_mock_android_sdk();
+    ///     std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    ///     
     ///     let app = App::new_for_testing().await.expect("Failed to create test app");
     ///     // Test app functionality without needing emulators
     /// }
     /// ```
     pub async fn new_for_testing() -> anyhow::Result<Self> {
-        let state = Arc::new(Mutex::new(AppState::new()));
-        
-        // Initialize app state with mock managers info
-        {
-            let mut app_state = state.lock().await;
-            app_state.android_manager_name = "Mock Android Manager".to_string();
-            app_state.ios_manager_name = Some("Mock iOS Manager".to_string());
-        }
-
-        // For testing, we can't use MockDeviceManager directly in App
-        // because App expects concrete AndroidManager and IosManager types.
-        // Instead, we'll need to modify the approach.
-        // For now, create a regular App instance.
-        let android_manager = AndroidManager::new()?;
-        let ios_manager = if cfg!(target_os = "macos") {
-            Some(IosManager::new()?)
-        } else {
-            None
-        };
-
-        Ok(Self {
-            state,
-            android_manager,
-            ios_manager,
-            log_update_handle: None,
-            detail_update_handle: None,
-        })
+        // Use the regular App::new() which will work with our mock SDK tools
+        // The mock tools are set up to return appropriate responses for testing
+        App::new().await
     }
 
     // Note: Due to the App struct using concrete types (AndroidManager, IosManager)
@@ -73,11 +54,47 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_new_for_testing() {
+        // Set up mock Android SDK for testing
+        let temp_dir = tempfile::tempdir().unwrap();
+        let sdk_path = temp_dir.path();
+        
+        // Create minimal directory structure
+        std::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin")).unwrap();
+        std::fs::create_dir_all(sdk_path.join("emulator")).unwrap();
+        std::fs::create_dir_all(sdk_path.join("platform-tools")).unwrap();
+        
+        // Create mock executables
+        let script = "#!/bin/sh\nexit 0\n";
+        std::fs::write(sdk_path.join("cmdline-tools/latest/bin/avdmanager"), script).unwrap();
+        std::fs::write(sdk_path.join("cmdline-tools/latest/bin/sdkmanager"), script).unwrap();
+        std::fs::write(sdk_path.join("emulator/emulator"), script).unwrap();
+        std::fs::write(sdk_path.join("platform-tools/adb"), script).unwrap();
+        
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = 0o755;
+            std::fs::set_permissions(
+                sdk_path.join("cmdline-tools/latest/bin/avdmanager"),
+                std::fs::Permissions::from_mode(mode),
+            ).unwrap();
+            std::fs::set_permissions(
+                sdk_path.join("emulator/emulator"),
+                std::fs::Permissions::from_mode(mode),
+            ).unwrap();
+            std::fs::set_permissions(
+                sdk_path.join("platform-tools/adb"),
+                std::fs::Permissions::from_mode(mode),
+            ).unwrap();
+        }
+        
+        std::env::set_var("ANDROID_HOME", sdk_path);
+        
         let app = App::new_for_testing().await.expect("Failed to create test app");
         
+        // The app should be created successfully with the mock SDK
         let state = app.state.lock().await;
-        assert_eq!(state.android_manager_name, "Mock Android Manager");
-        assert_eq!(state.ios_manager_name, Some("Mock iOS Manager".to_string()));
+        assert!(!state.android_manager_name.is_empty());
     }
 
     // TestScenarioBuilder tests removed as it's not implemented yet

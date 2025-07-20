@@ -3,12 +3,20 @@
 use emu::managers::android::AndroidManager;
 use emu::managers::common::DeviceManager;
 use emu::models::DeviceStatus;
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
 use std::time::Duration;
+
+mod common;
+use common::setup_mock_android_sdk;
 
 #[tokio::test]
 async fn test_android_manager_initialization() {
-    // Test AndroidManager::new() function
-    let manager = AndroidManager::new();
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let mock_executor = MockCommandExecutor::new();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     // In CI environment without Android SDK, this may fail
     // That's expected behavior - just check it doesn't panic
@@ -25,8 +33,32 @@ async fn test_android_manager_initialization() {
 
 #[tokio::test]
 async fn test_android_manager_list_devices() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
     // Test list_devices() function
-    let manager = AndroidManager::new();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     match manager {
         Ok(manager) => {
@@ -76,17 +108,41 @@ async fn test_android_manager_list_devices() {
 
 #[tokio::test]
 async fn test_android_manager_list_devices_concurrent() {
-    // Test concurrent calls to list_devices()
-    let manager = AndroidManager::new();
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
 
-    if let Ok(_manager) = manager {
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
+    // Test concurrent calls to list_devices()
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
+
+    if let Ok(manager) = manager {
         let mut handles = vec![];
 
         // Create multiple concurrent tasks
         for i in 0..3 {
+            let manager_clone = manager.clone();
             let handle = tokio::spawn(async move {
-                let manager = AndroidManager::new().unwrap();
-                let result = manager.list_devices().await;
+                let result = manager_clone.list_devices().await;
                 (i, result)
             });
             handles.push(handle);
@@ -127,8 +183,32 @@ async fn test_android_manager_list_devices_concurrent() {
 
 #[tokio::test]
 async fn test_android_manager_performance() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     // Test that list_devices() completes within reasonable time
-    let manager = AndroidManager::new();
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     if let Ok(manager) = manager {
         let start = std::time::Instant::now();
@@ -164,8 +244,12 @@ async fn test_android_manager_performance() {
 
 #[tokio::test]
 async fn test_android_manager_error_handling() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let mock_executor = MockCommandExecutor::new();
     // Test error handling behavior
-    let manager = AndroidManager::new();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     match manager {
         Ok(manager) => {
@@ -226,7 +310,11 @@ async fn test_android_manager_memory_usage() {
 
     // Create and drop multiple manager instances
     for _ in 0..10 {
-        let manager_result = AndroidManager::new();
+        let _temp_dir = setup_mock_android_sdk();
+        std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+        let mock_executor = MockCommandExecutor::new();
+        let manager_result = AndroidManager::with_executor(Arc::new(mock_executor));
         if let Ok(manager) = manager_result {
             // Test list_devices operation
             let _ = manager.list_devices().await;
@@ -246,8 +334,32 @@ async fn test_android_manager_memory_usage() {
 
 #[tokio::test]
 async fn test_android_manager_async_behavior() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     // Test async behavior of AndroidManager methods
-    let manager = AndroidManager::new();
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     if let Ok(manager) = manager {
         // Test with timeout
@@ -283,8 +395,32 @@ async fn test_android_manager_async_behavior() {
 
 #[tokio::test]
 async fn test_android_manager_device_validation() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     // Test device validation and parsing
-    let manager = AndroidManager::new();
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 
     if let Ok(manager) = manager {
         let devices = manager.list_devices().await;

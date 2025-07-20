@@ -4,47 +4,43 @@
 //! Excludes features that require actual Android SDK and focuses on testable parts.
 
 use emu::managers::android::AndroidManager;
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
+
+mod common;
+use common::setup_mock_android_sdk;
 
 /// Basic AndroidManager initialization test (no SDK required)
 #[tokio::test]
 async fn test_android_manager_creation() {
-    // Attempt to create AndroidManager
-    let result = AndroidManager::new();
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
 
-    // Fails in environments without actual SDK, but structurally correct
-    // Test purpose is to confirm initialization logic works
-    let _result = result;
+    // Create a mock executor with necessary responses
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], "")
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
+    // Create AndroidManager with mock executor
+    let result = AndroidManager::with_executor(Arc::new(mock_executor));
+
+    // Should succeed with mock executor
+    assert!(result.is_ok());
 }
 
 /// Device category classification test
 #[test]
 fn test_device_category_classification() {
-    // Attempt to create AndroidManager (may fail due to SDK dependency)
-    let manager_result = AndroidManager::new();
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
 
-    if manager_result.is_err() {
-        // If SDK is not available, manually test category classification logic
-        assert_eq!(classify_device_category("pixel_7", "Pixel 7"), "phone");
-        assert_eq!(
-            classify_device_category("pixel_tablet", "Pixel Tablet"),
-            "tablet"
-        );
-        assert_eq!(
-            classify_device_category("tv_1080p", "Android TV (1080p)"),
-            "tv"
-        );
-        assert_eq!(
-            classify_device_category("wear_round", "Android Wear Round"),
-            "wear"
-        );
-        assert_eq!(
-            classify_device_category("unknown_device", "Unknown Device"),
-            "phone"
-        );
-        return;
-    }
+    // Create a mock executor
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], "")
+        .with_success("adb", &["devices"], "List of devices attached\n");
 
-    let manager = manager_result.unwrap();
+    // Create AndroidManager with mock executor
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
 
     // Phone category test (AndroidManager returns lowercase)
     assert_eq!(manager.get_device_category("pixel_7", "Pixel 7"), "phone");
@@ -248,19 +244,19 @@ fn test_device_priority_logic() {
 /// Basic structure check for error handling test
 #[test]
 fn test_android_manager_structure() {
-    // Confirm AndroidManager can be created normally
-    let result = AndroidManager::new();
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
 
-    // Structurally correct but actual operation verification is limited due to SDK dependency
-    match result {
-        Ok(_manager) => {
-            // Case when created successfully
-        }
-        Err(_error) => {
-            // Case when error occurs (SDK not present, etc.)
-            // Normal case in test environment
-        }
-    }
+    // Create a mock executor
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], "")
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
+    // Confirm AndroidManager can be created normally
+    let result = AndroidManager::with_executor(Arc::new(mock_executor));
+
+    // Should succeed with mock executor
+    assert!(result.is_ok());
 }
 
 /// Version string parsing test
@@ -285,11 +281,18 @@ fn test_version_string_parsing() {
 /// Configuration value range check test
 #[test]
 fn test_configuration_validation() {
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
+
+    // Create a mock executor
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], "")
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
     // Confirm AndroidManager can be created
     // Actual configuration value validation is performed in DeviceConfig
-
-    // Basic structure check
-    let _manager_result = AndroidManager::new();
+    let manager_result = AndroidManager::with_executor(Arc::new(mock_executor));
+    assert!(manager_result.is_ok());
 }
 
 /// Basic pattern test for device information parsing

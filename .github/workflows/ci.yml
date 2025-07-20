@@ -84,39 +84,15 @@ jobs:
         run: cargo test --bins --lib
         env:
           RUST_BACKTRACE: 1
+          RUST_TEST_THREADS: 1
 
-      - name: Run MockDeviceManager tests
+      - name: Run all integration tests
         run: |
-          echo "🧪 Running emulator-independent tests..."
-          cargo test --features test-utils --test app_state_concurrency_complete_test --verbose
-          echo "✅ MockDeviceManager tests completed successfully"
-
-      - name: Run execution-focused tests
-        run: |
-          echo "⚡ Running execution-focused tests..."
-          cargo test --features test-utils --test app_mod_execution_test --verbose
-          cargo test --features test-utils --test app_state_execution_test --verbose
-          cargo test --features test-utils --test managers_android_command_execution_test --verbose
-          cargo test --features test-utils --test managers_ios_command_execution_test --verbose
-          cargo test --features test-utils --test models_device_info_execution_test --verbose
-          cargo test --features test-utils --test utils_command_execution_test --verbose
-          cargo test --features test-utils --test ui_render_helper_test --verbose
-          echo "✅ Execution-focused tests completed successfully"
-
-      - name: Run fixture-based tests
-        run: |
-          echo "🔧 Running fixture-based tests..."
-          cargo test --features test-utils --test android_manager_fixture_test --verbose
-          cargo test --features test-utils --test ios_manager_fixture_test --verbose
-          cargo test --features test-utils --test app_integration_fixture_test --verbose
-          cargo test --features test-utils --test utils_command_fixture_test --verbose
-          echo "✅ Fixture-based tests completed successfully"
-
-      - name: Run comprehensive model tests
-        run: |
-          echo "🔄 Running comprehensive model tests..."
-          cargo test --features test-utils --test models_comprehensive_test --verbose
-          echo "✅ Comprehensive model tests completed successfully"
+          echo "🚀 Running all integration tests..."
+          cargo test --features test-utils --tests
+          echo "✅ All integration tests completed successfully"
+        env:
+          RUST_TEST_THREADS: 1
 
   # Build (only on Ubuntu for artifacts)
   build:
@@ -174,6 +150,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.asdf.outputs.rust }}
+          components: llvm-tools-preview
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -188,226 +165,23 @@ jobs:
           restore-keys: |
             cargo-${{ runner.os }}-
 
-      - name: Install cargo-tarpaulin
+      - name: Install cargo-llvm-cov
         run: |
-          echo "Installing cargo-tarpaulin..."
-          cargo install cargo-tarpaulin --locked || {
-            echo "Failed to install cargo-tarpaulin, trying without --locked"
-            cargo install cargo-tarpaulin
-          }
+          cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage
         run: |
-          # Run tarpaulin with comprehensive exclusions and proper timeout
-          # Note: Removed --engine llvm for better Linux compatibility
-          echo "Running cargo tarpaulin..."
-          echo "Current directory: $(pwd)"
-          echo "Checking if source files exist:"
-          ls -la src/ | head -10
-          echo "---"
+          # Create coverage directory
+          mkdir -p coverage
 
-          cargo tarpaulin --out xml --output-dir coverage --features test-utils \
-            --ignore-tests --exclude-files 'src/main.rs' \
-            --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' \
-            --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' \
-            --exclude-files '*/tests/*' --exclude-files '*/examples/*' \
-            --exclude-files '*/benches/*' --timeout 300 --fail-under 0 \
-            --verbose 2>&1 | tee tarpaulin_output.log || {
-            TARPAULIN_EXIT_CODE=$?
-            echo "Warning: cargo tarpaulin exited with code $TARPAULIN_EXIT_CODE"
+          # Generate coverage with cargo-llvm-cov
+          cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
+            --ignore-filename-regex '(tests/|src/main\.rs|src/bin/|src/app/test_helpers\.rs|src/fixtures/|src/managers/mock\.rs)'
+        env:
+          RUST_TEST_THREADS: 1
 
-            # Show last 50 lines of output for debugging
-            echo "Last 50 lines of tarpaulin output:"
-            tail -50 tarpaulin_output.log
-
-            # Check if the coverage file was at least partially generated
-            if [ -f coverage/cobertura.xml ]; then
-              echo "Coverage file exists, proceeding with analysis..."
-              echo "Coverage file size: $(wc -c < coverage/cobertura.xml) bytes"
-              echo "First 20 lines of coverage file:"
-              head -20 coverage/cobertura.xml
-              echo "---"
-              echo "Checking for packages in coverage file:"
-              grep -c "<package" coverage/cobertura.xml || echo "No packages found in coverage file"
-            else
-              echo "No coverage file generated, checking for partial results..."
-              # Try to extract coverage from tarpaulin output
-              COVERAGE_LINE=$(grep -E "Coverage is [0-9]+\.[0-9]+%" tarpaulin_output.log | tail -1)
-              if [ -n "$COVERAGE_LINE" ]; then
-                COVERAGE_PERCENT=$(echo "$COVERAGE_LINE" | sed -E 's/.*Coverage is ([0-9]+\.[0-9]+)%.*/\1/')
-                echo "Found coverage in output: $COVERAGE_PERCENT%"
-                # Create a minimal but accurate XML file
-                mkdir -p coverage
-                # Use awk instead of bc for better portability
-                LINE_RATE=$(awk "BEGIN {printf \"%.4f\", $COVERAGE_PERCENT / 100}")
-                echo "<?xml version=\"1.0\"?><coverage line-rate=\"$LINE_RATE\" lines-covered=\"0\" lines-valid=\"0\" branches-covered=\"0\" branches-valid=\"0\" branch-rate=\"0\" complexity=\"0\" version=\"1.9\" timestamp=\"$(date +%s)\"><sources><source>/</source></sources><packages></packages></coverage>" > coverage/cobertura.xml
-              else
-                echo "Could not extract coverage from output, creating minimal file..."
-                mkdir -p coverage
-                echo '<?xml version="1.0"?><coverage line-rate="0.0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0" version="1.9" timestamp="'$(date +%s)'"><sources><source>/</source></sources><packages></packages></coverage>' > coverage/cobertura.xml
-              fi
-            fi
-          }
-
-      - name: Analyze test results
-        id: analysis
-        run: |
-          # Coverage calculation with better error handling
-          COVERAGE=$(python3 -c "
-          import xml.etree.ElementTree as ET
-          import sys
-          import os
-          try:
-              if not os.path.exists('coverage/cobertura.xml'):
-                  print('Coverage file not found', file=sys.stderr)
-                  print('0.0')
-              else:
-                  tree = ET.parse('coverage/cobertura.xml')
-                  root = tree.getroot()
-                  print(f'Root tag: {root.tag}, attributes: {root.attrib}', file=sys.stderr)
-                  line_rate = float(root.get('line-rate', 0))
-                  lines_covered = root.get('lines-covered', '0')
-                  lines_valid = root.get('lines-valid', '0')
-                  print(f'line-rate={line_rate}, lines-covered={lines_covered}, lines-valid={lines_valid}', file=sys.stderr)
-                  coverage_percent = line_rate * 100
-                  print(f'{coverage_percent:.1f}')
-          except Exception as e:
-              print(f'Error parsing coverage XML: {e}', file=sys.stderr)
-              # Try to extract coverage from tarpaulin output as fallback
-              try:
-                  with open('tarpaulin_output.log', 'r') as f:
-                      for line in f:
-                          if 'Coverage is' in line and '%' in line:
-                              import re
-                              match = re.search(r'Coverage is ([0-9]+\.[0-9]+)%', line)
-                              if match:
-                                  print(match.group(1))
-                                  sys.exit(0)
-              except:
-                  pass
-              print('0.0')
-          ")
-
-          echo "Calculated coverage: $COVERAGE%"
-
-          # Additional debug output
-          if [ -f coverage/cobertura.xml ]; then
-            echo "Coverage XML size: $(wc -c < coverage/cobertura.xml) bytes"
-          fi
-          if [ -f tarpaulin_output.log ]; then
-            echo "Tarpaulin log contains coverage info: $(grep -c 'Coverage is' tarpaulin_output.log) occurrences"
-          fi
-
-          # Test category analysis
-          echo "Running individual test categories..."
-
-          # Count each test category - these work reliably in GitHub Actions
-          EXECUTION_TESTS=$(cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          SECURITY_TESTS=$(cargo test --test comprehensive_integration_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          PERFORMANCE_TESTS=$(cargo test --test responsiveness_validation_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-          MOCK_TESTS=$(cargo test --features test-utils --test app_state_concurrency_complete_test 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-
-          # Count all tests first
-          echo "Counting all tests..."
-          ALL_TESTS=$(cargo test --features test-utils --tests 2>&1 | grep "test result:" | sed 's/.* \([0-9][0-9]*\) passed.*/\1/' | awk '{sum += $1} END {print sum ? sum : 0}')
-
-          # Calculate total from all tests (most reliable method)
-          TOTAL_TESTS=$ALL_TESTS
-          echo "Total tests from direct count: $TOTAL_TESTS"
-
-          # For debugging, also show the sum of categories
-          CATEGORY_SUM=$((EXECUTION_TESTS + SECURITY_TESTS + PERFORMANCE_TESTS + MOCK_TESTS))
-          OTHER_TESTS=$((TOTAL_TESTS - CATEGORY_SUM))
-          echo "Category breakdown: Execution=$EXECUTION_TESTS, Security=$SECURITY_TESTS, Performance=$PERFORMANCE_TESTS, Mock=$MOCK_TESTS"
-          echo "Other tests (calculated): $OTHER_TESTS"
-
-          # Count test files dynamically
-          TOTAL_TEST_FILES=$(find tests/ -name "*.rs" -type f | wc -l | tr -d ' ')
-          EXECUTION_TEST_FILES=$(find tests/ -name "*execution*.rs" -type f | wc -l | tr -d ' ')
-          MOCK_TEST_FILES=$(find tests/ -name "app_state_concurrency_complete_test.rs" -type f | wc -l | tr -d ' ')
-
-          # Calculate test percentages using awk instead of bc for better portability
-          if [ "$TOTAL_TEST_FILES" -gt 0 ]; then
-            EXECUTION_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($EXECUTION_TEST_FILES / $TOTAL_TEST_FILES) * 100}")
-            MOCK_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($MOCK_TEST_FILES / $TOTAL_TEST_FILES) * 100}")
-          else
-            EXECUTION_PERCENT=0
-            MOCK_PERCENT=0
-          fi
-
-          # Debug output
-          echo "Debug: TOTAL_TESTS=${TOTAL_TESTS}"
-          echo "Debug: EXECUTION_TESTS=${EXECUTION_TESTS}"
-          echo "Debug: SECURITY_TESTS=${SECURITY_TESTS}"
-          echo "Debug: PERFORMANCE_TESTS=${PERFORMANCE_TESTS}"
-          echo "Debug: MOCK_TESTS=${MOCK_TESTS}"
-
-          echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS}" >> $GITHUB_OUTPUT
-          echo "execution_tests=${EXECUTION_TESTS}" >> $GITHUB_OUTPUT
-          echo "security_tests=${SECURITY_TESTS}" >> $GITHUB_OUTPUT
-          echo "performance_tests=${PERFORMANCE_TESTS}" >> $GITHUB_OUTPUT
-          echo "mock_tests=${MOCK_TESTS}" >> $GITHUB_OUTPUT
-          echo "total_test_files=${TOTAL_TEST_FILES}" >> $GITHUB_OUTPUT
-          echo "execution_test_files=${EXECUTION_TEST_FILES}" >> $GITHUB_OUTPUT
-          echo "mock_test_files=${MOCK_TEST_FILES}" >> $GITHUB_OUTPUT
-          echo "execution_percent=${EXECUTION_PERCENT}" >> $GITHUB_OUTPUT
-          echo "mock_percent=${MOCK_PERCENT}" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const coverage = '${{ steps.analysis.outputs.coverage }}';
-            const totalTests = '${{ steps.analysis.outputs.total_tests }}';
-            const executionTests = '${{ steps.analysis.outputs.execution_tests }}';
-            const securityTests = '${{ steps.analysis.outputs.security_tests }}';
-            const performanceTests = '${{ steps.analysis.outputs.performance_tests }}';
-            const mockTests = '${{ steps.analysis.outputs.mock_tests }}';
-            const totalTestFiles = '${{ steps.analysis.outputs.total_test_files }}';
-            const executionTestFiles = '${{ steps.analysis.outputs.execution_test_files }}';
-            const mockTestFiles = '${{ steps.analysis.outputs.mock_test_files }}';
-            const executionPercent = '${{ steps.analysis.outputs.execution_percent }}';
-            const mockPercent = '${{ steps.analysis.outputs.mock_percent }}';
-
-            const comment = `## 📊 CI Results
-
-            **✅ All Checks Passed**
-
-            ### 📋 Coverage & Testing
-            - **Coverage**: ${coverage}%
-            - **Total Tests**: ${totalTests}
-            - **Execution Tests**: ${executionTests} (targeting executable code)
-            - **Security Tests**: ${securityTests}
-            - **Performance Tests**: ${performanceTests}
-            - **MockDeviceManager Tests**: ${mockTests}
-
-            ### 🎯 Quality Metrics
-            ${coverage >= 25 ? '✅' : coverage >= 20 ? '⚠️' : '❌'} Coverage: ${coverage}% (target: 30%)
-            ✅ Linting: Major clippy warnings resolved
-            ✅ Formatting: Code properly formatted
-            ✅ Security: Comprehensive protection validated
-            ✅ Execution Tests: ${executionTests} tests targeting executable code
-
-            ### 🚀 Build Status
-            - **Ubuntu**: ✅ Passed
-            - **macOS**: ✅ Passed
-            - **Artifacts**: ✅ Generated
-
-            ### 🧪 Test Suite Innovation
-            - **Test Files**: ${totalTestFiles} total (${executionTestFiles} execution + ${mockTestFiles} mock)
-            - **Execution Coverage**: ${executionPercent}% of test files target executable code
-            - **Emulator Independent**: ${mockTests > 0 ? '✅' : '⚠️'} ${mockTests} tests (< 6 seconds)
-            - **Mock Coverage**: ${mockPercent}% of test files are emulator-independent
-            - **CI Performance**: Fast feedback with comprehensive test coverage`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+      - name: Run octocov
+        uses: k1LoW/octocov-action@v1
 
   # Security-focused tests (separate job for clarity)
   security:
@@ -443,3 +217,5 @@ jobs:
           echo "🔒 Running security validation..."
           cargo test --test comprehensive_integration_test --verbose
           echo "✅ Security tests completed successfully"
+        env:
+          RUST_TEST_THREADS: 1

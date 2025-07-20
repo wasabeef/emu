@@ -9,59 +9,8 @@ use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Helper function to create a mock Android SDK environment for testing
-fn setup_mock_android_sdk() -> tempfile::TempDir {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let sdk_path = temp_dir.path();
-
-    // Create necessary directory structure
-    std::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin")).unwrap();
-    std::fs::create_dir_all(sdk_path.join("emulator")).unwrap();
-    std::fs::create_dir_all(sdk_path.join("platform-tools")).unwrap();
-
-    // Create dummy executable files
-    std::fs::write(
-        sdk_path.join("cmdline-tools/latest/bin/avdmanager"),
-        "#!/bin/sh\n",
-    )
-    .unwrap();
-    std::fs::write(
-        sdk_path.join("cmdline-tools/latest/bin/sdkmanager"),
-        "#!/bin/sh\n",
-    )
-    .unwrap();
-    std::fs::write(sdk_path.join("emulator/emulator"), "#!/bin/sh\n").unwrap();
-    std::fs::write(sdk_path.join("platform-tools/adb"), "#!/bin/sh\n").unwrap();
-
-    // Make files executable on Unix-like systems
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = 0o755;
-        std::fs::set_permissions(
-            sdk_path.join("cmdline-tools/latest/bin/avdmanager"),
-            std::fs::Permissions::from_mode(mode),
-        )
-        .unwrap();
-        std::fs::set_permissions(
-            sdk_path.join("cmdline-tools/latest/bin/sdkmanager"),
-            std::fs::Permissions::from_mode(mode),
-        )
-        .unwrap();
-        std::fs::set_permissions(
-            sdk_path.join("emulator/emulator"),
-            std::fs::Permissions::from_mode(mode),
-        )
-        .unwrap();
-        std::fs::set_permissions(
-            sdk_path.join("platform-tools/adb"),
-            std::fs::Permissions::from_mode(mode),
-        )
-        .unwrap();
-    }
-
-    temp_dir
-}
+mod common;
+use common::setup_mock_android_sdk;
 
 /// Basic device list retrieval test for AndroidManager
 #[tokio::test]
@@ -161,7 +110,7 @@ Available Packages:
         // avdmanager list target
         .with_success("avdmanager", &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
         .with_success(&avdmanager_path.to_string_lossy(), &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
-        // avdmanager create
+        // avdmanager create - match actual implementation which may retry without skin
         .with_success(
             "avdmanager",
             &[
@@ -190,6 +139,35 @@ Available Packages:
                 "--device",
                 "pixel_7",
                 "--skin",
+                "pixel_7",
+            ],
+            "AVD 'Test_Device' created successfully",
+        )
+        // Also add fallback without skin (in case skin fails)
+        .with_success(
+            "avdmanager",
+            &[
+                "create",
+                "avd",
+                "-n",
+                "Test_Device",
+                "-k",
+                "system-images;android-34;google_apis_playstore;arm64-v8a",
+                "--device",
+                "pixel_7",
+            ],
+            "AVD 'Test_Device' created successfully",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &[
+                "create",
+                "avd",
+                "-n",
+                "Test_Device",
+                "-k",
+                "system-images;android-34;google_apis_playstore;arm64-v8a",
+                "--device",
                 "pixel_7",
             ],
             "AVD 'Test_Device' created successfully",

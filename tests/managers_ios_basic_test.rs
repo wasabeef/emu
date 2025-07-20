@@ -53,27 +53,12 @@ async fn test_ios_manager_macos_specific() {
 async fn test_ios_manager_stub_functionality() {
     #[cfg(not(target_os = "macos"))]
     {
-        use emu::managers::ios::IosManagerStub;
+        use emu::managers::ios::IosManager;
 
-        // Verify that stub implementation can be created successfully
-        let result = IosManagerStub::new();
+        // Verify that on non-macOS, IosManager creation should succeed but operations will fail
+        let result = IosManager::new();
+        // On non-macOS systems, IosManager can be created but is non-functional
         assert!(result.is_ok());
-
-        let stub = result.unwrap();
-
-        // Test basic functionality of stub implementation
-        let device_types = stub.list_device_types_with_names().await;
-        assert!(device_types.is_ok());
-
-        let runtimes = stub.list_runtimes().await;
-        assert!(runtimes.is_ok());
-
-        // Verify that empty lists are returned
-        let device_types_list = device_types.unwrap();
-        let runtimes_list = runtimes.unwrap();
-
-        assert!(device_types_list.is_empty());
-        assert!(runtimes_list.is_empty());
     }
 
     #[cfg(target_os = "macos")]

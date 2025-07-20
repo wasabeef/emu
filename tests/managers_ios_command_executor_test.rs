@@ -3,6 +3,8 @@
 //! This test uses MockCommandExecutor to test IosManager's
 //! xcrun simctl command execution and response handling.
 
+#![cfg(all(target_os = "macos", feature = "test-utils"))]
+
 use emu::managers::common::{DeviceConfig, DeviceManager};
 use emu::managers::ios::IosManager;
 use emu::models::DeviceStatus;

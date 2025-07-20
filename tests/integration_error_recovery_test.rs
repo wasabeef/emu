@@ -10,9 +10,15 @@ use emu::models::{AndroidDevice, DeviceStatus};
 use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::sync::Arc;
 
+mod common;
+use common::setup_mock_android_sdk;
+
 /// Test recovery from intermittent network failures
 #[tokio::test]
 async fn test_intermittent_network_failure_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // MockCommandExecutor can only hold a single response for the same command,
     // so this test cannot simulate actual error recovery.
     // Instead, we test a successful manager.
@@ -28,13 +34,19 @@ async fn test_intermittent_network_failure_recovery() {
     let mock_executor = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], success_output)
         .with_success(
-            "/Users/a12622/Android/sdk/cmdline-tools/latest/bin/avdmanager",
+            &_temp_dir
+                .path()
+                .join("cmdline-tools/latest/bin/avdmanager")
+                .to_string_lossy(),
             &["list", "avd"],
             success_output,
         )
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
-            "/Users/a12622/Android/sdk/platform-tools/adb",
+            &_temp_dir
+                .path()
+                .join("platform-tools/adb")
+                .to_string_lossy(),
             &["devices"],
             "List of devices attached\n",
         );
@@ -52,6 +64,9 @@ async fn test_intermittent_network_failure_recovery() {
 /// Test recovery from partial command failures
 #[tokio::test]
 async fn test_partial_command_failure_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let avd_output = r#"Available Android Virtual Devices:
     Name: Partial_Failure_Device
     Device: pixel_7 (Pixel 7)
@@ -78,12 +93,18 @@ async fn test_partial_command_failure_recovery() {
 /// Test recovery from resource exhaustion
 #[tokio::test]
 async fn test_resource_exhaustion_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // Due to MockCommandExecutor constraints, we cannot simulate actual resource exhaustion errors
     // Instead, we test a case that works normally
+    let emulator_path = _temp_dir.path().join("emulator/emulator");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     let mock_executor = MockCommandExecutor::new()
         .with_spawn_response("emulator", &["-avd", "Resource_Test_Device"], 12345)
         .with_spawn_response(
-            "/Users/a12622/Android/sdk/emulator/emulator",
+            &emulator_path.to_string_lossy(),
             &[
                 "-avd",
                 "Resource_Test_Device",
@@ -95,15 +116,39 @@ async fn test_resource_exhaustion_recovery() {
             12345,
         )
         .with_success("adb", &["wait-for-device"], "")
+        .with_success(&adb_path.to_string_lossy(), &["wait-for-device"], "")
+        .with_success("adb", &["-s", "emulator-5554", "wait-for-device"], "")
         .with_success(
-            "/Users/a12622/Android/sdk/platform-tools/adb",
-            &["wait-for-device"],
+            &adb_path.to_string_lossy(),
+            &["-s", "emulator-5554", "wait-for-device"],
             "",
         )
         .with_success("adb", &["shell", "getprop", "sys.boot_completed"], "1")
         .with_success(
-            "/Users/a12622/Android/sdk/platform-tools/adb",
+            &adb_path.to_string_lossy(),
             &["shell", "getprop", "sys.boot_completed"],
+            "1",
+        )
+        .with_success(
+            "adb",
+            &[
+                "-s",
+                "emulator-5554",
+                "shell",
+                "getprop",
+                "sys.boot_completed",
+            ],
+            "1",
+        )
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &[
+                "-s",
+                "emulator-5554",
+                "shell",
+                "getprop",
+                "sys.boot_completed",
+            ],
             "1",
         );
 
@@ -117,6 +162,9 @@ async fn test_resource_exhaustion_recovery() {
 /// Test recovery from corrupted device configuration
 #[tokio::test]
 async fn test_corrupted_device_config_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let corrupted_output = r#"Available Android Virtual Devices:
     Name: 
     Device: 
@@ -189,6 +237,9 @@ async fn test_app_state_inconsistency_recovery() {
 /// Test error recovery during concurrent processing
 #[tokio::test]
 async fn test_concurrent_error_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     let success_output = r#"Available Android Virtual Devices:
     Name: Concurrent_Recovery_Device
     Device: pixel_7 (Pixel 7)
@@ -202,13 +253,19 @@ async fn test_concurrent_error_recovery() {
     let mock_executor = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], success_output)
         .with_success(
-            "/Users/a12622/Android/sdk/cmdline-tools/latest/bin/avdmanager",
+            &_temp_dir
+                .path()
+                .join("cmdline-tools/latest/bin/avdmanager")
+                .to_string_lossy(),
             &["list", "avd"],
             success_output,
         )
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
-            "/Users/a12622/Android/sdk/platform-tools/adb",
+            &_temp_dir
+                .path()
+                .join("platform-tools/adb")
+                .to_string_lossy(),
             &["devices"],
             "List of devices attached\n",
         );
@@ -247,13 +304,19 @@ async fn test_concurrent_error_recovery() {
 /// Test recovery from timeout
 #[tokio::test]
 async fn test_timeout_recovery() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // Note: MockCommandExecutor uses HashMap, so only the last registration for a command is kept.
     // This test is adjusted to work with this limitation.
     let mock_executor = MockCommandExecutor::new()
         // Set error response (including full path)
         .with_error("avdmanager", &["list", "avd"], "Operation timeout")
         .with_error(
-            "/Users/a12622/Android/sdk/cmdline-tools/latest/bin/avdmanager",
+            &_temp_dir
+                .path()
+                .join("cmdline-tools/latest/bin/avdmanager")
+                .to_string_lossy(),
             &["list", "avd"],
             "Operation timeout",
         )
@@ -272,12 +335,18 @@ async fn test_timeout_recovery() {
 /// Test graceful degradation strategy
 #[tokio::test]
 async fn test_graceful_degradation() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // Test fallback method when primary command fails
     let mock_executor = MockCommandExecutor::new()
         // Main avdmanager command fails (including full path)
         .with_error("avdmanager", &["list", "avd"], "Command not found")
         .with_error(
-            "/Users/a12622/Android/sdk/cmdline-tools/latest/bin/avdmanager",
+            &_temp_dir
+                .path()
+                .join("cmdline-tools/latest/bin/avdmanager")
+                .to_string_lossy(),
             &["list", "avd"],
             "Command not found",
         )
@@ -316,19 +385,28 @@ async fn test_graceful_degradation() {
 /// Test performance retention under mass error conditions
 #[tokio::test]
 async fn test_performance_under_error_conditions() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
     // Note: MockCommandExecutor uses HashMap, so only the last registration for a command is kept.
     // We'll test performance with a single error response.
     let mock_executor = MockCommandExecutor::new()
         // Set error response (including full path)
         .with_error("avdmanager", &["list", "avd"], "Multiple errors occurred")
         .with_error(
-            "/Users/a12622/Android/sdk/cmdline-tools/latest/bin/avdmanager",
+            &_temp_dir
+                .path()
+                .join("cmdline-tools/latest/bin/avdmanager")
+                .to_string_lossy(),
             &["list", "avd"],
             "Multiple errors occurred",
         )
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
-            "/Users/a12622/Android/sdk/platform-tools/adb",
+            &_temp_dir
+                .path()
+                .join("platform-tools/adb")
+                .to_string_lossy(),
             &["devices"],
             "List of devices attached\n",
         );

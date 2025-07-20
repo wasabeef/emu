@@ -15,9 +15,18 @@ use emu::managers::ios::IosManager;
 #[cfg(target_os = "macos")]
 use emu::models::IosDevice;
 
+mod common;
+use common::setup_mock_android_sdk;
+
 /// Test in mixed environment with Android and iOS devices
 #[tokio::test]
 async fn test_mixed_platform_device_management() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     let android_output = r#"Available Android Virtual Devices:
     Name: Android_Platform_Test
     Device: pixel_7 (Pixel 7)
@@ -28,7 +37,17 @@ async fn test_mixed_platform_device_management() {
 
     let android_mock = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], android_output)
-        .with_success("adb", &["devices"], "List of devices attached\n");
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            android_output,
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
 
     let android_manager = AndroidManager::with_executor(Arc::new(android_mock)).unwrap();
 
@@ -191,6 +210,12 @@ async fn test_platform_switch_ui_state_persistence() {
 /// Concurrent device operations test on multiple platforms
 #[tokio::test]
 async fn test_conactive_panel_operations() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
     let android_output = r#"Available Android Virtual Devices:
     Name: Concurrent_Android_Device
     Device: pixel_7 (Pixel 7)
@@ -201,7 +226,17 @@ async fn test_conactive_panel_operations() {
 
     let android_mock = MockCommandExecutor::new()
         .with_success("avdmanager", &["list", "avd"], android_output)
-        .with_success("adb", &["devices"], "List of devices attached\n");
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            android_output,
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
 
     let android_manager = Arc::new(AndroidManager::with_executor(Arc::new(android_mock)).unwrap());
 
@@ -275,12 +310,19 @@ async fn test_conactive_panel_operations() {
 /// Platform-specific error handling test
 #[tokio::test]
 async fn test_platform_specific_error_handling() {
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
     // Android error case
-    let android_error_mock = MockCommandExecutor::new().with_error(
-        "avdmanager",
-        &["list", "avd"],
-        "Android SDK not found",
-    );
+    let android_error_mock = MockCommandExecutor::new()
+        .with_error("avdmanager", &["list", "avd"], "Android SDK not found")
+        .with_error(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Android SDK not found",
+        );
 
     let android_manager = AndroidManager::with_executor(Arc::new(android_error_mock)).unwrap();
     let android_result = android_manager.list_devices().await;

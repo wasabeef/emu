@@ -10,7 +10,7 @@
     "lefthook": "lefthook",
     "format": "cargo fmt --all && prettier --write .",
     "lint": "cargo clippy --all-targets --all-features -- -D warnings",
-    "test": "cargo test --bins --tests --features test-utils",
+    "test": "RUST_TEST_THREADS=1 cargo test --bins --tests --features test-utils",
     "test:report": "cargo tarpaulin --features test-utils --out Html --out Stdout --ignore-tests --exclude-files 'src/main.rs' --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' --exclude-files '*/tests/*' --exclude-files '*/examples/*' --exclude-files '*/benches/*' --timeout 180 --fail-under 0",
     "test:report:open": "open tarpaulin-report.html",
     "check": "npm run format && npm run lint && npm run test",

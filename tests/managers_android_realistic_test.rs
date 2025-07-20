@@ -5,11 +5,40 @@
 
 use anyhow::Result;
 use emu::managers::android::AndroidManager;
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
+
+mod common;
+use common::setup_mock_android_sdk;
 
 /// Test basic AndroidManager functionality
 #[tokio::test]
 async fn test_android_manager_basic_operations() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // Test device listing (this should work even without emulators)
     let _devices = manager.list_devices_parallel().await?;
@@ -21,7 +50,20 @@ async fn test_android_manager_basic_operations() -> Result<()> {
 /// Test getting running AVD names
 #[tokio::test]
 async fn test_get_running_avd_names() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // This should work even if no AVDs are running
     let _running_names = manager.get_running_avd_names().await?;
@@ -33,7 +75,16 @@ async fn test_get_running_avd_names() -> Result<()> {
 /// Test listing available targets
 #[tokio::test]
 async fn test_list_available_targets() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // This tests SDK integration
     let targets = manager.list_available_targets().await;
@@ -56,7 +107,16 @@ async fn test_list_available_targets() -> Result<()> {
 /// Test listing available devices
 #[tokio::test]
 async fn test_list_available_devices() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "device"], "id: 0 or \"pixel_7\"\n    Name: Pixel 7\n    OEM : Google\n    Tag : google_apis_playstore\n---------\nid: 1 or \"pixel_tablet\"\n    Name: Pixel Tablet\n    OEM : Google\n    Tag : google_apis_playstore\n---------\n")
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "device"], "id: 0 or \"pixel_7\"\n    Name: Pixel 7\n    OEM : Google\n    Tag : google_apis_playstore\n---------\nid: 1 or \"pixel_tablet\"\n    Name: Pixel Tablet\n    OEM : Google\n    Tag : google_apis_playstore\n---------\n");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     let devices = manager.list_available_devices().await;
 
@@ -81,7 +141,11 @@ async fn test_list_available_devices() -> Result<()> {
 /// Test device category detection
 #[tokio::test]
 async fn test_device_category_detection() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let mock_executor = MockCommandExecutor::new();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // Test known device categories (actual implementation returns simple strings)
     let phone_category = manager.get_device_category("pixel_7", "Pixel 7");
@@ -105,7 +169,16 @@ async fn test_device_category_detection() -> Result<()> {
 /// Test system image availability check
 #[tokio::test]
 async fn test_check_system_image_available() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let sdkmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("sdkmanager", &["--list", "--verbose", "--include_obsolete"], "Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis;x86_64 | 1       | Google APIs Intel x86_64 System Image\n  system-images;android-33;google_apis;arm64  | 1       | Google APIs ARM64 System Image\n")
+        .with_success(&sdkmanager_path.to_string_lossy(), &["--list", "--verbose", "--include_obsolete"], "Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis;x86_64 | 1       | Google APIs Intel x86_64 System Image\n  system-images;android-33;google_apis;arm64  | 1       | Google APIs ARM64 System Image\n");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // Test with common architectures
     let architectures = vec!["x86_64", "arm64"];
@@ -133,7 +206,16 @@ async fn test_check_system_image_available() -> Result<()> {
 /// Test listing available system images
 #[tokio::test]
 async fn test_list_available_system_images() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let sdkmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("sdkmanager", &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image"#)
+        .with_success(&sdkmanager_path.to_string_lossy(), &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1       | Google Play ARM 64 v8a System Image"#);
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     let images = manager.list_available_system_images().await;
 
@@ -157,7 +239,16 @@ async fn test_list_available_system_images() -> Result<()> {
 /// Test getting first available system image
 #[tokio::test]
 async fn test_get_first_available_system_image() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let sdkmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("sdkmanager", &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis;x86_64 | 1       | Google APIs Intel x86_64 System Image"#)
+        .with_success(&sdkmanager_path.to_string_lossy(), &["--list", "--verbose", "--include_obsolete"], r#"Installed packages:\n  Path                                        | Version | Description\n  -------                                     | ------- | -------\n  system-images;android-34;google_apis;x86_64 | 1       | Google APIs Intel x86_64 System Image"#);
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     let result = manager.get_first_available_system_image("x86_64").await;
 
@@ -181,7 +272,16 @@ async fn test_get_first_available_system_image() -> Result<()> {
 /// Test API levels listing
 #[tokio::test]
 async fn test_list_api_levels() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34")
+        .with_success(&avdmanager_path.to_string_lossy(), &["list", "target"], "Available targets:\nid: 1 or \"android-34\"\n     Name: Android 14.0\n     Type: Platform\n     API level: 34");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     let api_levels = manager.list_api_levels().await;
 
@@ -206,7 +306,31 @@ async fn test_list_api_levels() -> Result<()> {
 /// Test concurrent operations safety
 #[tokio::test]
 async fn test_concurrent_operations() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "avdmanager",
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            "Available Android Virtual Devices:\n",
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // Test multiple concurrent device list operations
     let tasks: Vec<_> = (0..3)
@@ -228,7 +352,44 @@ async fn test_concurrent_operations() -> Result<()> {
 /// Test error handling robustness
 #[tokio::test]
 async fn test_error_handling() -> Result<()> {
-    let manager = AndroidManager::new()?;
+    let _temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+
+    let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = _temp_dir.path().join("platform-tools/adb");
+    let sdkmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        )
+        .with_success("avdmanager", &["list", "target"], "Available targets:\n")
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "target"],
+            "Available targets:\n",
+        )
+        .with_success("avdmanager", &["list", "device"], "Available devices:\n")
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "device"],
+            "Available devices:\n",
+        )
+        .with_success(
+            "sdkmanager",
+            &["--list", "--verbose", "--include_obsolete"],
+            "Installed packages:\n",
+        )
+        .with_success(
+            &sdkmanager_path.to_string_lossy(),
+            &["--list", "--verbose", "--include_obsolete"],
+            "Installed packages:\n",
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor))?;
 
     // These operations should handle errors gracefully
     let _ = manager.get_running_avd_names().await;
