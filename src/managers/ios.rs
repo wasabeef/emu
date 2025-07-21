@@ -1229,15 +1229,25 @@ mod tests {
     #[allow(dead_code)]
     #[cfg(not(target_os = "macos"))]
     async fn test_ios_manager_non_macos_operations_disabled() {
-        use crate::managers::common::DeviceConfig;
+        use crate::managers::common::{DeviceConfig, DeviceManager};
         use std::collections::HashMap;
 
         let _manager = IosManager::new().expect("Failed to create IosManager");
 
         // All operations should fail on non-macOS
-        assert!(_manager.list_devices().await.is_err());
-        assert!(_manager.start_device("test").await.is_err());
-        assert!(_manager.stop_device("test").await.is_err());
+        assert!(<IosManager as DeviceManager>::list_devices(&_manager)
+            .await
+            .is_err());
+        assert!(
+            <IosManager as DeviceManager>::start_device(&_manager, "test")
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as DeviceManager>::stop_device(&_manager, "test")
+                .await
+                .is_err()
+        );
 
         let config = DeviceConfig {
             name: "Test Device".to_string(),
@@ -1247,9 +1257,21 @@ mod tests {
             storage_size: None,
             additional_options: HashMap::new(),
         };
-        assert!(_manager.create_device(&config).await.is_err());
-        assert!(_manager.delete_device("test").await.is_err());
-        assert!(_manager.wipe_device("test").await.is_err());
+        assert!(
+            <IosManager as DeviceManager>::create_device(&_manager, &config)
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as DeviceManager>::delete_device(&_manager, "test")
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as DeviceManager>::wipe_device(&_manager, "test")
+                .await
+                .is_err()
+        );
     }
 
     /// Test iOS manager UnifiedDeviceManager trait (non-macOS) - DISABLED
@@ -1262,9 +1284,21 @@ mod tests {
         let _manager = IosManager::new().expect("Failed to create IosManager");
 
         // All UnifiedDeviceManager operations should fail on non-macOS
-        assert!(_manager.list_devices().await.is_err());
-        assert!(_manager.start_device("test").await.is_err());
-        assert!(_manager.stop_device("test").await.is_err());
+        assert!(
+            <IosManager as UnifiedDeviceManager>::list_devices(&_manager)
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as UnifiedDeviceManager>::start_device(&_manager, "test")
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as UnifiedDeviceManager>::stop_device(&_manager, "test")
+                .await
+                .is_err()
+        );
 
         let config = DeviceConfig {
             name: "Test Device".to_string(),
@@ -1274,10 +1308,22 @@ mod tests {
             storage_size: None,
             additional_options: HashMap::new(),
         };
-        assert!(_manager.create_device(&config).await.is_err());
-        assert!(_manager.delete_device("test").await.is_err());
-        assert!(_manager.wipe_device("test").await.is_err());
-        assert!(!_manager.is_available().await);
+        assert!(
+            <IosManager as UnifiedDeviceManager>::create_device(&_manager, &config)
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as UnifiedDeviceManager>::delete_device(&_manager, "test")
+                .await
+                .is_err()
+        );
+        assert!(
+            <IosManager as UnifiedDeviceManager>::wipe_device(&_manager, "test")
+                .await
+                .is_err()
+        );
+        assert!(!<IosManager as UnifiedDeviceManager>::is_available(&_manager).await);
     }
 
     /// Test iOS device priority calculation - DISABLED (DeviceInfo::new not available)
