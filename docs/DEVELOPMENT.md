@@ -349,7 +349,8 @@ use emu::managers::common::DeviceConfig;
 use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::sync::Arc;
 
-use crate::common::setup_mock_android_sdk;
+mod common;
+use common::setup_mock_android_sdk;
 
 #[tokio::test]
 async fn test_complete_device_lifecycle() {
@@ -460,7 +461,8 @@ async fn test_with_mock_executor() {
 For common test setup, use the shared utilities:
 
 ```rust
-use crate::common::setup_mock_android_sdk;
+mod common;
+use common::setup_mock_android_sdk;
 
 #[tokio::test]
 async fn test_with_mock_sdk() {
