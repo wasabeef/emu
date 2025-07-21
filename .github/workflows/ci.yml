@@ -215,7 +215,7 @@ jobs:
       - name: Run security tests
         run: |
           echo "🔒 Running security validation..."
-          cargo test --test comprehensive_integration_test --verbose
+          cargo test --test comprehensive_test --verbose
           echo "✅ Security tests completed successfully"
         env:
           RUST_TEST_THREADS: 1

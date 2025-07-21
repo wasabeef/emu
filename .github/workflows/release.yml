@@ -19,14 +19,14 @@ jobs:
 
       - name: Generate release notes
         id: release_notes
-        uses: orhun/git-cliff-action@v3
+        uses: orhun/git-cliff-action@v4
         with:
           config: .github/cliff.toml
           args: --latest --strip header
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -155,7 +155,7 @@ jobs:
             local output=$2
             local max_attempts=5
             local attempt=1
-            
+
             while [ $attempt -le $max_attempts ]; do
               echo "  Attempt $attempt/$max_attempts for $output"
               if curl -sL "$url" -o "$output"; then
@@ -168,14 +168,14 @@ jobs:
               else
                 echo "  ✗ Download failed"
               fi
-              
+
               if [ $attempt -lt $max_attempts ]; then
                 echo "  Waiting 10 seconds before retry..."
                 sleep 10
               fi
               attempt=$((attempt + 1))
             done
-            
+
             echo "  ✗ Failed to download after $max_attempts attempts"
             return 1
           }
