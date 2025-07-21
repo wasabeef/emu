@@ -1374,8 +1374,7 @@ mod tests {
             };
 
             // All operations should return errors, not panic
-            let manager = _manager.expect("Failed to create IosManager");
-            let result = manager.create_device(&config).await;
+            let result = _manager.create_device(&config).await;
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("macOS"));
         }
