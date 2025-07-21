@@ -1135,3 +1135,53 @@ impl crate::managers::common::UnifiedDeviceManager for IosManager {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_extract_ios_version() {
+        // バージョンパースロジックのテスト（実際の実装: major + minor/100 + patch/10000）
+        assert_eq!(extract_ios_version("iOS 18.5"), 18.05); // 18 + 5/100
+        assert_eq!(extract_ios_version("iOS 17.0"), 17.0); // 17 + 0/100
+        assert_eq!(extract_ios_version("iOS 16.4"), 16.04); // 16 + 4/100
+
+        // パッチバージョン付き: major + minor/100 + patch/10000
+        assert!((extract_ios_version("iOS 15.2.1") - 15.0201).abs() < 0.0001); // 浮動小数点精度考慮
+        assert!((extract_ios_version("iOS 16.3.2") - 16.0302).abs() < 0.0001);
+
+        // 他の OS も同じロジック
+        assert_eq!(extract_ios_version("watchOS 10.0"), 10.0);
+        assert_eq!(extract_ios_version("tvOS 17.2"), 17.02);
+
+        // エッジケース
+        assert_eq!(extract_ios_version("iOS-17-0"), 17.0);
+        assert_eq!(extract_ios_version("iOS"), 0.0);
+        assert_eq!(extract_ios_version(""), 0.0);
+
+        // ソート機能の検証
+        assert!(extract_ios_version("iOS 18.5") > extract_ios_version("iOS 18.0"));
+        assert!(extract_ios_version("iOS 17.9") > extract_ios_version("iOS 17.1"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_parse_device_type_display_name() {
+        // 基本的なデバイスタイプ変換をテスト（実装の詳細に依存しない）
+        let result = IosManager::parse_device_type_display_name(
+            "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro",
+        );
+        assert!(result.contains("iPhone"));
+        assert!(result.contains("15"));
+        assert!(result.contains("Pro"));
+
+        let result2 = IosManager::parse_device_type_display_name("iPhone-14");
+        assert!(result2.contains("iPhone"));
+        assert!(result2.contains("14"));
+
+        // 空文字列のテスト
+        assert_eq!(IosManager::parse_device_type_display_name(""), "");
+    }
+}
