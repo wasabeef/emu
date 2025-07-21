@@ -2784,18 +2784,18 @@ mod tests {
     use std::collections::HashMap;
     use std::env;
 
-    /// テスト用の Android SDK 環境をセットアップ
+    /// Set up Android SDK environment for testing
     fn setup_test_android_sdk() -> tempfile::TempDir {
         let temp_dir = tempfile::tempdir().unwrap();
         let sdk_path = temp_dir.path();
 
-        // 必要なディレクトリ構造を作成
+        // Create necessary directory structure
         std::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin")).unwrap();
         std::fs::create_dir_all(sdk_path.join("tools/bin")).unwrap();
         std::fs::create_dir_all(sdk_path.join("emulator")).unwrap();
         std::fs::create_dir_all(sdk_path.join("platform-tools")).unwrap();
 
-        // 必要なツールスクリプトを作成
+        // Create necessary tool scripts
         let tools_to_create = [
             (
                 "cmdline-tools/latest/bin/avdmanager",
@@ -2821,7 +2821,7 @@ mod tests {
             let full_path = sdk_path.join(tool_path);
             std::fs::write(&full_path, script_content).unwrap();
 
-            // Unix 系システムで実行権限を付与
+            // Grant execute permission on Unix systems
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -2836,7 +2836,7 @@ mod tests {
 
     #[test]
     fn test_parse_android_version_to_api_level() {
-        // 正常系: 知られているバージョンのテスト
+        // Normal cases: Test known versions
         assert_eq!(AndroidManager::parse_android_version_to_api_level("15"), 35);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("14"), 34);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("13"), 33);
@@ -2850,7 +2850,7 @@ mod tests {
         assert_eq!(AndroidManager::parse_android_version_to_api_level("5"), 21);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("4"), 15);
 
-        // バージョン文字列のテスト（小数点付き）
+        // Test version strings (with decimal points)
         assert_eq!(
             AndroidManager::parse_android_version_to_api_level("14.0"),
             34
@@ -2858,51 +2858,51 @@ mod tests {
         assert_eq!(
             AndroidManager::parse_android_version_to_api_level("8.1"),
             26
-        ); // メジャーバージョンのみ考慮
+        ); // Consider only major version
 
-        // エッジケース: 未知のバージョン（フォールバック）
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 16); // フォールバック: バージョン番号そのまま
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 20); // フォールバック
+        // Edge case: Unknown versions (fallback)
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 16); // Fallback: use version number as-is
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 20); // Fallback
 
-        // 異常系: 無効な入力（フォールバック）
-        assert_eq!(AndroidManager::parse_android_version_to_api_level(""), 0); // 解析失敗時は 0
+        // Error case: Invalid input (Fallback)
+        assert_eq!(AndroidManager::parse_android_version_to_api_level(""), 0); // Return 0 on parse failure
         assert_eq!(
             AndroidManager::parse_android_version_to_api_level("invalid"),
             0
-        ); // 解析失敗時は 0
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("abc"), 0); // 解析失敗時は 0
+        ); // Return 0 on parse failure
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("abc"), 0); // Return 0 on parse failure
 
-        // 境界値: 非常に古いバージョン（フォールバック）
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 3); // フォールバック
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 2); // フォールバック
+        // Boundary value: Very old version (Fallback)
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 3); // Fallback
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 2); // Fallback
     }
 
     #[test]
     fn test_find_android_home_with_env_var() {
-        // 環境変数が設定されている場合のテスト
+        // Test when environment variable is set
         let temp_dir = setup_test_android_sdk();
         let android_home = temp_dir.path().to_path_buf();
 
-        // 一時的に環境変数を設定
+        // Temporarily set environment variable
         env::set_var("ANDROID_HOME", &android_home);
 
         let result = AndroidManager::find_android_home();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), android_home);
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[test]
     fn test_find_android_home_not_set() {
-        // 環境変数が設定されていない場合のテスト
+        // Test when environment variable is not set
         env::remove_var("ANDROID_HOME");
         env::remove_var("ANDROID_SDK_ROOT");
 
         let result = AndroidManager::find_android_home();
-        // 環境に依存するため、エラーまたは標準的なパスが返される
-        // CI 環境では通常エラーになる
+        // Depends on environment, returns error or standard path
+        // Usually errors in CI environment
         if result.is_err() {
             assert!(result.unwrap_err().to_string().contains("Android"));
         }
@@ -2910,17 +2910,17 @@ mod tests {
 
     #[test]
     fn test_find_tool_success() {
-        // ツール検索の成功ケース
+        // Tool search success case
         let temp_dir = setup_test_android_sdk();
         let android_home = temp_dir.path();
 
-        // モックのツールファイル構造を作成
+        // Create mock tool file structure
         let tool_path = android_home.join("tools").join("bin").join("avdmanager");
         std::fs::create_dir_all(tool_path.parent().unwrap()).expect("Failed to create dirs");
         std::fs::write(&tool_path, "#!/bin/bash\necho 'mock avdmanager'")
             .expect("Failed to write tool");
 
-        // 実行権限を付与（Unix 系システムのみ）
+        // Grant execute permission (Unix systems only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -2931,7 +2931,7 @@ mod tests {
 
         let result = AndroidManager::find_tool(android_home, "avdmanager");
         assert!(result.is_ok());
-        // ツールは cmdline-tools/latest/bin/ が優先される
+        // Tools in cmdline-tools/latest/bin/ are prioritized
         let expected_path = android_home
             .join("cmdline-tools")
             .join("latest")
@@ -2942,7 +2942,7 @@ mod tests {
 
     #[test]
     fn test_find_tool_not_found() {
-        // ツール検索の失敗ケース
+        // Tool search failure case
         let temp_dir = setup_test_android_sdk();
         let android_home = temp_dir.path();
 
@@ -2953,19 +2953,19 @@ mod tests {
 
     #[test]
     fn test_get_device_category() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
         let executor = std::sync::Arc::new(MockCommandExecutor::new());
         let manager = AndroidManager::with_executor(executor).expect("Failed to create manager");
 
-        // Phone カテゴリのテスト
+        // Test Phone category
         assert_eq!(manager.get_device_category("pixel_7", "Pixel 7"), "phone");
         assert_eq!(manager.get_device_category("pixel_6", "Pixel 6"), "phone");
         assert_eq!(manager.get_device_category("nexus_5x", "Nexus 5X"), "phone");
 
-        // Tablet カテゴリのテスト
+        // Test Tablet category
         assert_eq!(
             manager.get_device_category("nexus_10", "Nexus 10 inch"),
             "tablet"
@@ -2975,7 +2975,7 @@ mod tests {
             "tablet"
         );
 
-        // TV カテゴリのテスト
+        // Test TV category
         assert_eq!(
             manager.get_device_category("tv_1080p", "Android TV (1080p)"),
             "tv"
@@ -2985,7 +2985,7 @@ mod tests {
             "tv"
         );
 
-        // Wear カテゴリのテスト
+        // Test Wear category
         assert_eq!(
             manager.get_device_category("wear_round", "Android Wear Round"),
             "wear"
@@ -2995,33 +2995,33 @@ mod tests {
             "wear"
         );
 
-        // Automotive カテゴリのテスト
+        // Test Automotive category
         assert_eq!(
             manager.get_device_category("automotive_1024p", "Automotive (1024p landscape)"),
             "automotive"
         );
 
-        // 不明なデバイス（デフォルト: phone）
+        // Unknown device (default: phone)
         assert_eq!(
             manager.get_device_category("unknown_device", "Unknown Device"),
             "phone"
         );
         assert_eq!(manager.get_device_category("", ""), "phone");
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[test]
     fn test_get_android_version_name() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
         let executor = std::sync::Arc::new(MockCommandExecutor::new());
         let manager = AndroidManager::with_executor(executor).expect("Failed to create manager");
 
-        // 知られている API レベルのテスト
+        // Test known API levels
         assert_eq!(manager.get_android_version_name(34), "Android 14");
         assert_eq!(manager.get_android_version_name(33), "Android 13");
         assert_eq!(manager.get_android_version_name(31), "Android 12");
@@ -3029,32 +3029,32 @@ mod tests {
         assert_eq!(manager.get_android_version_name(29), "Android 10");
         assert_eq!(manager.get_android_version_name(28), "Android 9");
 
-        // 古い API レベル
+        // Old API levels
         assert_eq!(manager.get_android_version_name(21), "Android 5.0");
         assert_eq!(manager.get_android_version_name(16), "Android 4.1");
 
-        // 未知の API レベル（高い値）
+        // Unknown API levels (high values)
         assert_eq!(manager.get_android_version_name(40), "API 40");
         assert_eq!(manager.get_android_version_name(100), "API 100");
 
-        // 境界値
+        // Boundary values
         assert_eq!(manager.get_android_version_name(1), "API 1");
         assert_eq!(manager.get_android_version_name(0), "API 0");
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[test]
     fn test_parse_api_level_from_package() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
         let executor = std::sync::Arc::new(MockCommandExecutor::new());
         let manager = AndroidManager::with_executor(executor).expect("Failed to create manager");
 
-        // 標準的なパッケージ ID からの API レベル抽出
+        // Extract API level from standard package ID
         assert_eq!(
             manager.parse_api_level_from_package("system-images;android-34;google_apis;arm64-v8a"),
             Some(34)
@@ -3074,7 +3074,7 @@ mod tests {
             Some(28)
         );
 
-        // プラットフォームパッケージ
+        // Platform packages
         assert_eq!(
             manager.parse_api_level_from_package("platforms;android-34"),
             Some(34)
@@ -3084,7 +3084,7 @@ mod tests {
             Some(21)
         );
 
-        // 異常系: パターンにマッチしない
+        // Error cases: Pattern mismatch
         assert_eq!(
             manager.parse_api_level_from_package("invalid-package"),
             None
@@ -3095,7 +3095,7 @@ mod tests {
             None
         );
 
-        // エッジケース: 数値以外が含まれる
+        // Edge case: Contains non-numeric characters
         assert_eq!(
             manager.parse_api_level_from_package("system-images;android-abc;google_apis;arm64-v8a"),
             None
@@ -3105,13 +3105,13 @@ mod tests {
             None
         );
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[test]
     fn test_find_matching_device_id() {
-        // テストデータを準備
+        // Prepare test data
         let available_devices = vec![
             ("pixel_7".to_string(), "Pixel 7".to_string()),
             ("pixel_6".to_string(), "Pixel 6".to_string()),
@@ -3125,56 +3125,56 @@ mod tests {
             ),
         ];
 
-        // 完全 ID 一致
+        // Complete ID match
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "pixel_7"),
             Some("pixel_7".to_string())
         );
 
-        // 完全表示名一致
+        // Complete display name match
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "Pixel 7"),
             Some("pixel_7".to_string())
         );
 
-        // 部分一致（アルファベット・数字のクリーンアップ後）
+        // Partial match (after alphanumeric cleanup)
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "Galaxy S22"),
             Some("galaxy_s22".to_string())
         );
 
-        // 重要なキーワード一致
+        // Important keyword match
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "pixel"),
-            Some("pixel_7".to_string()) // 最初に見つかった pixel
+            Some("pixel_7".to_string()) // First pixel found
         );
 
-        // マッチしない場合
+        // No match case
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "unknown_device"),
             None
         );
 
-        // 空文字列
+        // Empty string
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, ""),
             None
         );
 
-        // 空のデバイスリスト
+        // Empty device list
         let empty_devices: Vec<(String, String)> = vec![];
         assert_eq!(
             AndroidManager::find_matching_device_id(&empty_devices, "pixel_7"),
             None
         );
 
-        // TV デバイスのマッチング（より具体的な検索）
+        // TV device matching (more specific search)
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "Android TV"),
             Some("tv_1080p".to_string())
         );
 
-        // Wear デバイスのマッチング（より具体的な検索）
+        // Wear device matching (more specific search)
         assert_eq!(
             AndroidManager::find_matching_device_id(&available_devices, "Android Wear"),
             Some("wear_round".to_string())
@@ -3183,7 +3183,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_commands_parallel() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
@@ -3196,21 +3196,21 @@ mod tests {
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // 並列コマンドを準備
+        // Prepare parallel commands
         let commands = vec![
             ("cmd1".to_string(), vec![]),
             ("cmd2".to_string(), vec![]),
             ("cmd3".to_string(), vec!["arg1".to_string()]),
-            ("cmd4".to_string(), vec![]), // このコマンドはエラーになる
+            ("cmd4".to_string(), vec![]), // This command will error
         ];
 
-        // 並列実行
+        // Execute in parallel
         let results = manager.run_commands_parallel(commands).await;
 
-        // 結果を検証
+        // Verify results
         assert_eq!(results.len(), 4);
 
-        // 成功ケース
+        // Success cases
         assert!(results[0].is_ok());
         assert_eq!(results[0].as_ref().unwrap(), "output1");
 
@@ -3220,7 +3220,7 @@ mod tests {
         assert!(results[2].is_ok());
         assert_eq!(results[2].as_ref().unwrap(), "output3 with arg1");
 
-        // 失敗ケース
+        // Failure case
         assert!(results[3].is_err());
         assert!(results[3]
             .as_ref()
@@ -3229,7 +3229,7 @@ mod tests {
             .to_string()
             .contains("Command failed"));
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
@@ -3238,7 +3238,7 @@ mod tests {
         let output = "Sample AVD list output";
         let parser = AvdListParser::new(output);
 
-        // パーサーが正しく初期化されることを確認
+        // Confirm parser initializes correctly
         assert!(parser.current_device_info.is_none());
         assert!(parser.current_target_full.is_empty());
     }
@@ -3256,7 +3256,7 @@ mod tests {
 
         let mut parser = AvdListParser::new(avd_output);
 
-        // 最初のデバイスを解析
+        // Parse first device
         let device = parser.parse_next_device();
         assert!(device.is_some());
 
@@ -3267,7 +3267,7 @@ mod tests {
         assert_eq!(abi, "google_apis/arm64-v8a");
         assert_eq!(device_id, "pixel_7 (Google)");
 
-        // 2 番目のデバイスはない
+        // No second device
         assert!(parser.parse_next_device().is_none());
     }
 
@@ -3290,19 +3290,19 @@ mod tests {
 
         let mut parser = AvdListParser::new(avd_output);
 
-        // 最初のデバイス
+        // First device
         let device1 = parser.parse_next_device();
         assert!(device1.is_some());
         let (name1, _, _, _, _) = device1.unwrap();
         assert_eq!(name1, "Pixel_7_API_34");
 
-        // 2 番目のデバイス
+        // Second device
         let device2 = parser.parse_next_device();
         assert!(device2.is_some());
         let (name2, _, _, _, _) = device2.unwrap();
         assert_eq!(name2, "Galaxy_S22_API_33");
 
-        // 3 番目のデバイスはない
+        // No third device
         assert!(parser.parse_next_device().is_none());
     }
 
@@ -3321,13 +3321,13 @@ Another line without proper formatting
 "#;
 
         let mut parser = AvdListParser::new(malformed_output);
-        // パターンにマッチしない場合は None が返される
+        // Returns None when pattern doesn't match
         assert!(parser.parse_next_device().is_none());
     }
 
     #[tokio::test]
     async fn test_detect_api_level_for_device() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
@@ -3335,8 +3335,8 @@ Another line without proper formatting
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // Method 3 のフォールバックテスト：target 文字列からの解析
-        // "Based on: Android 14.0 (API level 34)" 形式
+        // Method 3 fallback test: Parse from target string
+        // "Based on: Android 14.0 (API level 34)" format
         let api_level = manager
             .detect_api_level_for_device(
                 "test_device",
@@ -3345,13 +3345,13 @@ Another line without proper formatting
             .await;
         assert_eq!(api_level, 34);
 
-        // "API level 33" 形式
+        // "API level 33" format
         let api_level = manager
             .detect_api_level_for_device("test_device2", "Google APIs (API level 33)")
             .await;
         assert_eq!(api_level, 33);
 
-        // Android バージョン番号からの解析
+        // Parse from Android version number
         let api_level = manager
             .detect_api_level_for_device(
                 "test_device3",
@@ -3360,29 +3360,29 @@ Another line without proper formatting
             .await;
         assert_eq!(api_level, 33); // Android 13 -> API 33
 
-        // 解析できない場合は 0 が返される
+        // Returns 0 when parsing fails
         let api_level = manager
             .detect_api_level_for_device("test_device4", "Some unknown target format")
             .await;
         assert_eq!(api_level, 0);
 
-        // 空の文字列
+        // Empty string
         let api_level = manager
             .detect_api_level_for_device("test_device5", "")
             .await;
         assert_eq!(api_level, 0);
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]
     async fn test_get_avd_path() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
-        // AVD リスト出力をモック
+        // Mock AVD list output
         let avd_list_output = r#"
 Available Android Virtual Devices:
     Name: Pixel_7_API_34
@@ -3408,7 +3408,7 @@ Available Android Virtual Devices:
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // 存在する AVD のパスを取得
+        // Get path for existing AVD
         let path = manager.get_avd_path("Pixel_7_API_34").await.unwrap();
         assert!(path.is_some());
         assert_eq!(
@@ -3416,7 +3416,7 @@ Available Android Virtual Devices:
             "/Users/test/.android/avd/Pixel_7_API_34.avd"
         );
 
-        // 2 番目の AVD も確認
+        // Check second AVD too
         let path = manager.get_avd_path("Galaxy_S22_API_33").await.unwrap();
         assert!(path.is_some());
         assert_eq!(
@@ -3424,32 +3424,32 @@ Available Android Virtual Devices:
             "/Users/test/.android/avd/Galaxy_S22_API_33.avd"
         );
 
-        // 存在しない AVD は None が返される
+        // Returns None for non-existent AVD
         let path = manager.get_avd_path("NonExistent_AVD").await.unwrap();
         assert!(path.is_none());
 
-        // 空文字列
+        // Empty string
         let path = manager.get_avd_path("").await.unwrap();
         assert!(path.is_none());
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]
     async fn test_fine_tune_avd_config() {
-        // 現在の環境変数を保存
+        // Save current environment variables
         let original_android_home = env::var("ANDROID_HOME").ok();
 
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
-        // AVD ディレクトリ構造を作成
+        // Create AVD directory structure
         let avd_dir = temp_dir.path().join("test_avd.avd");
         tokio::fs::create_dir_all(&avd_dir).await.unwrap();
 
-        // 初期 config.ini ファイルを作成
+        // Create initial config.ini file
         let config_path = avd_dir.join("config.ini");
         let initial_config = r#"avd.ini.encoding=UTF-8
 hw.accelerometer=no
@@ -3461,7 +3461,7 @@ vm.heapSize=256
             .await
             .unwrap();
 
-        // AVD リスト出力をモック
+        // Mock AVD list output
         let avd_list_output = format!(
             r#"
 Available Android Virtual Devices:
@@ -3484,7 +3484,7 @@ Available Android Virtual Devices:
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // DeviceConfig を準備
+        // Prepare DeviceConfig
         let device_config = DeviceConfig {
             name: "Test Pixel 7".to_string(),
             device_type: "pixel_7".to_string(),
@@ -3494,25 +3494,25 @@ Available Android Virtual Devices:
             additional_options: HashMap::new(),
         };
 
-        // fine_tune_avd_config を実行
+        // Execute fine_tune_avd_config
         manager
             .fine_tune_avd_config("test_avd", &device_config, "google_apis", "arm64-v8a")
             .await
             .expect("Failed to fine tune AVD config");
 
-        // 設定ファイルが更新されたことを確認
+        // Confirm config file was updated
         let updated_config = tokio::fs::read_to_string(&config_path).await.unwrap();
 
-        // 追加/更新された設定項目を確認
+        // Confirm added/updated config items
         assert!(updated_config.contains("avd.ini.displayname=Test Pixel 7"));
         assert!(updated_config.contains("AvdId=Test_Pixel_7"));
 
-        // 元の設定が保持されていることを確認
+        // Confirm original settings are preserved
         assert!(updated_config.contains("avd.ini.encoding=UTF-8"));
         assert!(updated_config.contains("hw.accelerometer=no"));
         assert!(updated_config.contains("hw.audioInput=yes"));
 
-        // 環境変数を元に戻す
+        // Restore environment variables
         match original_android_home {
             Some(value) => env::set_var("ANDROID_HOME", value),
             None => env::remove_var("ANDROID_HOME"),
@@ -3521,14 +3521,14 @@ Available Android Virtual Devices:
 
     #[tokio::test]
     async fn test_fine_tune_avd_config_avd_not_found() {
-        // 現在の環境変数を保存
+        // Save current environment variables
         let original_android_home = env::var("ANDROID_HOME").ok();
 
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
-        // 空の AVD リスト出力をモック
+        // Mock empty AVD list output
         let mock_executor =
             MockCommandExecutor::new().with_success("avdmanager", &["list", "avd"], "");
 
@@ -3544,7 +3544,7 @@ Available Android Virtual Devices:
             additional_options: HashMap::new(),
         };
 
-        // 存在しない AVD の場合は何もしない（正常終了）
+        // Do nothing for non-existent AVD (normal completion)
         let result = manager
             .fine_tune_avd_config(
                 "nonexistent_avd",
@@ -3555,7 +3555,7 @@ Available Android Virtual Devices:
             .await;
         assert!(result.is_ok());
 
-        // 環境変数を元に戻す
+        // Restore environment variables
         match original_android_home {
             Some(value) => env::set_var("ANDROID_HOME", value),
             None => env::remove_var("ANDROID_HOME"),
@@ -3564,11 +3564,11 @@ Available Android Virtual Devices:
 
     #[tokio::test]
     async fn test_get_dynamic_android_version_name() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
-        // get_available_targets の出力をモック
+        // Mock get_available_targets output
         let system_images_output = r#"
 Installed packages:
   system-images;android-34;google_apis;arm64-v8a | 1 | Google APIs ARM 64 v8a System Image
@@ -3588,22 +3588,22 @@ Available Packages:
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // 存在する API level のテスト
+        // Test existing API level
         let version_name = manager.get_dynamic_android_version_name(34).await;
-        // 複雑な実装により期待値は変わる可能性があるが、None でないことを確認
+        // Expected value may vary due to complex implementation, but confirm it's not None
         assert!(version_name.is_none() || version_name.is_some());
 
-        // 存在しない API level のテスト
+        // Test non-existent API level
         let version_name = manager.get_dynamic_android_version_name(999).await;
         assert!(version_name.is_none());
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]
     async fn test_get_device_priority() {
-        // テスト用の Android SDK 環境設定
+        // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
@@ -3611,28 +3611,28 @@ Available Packages:
         let manager = AndroidManager::with_executor(Arc::new(mock_executor))
             .expect("Failed to create manager");
 
-        // Phone デバイス（高優先度）
+        // Phone device (high priority)
         let priority_phone = manager.get_device_priority("pixel_7").await.unwrap();
-        assert!(priority_phone > 0); // phone カテゴリなので高優先度
+        assert!(priority_phone > 0); // High priority since it's phone category
 
-        // TV デバイス（中位優先度）
+        // TV device (medium priority)
         let priority_tv = manager.get_device_priority("tv_1080p").await.unwrap();
-        assert!(priority_tv > priority_phone); // TV は Phone より高い数値（低優先度を示す）
+        assert!(priority_tv > priority_phone); // TV has higher number than Phone (indicates lower priority)
 
-        // 不明デバイス（最低優先度）
+        // Unknown device (lowest priority)
         let priority_unknown = manager.get_device_priority("unknown_device").await.unwrap();
-        assert!(priority_unknown > priority_tv); // Unknown は TV より更に高い数値（最低優先度を示す）
+        assert!(priority_unknown > priority_tv); // Unknown has even higher number than TV (indicates lowest priority)
 
-        // 全ての優先度が正の値であることを確認
+        // Confirm all priorities are positive values
         assert!(priority_phone > 0);
         assert!(priority_tv > 0);
         assert!(priority_unknown > 0);
 
-        // クリーンアップ
+        // Cleanup
         env::remove_var("ANDROID_HOME");
     }
 
-    /// get_available_devices 関数のテスト
+    /// Test for get_available_devices function
     #[tokio::test]
     #[cfg(feature = "test-utils")]
     async fn test_get_available_devices() {
@@ -3640,7 +3640,7 @@ Available Packages:
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
 
-        // fixture から直接読み込み
+        // Load directly from fixture
         let fixture_content = include_str!("../../tests/fixtures/android_outputs.json");
         let fixture: serde_json::Value =
             serde_json::from_str(fixture_content).expect("Invalid JSON in fixture");
@@ -3663,7 +3663,7 @@ Available Packages:
         let devices = result.unwrap();
         assert!(!devices.is_empty());
 
-        // 基本的な検証のみ - fixture データに依存しない
+        // Basic validation only - not dependent on fixture data
         assert!(devices.iter().all(|d| !d.id.is_empty()));
         assert!(devices.iter().all(|d| !d.display_name.is_empty()));
 
@@ -3673,7 +3673,7 @@ Available Packages:
         }
     }
 
-    /// get_available_api_levels 関数のテスト
+    /// Test for get_available_api_levels function
     #[tokio::test]
     #[cfg(feature = "test-utils")]
     async fn test_get_available_api_levels() {
@@ -3683,7 +3683,7 @@ Available Packages:
 
         let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
 
-        // fixture から直接読み込み
+        // Load directly from fixture
         let fixture_content = include_str!("../../tests/fixtures/android_outputs.json");
         let fixture: serde_json::Value =
             serde_json::from_str(fixture_content).expect("Invalid JSON in fixture");
@@ -3712,7 +3712,7 @@ Available Packages:
         let api_levels = result.unwrap();
         assert!(!api_levels.is_empty());
 
-        // fixture に依存しない基本的な検証
+        // Basic validation not dependent on fixture
         assert!(api_levels.iter().all(|a| a.level > 0));
         assert!(api_levels.iter().all(|a| !a.version_name.is_empty()));
 
