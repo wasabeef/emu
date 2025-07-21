@@ -169,6 +169,9 @@ cargo test --bins --tests
 # Run all tests including doctests (may have import issues in examples)
 cargo test
 
+# Run all tests with test-utils feature (required for integration tests)
+cargo test --features test-utils
+
 # Run main test suites
 cargo test --test comprehensive_integration_test
 cargo test --test device_creation_navigation_test
@@ -186,8 +189,44 @@ cargo test --test background_task_test
 # Performance validation
 cargo test responsiveness_validation_test -- --nocapture
 
-# Test coverage measurement
+# Test coverage measurement with cargo-llvm-cov (recommended)
+cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
+  --ignore-filename-regex '(tests/|src/main\.rs|src/bin/|src/app/test_helpers\.rs|src/fixtures/|src/managers/mock\.rs)'
+
+# Alternative: Test coverage with tarpaulin
 cargo tarpaulin --features test-utils --ignore-tests --exclude-files "*/tests/*" --exclude-files "*/examples/*"
+```
+
+### Test Infrastructure
+
+#### MockCommandExecutor
+
+All tests now use `MockCommandExecutor` to simulate Android SDK commands without requiring actual SDK installation:
+
+```rust
+// Example from tests
+let mock_executor = MockCommandExecutor::new()
+    .with_success("avdmanager", &["list", "avd"], "")
+    .with_success("adb", &["devices"], "List of devices attached\n");
+
+let manager = AndroidManager::with_executor(Arc::new(mock_executor));
+```
+
+#### Common Test Module
+
+The `tests/common/mod.rs` module provides shared test utilities:
+
+- `setup_mock_android_sdk()` - Creates a temporary mock Android SDK directory structure
+- Sets up executable scripts for `avdmanager`, `adb`, `sdkmanager`, and `emulator`
+- Ensures tests can run in CI environments without Android SDK
+
+#### Environment Setup
+
+Tests requiring Android SDK mock should set the `ANDROID_HOME` environment variable:
+
+```rust
+let temp_dir = setup_mock_android_sdk();
+std::env::set_var("ANDROID_HOME", temp_dir.path());
 ```
 
 ### Test Coverage

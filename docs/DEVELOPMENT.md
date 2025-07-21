@@ -198,6 +198,12 @@ cargo watch -x test
 # Run specific test
 cargo test test_name -- --nocapture
 
+# Run tests with test-utils feature (required for integration tests)
+cargo test --features test-utils
+
+# Run tests with CI environment setup
+RUST_TEST_THREADS=1 cargo test --features test-utils
+
 # Check code without building
 cargo check
 
@@ -338,19 +344,30 @@ Located in `tests/` directory:
 
 ```rust
 // tests/device_lifecycle_test.rs
-use emu::managers::AndroidManager;
-use emu::models::DeviceConfig;
+use emu::managers::android::AndroidManager;
+use emu::managers::common::DeviceConfig;
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
+
+use crate::common::setup_mock_android_sdk;
 
 #[tokio::test]
 async fn test_complete_device_lifecycle() {
-    let manager = AndroidManager::new().unwrap();
+    // Setup mock Android SDK
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
+
+    // Create mock executor
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], "")
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
+    // Create manager with mock
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
 
     // Test complete workflow
     let config = DeviceConfig::new("test_device", "pixel_7", "31");
-    manager.create_device(&config).await.unwrap();
-    manager.start_device("test_device").await.unwrap();
-    manager.stop_device("test_device").await.unwrap();
-    manager.delete_device("test_device").await.unwrap();
+    // Note: In real tests, we would test against mock responses
 }
 ```
 
@@ -377,6 +394,9 @@ cargo test --bins --tests
 # Run all tests including doctests (may have import issues in examples)
 cargo test
 
+# Run all tests with test-utils feature (required for integration tests)
+cargo test --features test-utils
+
 # Run with output
 cargo test -- --nocapture
 
@@ -392,8 +412,12 @@ cargo test android::
 # Run performance tests
 cargo test responsiveness_validation_test -- --nocapture
 
-# Run tests with coverage (requires cargo-tarpaulin)
-cargo tarpaulin --out Html
+# Test coverage with cargo-llvm-cov (recommended)
+cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
+  --ignore-filename-regex '(tests/|src/main\.rs|src/bin/|src/app/test_helpers\.rs|src/fixtures/|src/managers/mock\.rs)'
+
+# Alternative: Test coverage with tarpaulin
+cargo tarpaulin --features test-utils --out Html
 ```
 
 ### Test Guidelines
@@ -409,30 +433,42 @@ cargo tarpaulin --out Html
 
 #### Mock Usage
 
+The project uses `MockCommandExecutor` for testing Android SDK commands:
+
 ```rust
-use mockall::predicate::*;
-use mockall::mock;
-
-mock! {
-    AndroidManager {}
-
-    #[async_trait]
-    impl DeviceManager for AndroidManager {
-        async fn list_devices(&self) -> Result<Vec<AndroidDevice>>;
-        async fn start_device(&self, id: &str) -> Result<()>;
-    }
-}
+use emu::utils::command_executor::mock::MockCommandExecutor;
+use std::sync::Arc;
 
 #[tokio::test]
-async fn test_with_mock() {
-    let mut mock_manager = MockAndroidManager::new();
+async fn test_with_mock_executor() {
+    // Create mock executor with predefined responses
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"],
+            "Available Android Virtual Devices:\n    Name: test_device\n    Path: /path/to/avd")
+        .with_success("adb", &["devices"],
+            "List of devices attached\nemulator-5554\tdevice\n");
 
-    mock_manager
-        .expect_list_devices()
-        .returning(|| Ok(vec![create_mock_device()]));
+    // Use with AndroidManager
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
 
-    let devices = mock_manager.list_devices().await.unwrap();
+    // Test operations
+    let devices = manager.list_devices().await.unwrap();
     assert_eq!(devices.len(), 1);
+}
+```
+
+For common test setup, use the shared utilities:
+
+```rust
+use crate::common::setup_mock_android_sdk;
+
+#[tokio::test]
+async fn test_with_mock_sdk() {
+    // Setup mock Android SDK directory
+    let temp_dir = setup_mock_android_sdk();
+    std::env::set_var("ANDROID_HOME", temp_dir.path());
+
+    // Continue with test...
 }
 ```
 
@@ -1013,6 +1049,7 @@ impl DeviceConfig {
    - Manual updates are only needed for major releases or special announcements
 
 4. Commit the version bump:
+
    ```bash
    git add Cargo.toml CHANGELOG.md
    git commit -m "chore: bump version to v0.2.2"
