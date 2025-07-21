@@ -1189,7 +1189,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_ios_manager_new() {
-        let _manager = IosManager::new();
+        let _manager = IosManager::new().expect("Failed to create IosManager");
         // Manager should be created successfully
         // Note: IosManager doesn't implement Debug
         // assert!(format!("{manager:?}").contains("IosManager"));
@@ -1221,7 +1221,7 @@ mod tests {
     /// Test iOS manager creation (simplified)
     #[test]
     fn test_ios_manager_creation() {
-        let _manager = IosManager::new();
+        let _manager = IosManager::new().expect("Failed to create IosManager");
         // Manager created successfully
     }
 
@@ -1232,7 +1232,7 @@ mod tests {
         use crate::managers::common::DeviceConfig;
         use std::collections::HashMap;
 
-        let _manager = IosManager::new();
+        let _manager = IosManager::new().expect("Failed to create IosManager");
 
         // All operations should fail on non-macOS
         assert!(_manager.list_devices().await.is_err());
@@ -1259,7 +1259,7 @@ mod tests {
         use crate::managers::common::{DeviceConfig, UnifiedDeviceManager};
         use std::collections::HashMap;
 
-        let _manager = IosManager::new();
+        let _manager = IosManager::new().expect("Failed to create IosManager");
 
         // All UnifiedDeviceManager operations should fail on non-macOS
         assert!(_manager.list_devices().await.is_err());
@@ -1277,7 +1277,7 @@ mod tests {
         assert!(_manager.create_device(&config).await.is_err());
         assert!(_manager.delete_device("test").await.is_err());
         assert!(_manager.wipe_device("test").await.is_err());
-        assert!(!manager.is_available().await);
+        assert!(!_manager.is_available().await);
     }
 
     /// Test iOS device priority calculation - DISABLED (DeviceInfo::new not available)
@@ -1310,7 +1310,7 @@ mod tests {
     /// Test iOS manager error handling - DISABLED
     #[allow(dead_code)]
     async fn test_ios_manager_error_handling_disabled() {
-        let _manager = IosManager::new();
+        let _manager = IosManager::new().expect("Failed to create IosManager");
 
         // Test that operations don't panic and return appropriate errors
         #[cfg(not(target_os = "macos"))]
@@ -1328,7 +1328,8 @@ mod tests {
             };
 
             // All operations should return errors, not panic
-            let result = _manager.create_device(&config).await;
+            let manager = _manager.expect("Failed to create IosManager");
+            let result = manager.create_device(&config).await;
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("macOS"));
         }
