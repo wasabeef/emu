@@ -1248,8 +1248,8 @@ mod tests {
             additional_options: HashMap::new(),
         };
         assert!(_manager.create_device(&config).await.is_err());
-        assert!(manager.delete_device("test").await.is_err());
-        assert!(manager.wipe_device("test").await.is_err());
+        assert!(_manager.delete_device("test").await.is_err());
+        assert!(_manager.wipe_device("test").await.is_err());
     }
 
     /// Test iOS manager UnifiedDeviceManager trait (non-macOS) - DISABLED
@@ -1275,8 +1275,8 @@ mod tests {
             additional_options: HashMap::new(),
         };
         assert!(_manager.create_device(&config).await.is_err());
-        assert!(manager.delete_device("test").await.is_err());
-        assert!(manager.wipe_device("test").await.is_err());
+        assert!(_manager.delete_device("test").await.is_err());
+        assert!(_manager.wipe_device("test").await.is_err());
         assert!(!manager.is_available().await);
     }
 
