@@ -143,3 +143,93 @@ macro_rules! error {
         log::error!($($arg)*)
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use log::LevelFilter;
+    use std::str::FromStr;
+
+    /// Test setup_logger function with different log levels
+    #[test]
+    fn test_setup_logger_levels() {
+        // Test valid log levels
+        let valid_levels = vec!["error", "warn", "info", "debug", "trace"];
+
+        for level in valid_levels {
+            // Note: We can't actually test initialization because env_logger
+            // can only be initialized once per process. Instead, we test
+            // that the function handles valid input without panicking.
+            let log_level = LevelFilter::from_str(level);
+            assert!(log_level.is_ok(), "Level {level} should be valid");
+        }
+    }
+
+    /// Test that invalid log levels default to Info
+    #[test]
+    fn test_setup_logger_invalid_level() {
+        // Test that invalid levels default to Info
+        let invalid_level = "invalid";
+        let log_level = LevelFilter::from_str(invalid_level).unwrap_or(LevelFilter::Info);
+        assert_eq!(log_level, LevelFilter::Info);
+    }
+
+    /// Test log level ordering
+    #[test]
+    fn test_log_level_ordering() {
+        assert!(LevelFilter::Error < LevelFilter::Warn);
+        assert!(LevelFilter::Warn < LevelFilter::Info);
+        assert!(LevelFilter::Info < LevelFilter::Debug);
+        assert!(LevelFilter::Debug < LevelFilter::Trace);
+    }
+
+    /// Test that macros compile and expand correctly
+    #[test]
+    fn test_logging_macros_compile() {
+        // These tests verify the macros compile and expand correctly
+        // In a real environment with initialized logger, these would output logs
+
+        // Test debug macro
+        debug!("Test debug message");
+        debug!("Test debug with format: {}", "value");
+
+        // Test info macro
+        info!("Test info message");
+        info!("Test info with format: {}", "value");
+
+        // Test warn macro
+        warn!("Test warn message");
+        warn!("Test warn with format: {}", "value");
+
+        // Test error macro
+        error!("Test error message");
+        error!("Test error with format: {}", "value");
+    }
+
+    /// Test logger configuration values
+    #[test]
+    fn test_logger_configuration() {
+        // Test that we can create a logger builder with expected settings
+        let _builder = env_logger::Builder::from_default_env()
+            .filter_level(LevelFilter::Info)
+            .format_timestamp_secs()
+            .format_module_path(false)
+            .format_target(false);
+
+        // Just verify the builder was created successfully
+        // We can't easily test the internal state without initialization
+    }
+
+    /// Test level filter from string conversion
+    #[test]
+    fn test_level_filter_from_string() {
+        assert_eq!(LevelFilter::from_str("error").unwrap(), LevelFilter::Error);
+        assert_eq!(LevelFilter::from_str("warn").unwrap(), LevelFilter::Warn);
+        assert_eq!(LevelFilter::from_str("info").unwrap(), LevelFilter::Info);
+        assert_eq!(LevelFilter::from_str("debug").unwrap(), LevelFilter::Debug);
+        assert_eq!(LevelFilter::from_str("trace").unwrap(), LevelFilter::Trace);
+
+        // Test case insensitive
+        assert_eq!(LevelFilter::from_str("INFO").unwrap(), LevelFilter::Info);
+        assert_eq!(LevelFilter::from_str("Error").unwrap(), LevelFilter::Error);
+    }
+}

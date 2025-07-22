@@ -134,108 +134,71 @@ cargo build --release
 
 ## Testing Infrastructure
 
-### Comprehensive Test Suite
+The project uses a comprehensive mock-based testing strategy that eliminates the need for real Android SDK or Xcode installations. This enables fast, reliable tests that run consistently in CI/CD environments.
 
-The project has 18+ test files with 180+ test functions covering:
-
-#### Test Categories
-
-- **Unit Tests**: Model validation, error handling, utilities (`tests/unit/`)
-  - Device models, error types, device info, validation utilities
-- **Integration Tests**: Complete workflows and system interactions (`tests/integration/`)
-  - Device lifecycle workflows (`comprehensive_integration_test.rs`)
-  - App state management (`app_state_comprehensive_test.rs`)
-  - Event processing and debouncing (`event_processing_test.rs`)
-  - Background task coordination (`background_task_test.rs`)
-- **Performance Tests**: Startup time and responsiveness validation (`responsiveness_validation_test.rs`)
-- **UI Tests**: Navigation, focus management, theme handling (`ui_focus_and_theme_test.rs`)
-- **Device Operations**: Creation, status tracking, operations (`device_operations_status_test.rs`)
-- **Navigation Tests**: Field navigation, circular navigation (`device_creation_navigation_test.rs`)
-- **Mock-based Tests**: Using MockDeviceManager for emulator-independent testing
-
-#### Performance Benchmarks
-
-- **Startup Time**: < 150ms (typical: ~104ms)
-- **Panel Switching**: < 100ms
-- **Device Navigation**: < 50ms
-- **Log Streaming**: Real-time with < 10ms latency
-
-### Running Tests
+### Quick Test Commands
 
 ```bash
-# Run all tests (recommended - excludes doctests)
-cargo test --bins --tests
-
-# Run all tests including doctests (may have import issues in examples)
-cargo test
-
-# Run all tests with test-utils feature (required for integration tests)
+# Run all tests (recommended)
 cargo test --features test-utils
 
-# Run main test suites
+# Run with output
+cargo test -- --nocapture
+
+# Run specific test suite
 cargo test --test comprehensive_integration_test
-cargo test --test device_creation_navigation_test
-cargo test --test device_operations_status_test
-cargo test --test ui_focus_and_theme_test
 
-# Run unit tests
-cargo test --test models --test utils
-
-# Run app integration tests
-cargo test --test app_state_comprehensive_test
-cargo test --test event_processing_test
-cargo test --test background_task_test
-
-# Performance validation
-cargo test responsiveness_validation_test -- --nocapture
-
-# Test coverage measurement with cargo-llvm-cov (recommended)
+# Measure test coverage
 cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
   --ignore-filename-regex '(tests/|src/main\.rs|src/bin/|src/app/test_helpers\.rs|src/fixtures/|src/managers/mock\.rs)'
-
-# Alternative: Test coverage with tarpaulin
-cargo tarpaulin --features test-utils --ignore-tests --exclude-files "*/tests/*" --exclude-files "*/examples/*"
 ```
 
-### Test Infrastructure
+### Test Categories
+
+- **Unit Tests**: Individual component testing with mocked dependencies
+- **Integration Tests**: Multi-component workflows and interactions
+- **Performance Tests**: Startup time, responsiveness, and resource usage validation
+- **UI Tests**: Terminal UI rendering and interaction testing with MockBackend
+
+### Key Testing Infrastructure
 
 #### MockCommandExecutor
 
-All tests now use `MockCommandExecutor` to simulate Android SDK commands without requiring actual SDK installation:
+Simulates all external command execution without requiring actual tools:
 
 ```rust
-// Example from tests
 let mock_executor = MockCommandExecutor::new()
-    .with_success("avdmanager", &["list", "avd"], "")
-    .with_success("adb", &["devices"], "List of devices attached\n");
+    .with_success("avdmanager", &["list", "avd"], "mock output")
+    .with_error("adb", &["devices"], "connection refused");
 
 let manager = AndroidManager::with_executor(Arc::new(mock_executor));
 ```
 
-#### Common Test Module
+#### Mock Android SDK Environment
 
-The `tests/common/mod.rs` module provides shared test utilities:
-
-- `setup_mock_android_sdk()` - Creates a temporary mock Android SDK directory structure
-- Sets up executable scripts for `avdmanager`, `adb`, `sdkmanager`, and `emulator`
-- Ensures tests can run in CI environments without Android SDK
-
-#### Environment Setup
-
-Tests requiring Android SDK mock should set the `ANDROID_HOME` environment variable:
+The `setup_mock_android_sdk()` function creates a temporary SDK structure for tests:
 
 ```rust
-let temp_dir = setup_mock_android_sdk();
-std::env::set_var("ANDROID_HOME", temp_dir.path());
+let _temp_dir = setup_mock_android_sdk();
+std::env::set_var("ANDROID_HOME", _temp_dir.path());
+std::mem::forget(_temp_dir); // Keep alive during test
 ```
 
-### Test Coverage
+### Test Coverage Status
 
-- **Current Coverage**: 28.33% (1,594/5,627 lines covered)
-- **Test Functions**: 180+ test functions across 22+ test files
-- **Phase 2 Achievement**: +11.40 ポイント改善 (+67.3% 相対向上)
-- **UI Test Revolution**: MockBackend enables complete UI logic testing (41.1% coverage for render.rs)
-- **Test Infrastructure**: MockDeviceManager + MockBackend enables comprehensive testing
+- **Current Coverage**: 47.71% (5,173/10,842 lines)
+- **Test Files**: 22+ files organized by category
+- **Test Functions**: 180+ comprehensive test cases
+- **CI/CD Ready**: All tests run without external dependencies
+
+### Performance Requirements
+
+- **Startup Time**: < 150ms
+- **Panel Switching**: < 100ms
+- **Device Navigation**: < 50ms
+- **Log Streaming**: < 10ms latency
+
+For detailed testing guidelines, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Current Implementation Status
 

@@ -471,3 +471,174 @@ pub fn get_animated_moon() -> &'static str {
         ((elapsed / ANIMATION_TIMING_DURATION_MS as u128) % moon_phases.len() as u128) as usize;
     moon_phases[index]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test DeviceListWidget creation and configuration
+    #[test]
+    fn test_device_list_widget() {
+        let widget = DeviceListWidget::new("Test Devices".to_string())
+            .items(vec!["Device 1".to_string(), "Device 2".to_string()])
+            .selected(Some(1))
+            .active(true);
+
+        assert_eq!(widget.title, "Test Devices");
+        assert_eq!(widget.items.len(), 2);
+        assert_eq!(widget.selected, Some(1));
+        assert!(widget.is_active);
+    }
+
+    /// Test StatusBar widget configuration
+    #[test]
+    fn test_status_bar() {
+        let status_bar = StatusBar::new("Ready".to_string()).loading(true);
+
+        assert_eq!(status_bar.text, "Ready");
+        assert!(status_bar.is_loading);
+    }
+
+    /// Test EnhancedDeviceListWidget creation
+    #[test]
+    fn test_enhanced_device_list_widget() {
+        let widget = EnhancedDeviceListWidget::new("Enhanced".to_string())
+            .selected(1, 2)
+            .active(true);
+
+        assert_eq!(widget.title, "Enhanced");
+        assert_eq!(widget.selected_android, 1);
+        assert_eq!(widget.selected_ios, 2);
+        assert!(widget.is_active);
+    }
+
+    /// Test ProgressWidget with determinate progress
+    #[test]
+    fn test_progress_widget_determinate() {
+        let widget =
+            ProgressWidget::new("Progress".to_string(), "Loading".to_string()).with_progress(0.75);
+
+        assert_eq!(widget.title, "Progress");
+        assert_eq!(widget.message, "Loading");
+        assert_eq!(widget.progress, 0.75);
+        assert!(!widget.is_indeterminate);
+    }
+
+    /// Test ProgressWidget with indeterminate progress
+    #[test]
+    fn test_progress_widget_indeterminate() {
+        let widget = ProgressWidget::new("Progress".to_string(), "Working".to_string());
+
+        assert_eq!(widget.progress, 0.0);
+        assert!(widget.is_indeterminate);
+    }
+
+    /// Test Header widget with and without version
+    #[test]
+    fn test_header_widget() {
+        let header_no_version = Header::new("Emu".to_string());
+        assert_eq!(header_no_version.title, "Emu");
+        assert!(header_no_version.version.is_none());
+
+        let header_with_version = Header::new("Emu".to_string()).version("1.0.0".to_string());
+        assert_eq!(header_with_version.version, Some("1.0.0".to_string()));
+    }
+
+    /// Test create_loading_gauge function
+    #[test]
+    fn test_create_loading_gauge() {
+        let _gauge = create_loading_gauge(50);
+        // Just test that it doesn't panic and creates a valid gauge
+        // Actual rendering can't be easily tested without a terminal backend
+    }
+
+    /// Test create_help_text function
+    #[test]
+    fn test_create_help_text() {
+        let help_text = create_help_text();
+
+        // Should have multiple help lines
+        assert!(!help_text.is_empty());
+
+        // First line should be about quitting
+        if let Some(first_line) = help_text.first() {
+            let line_str = format!("{first_line:?}");
+            assert!(line_str.contains("q"));
+            assert!(line_str.contains("Quit"));
+        }
+    }
+
+    /// Test widget rendering doesn't panic
+    #[test]
+    fn test_widget_rendering() {
+        // These tests just verify widgets can be created and rendered without panicking
+        let _device_list = DeviceListWidget::new("Devices".to_string())
+            .items(vec!["Device 1".to_string()])
+            .render();
+
+        let _status_bar = StatusBar::new("Status".to_string()).render();
+
+        let _progress = ProgressWidget::new("Progress".to_string(), "Loading".to_string())
+            .with_progress(0.5)
+            .render();
+
+        let _header = Header::new("App".to_string()).render();
+
+        // If we get here without panicking, the test passes
+    }
+
+    /// Test progress clamping
+    #[test]
+    fn test_progress_clamping() {
+        let widget_over =
+            ProgressWidget::new("Test".to_string(), "Over".to_string()).with_progress(1.5);
+        assert_eq!(widget_over.progress, PROGRESS_MAX_BOUND);
+
+        let widget_under =
+            ProgressWidget::new("Test".to_string(), "Under".to_string()).with_progress(-0.5);
+        assert_eq!(widget_under.progress, PROGRESS_MIN_BOUND);
+    }
+
+    /// Test DeviceListWidget default state
+    #[test]
+    fn test_device_list_widget_defaults() {
+        let widget = DeviceListWidget::new("Test".to_string());
+
+        assert!(widget.items.is_empty());
+        assert_eq!(widget.selected, None);
+        assert!(!widget.is_active);
+    }
+
+    /// Test device status color mapping
+    #[test]
+    fn test_device_status_formatting() {
+        // Test that we can create widgets with different device status combinations
+        let android_device = AndroidDevice {
+            name: "Test Device".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 33,
+            status: DeviceStatus::Running,
+            is_running: true,
+            ram_size: "2048".to_string(),
+            storage_size: "8192M".to_string(),
+        };
+
+        let ios_device = IosDevice {
+            name: "iPhone 15".to_string(),
+            udid: "ABC123".to_string(),
+            device_type: "iPhone 15".to_string(),
+            ios_version: "17.0".to_string(),
+            runtime_version: "iOS 17.0".to_string(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            is_available: true,
+        };
+
+        let widget = EnhancedDeviceListWidget::new("Test".to_string())
+            .android_devices(vec![android_device])
+            .ios_devices(vec![ios_device]);
+
+        assert_eq!(widget.android_devices.len(), 1);
+        assert_eq!(widget.ios_devices.len(), 1);
+    }
+}

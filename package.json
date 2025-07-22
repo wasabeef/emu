@@ -17,7 +17,7 @@
     "build": "cargo build --release",
     "dev": "cargo run",
     "watch": "cargo watch -x run",
-    "test:execution": "cargo test --features test-utils --test app_mod_execution_test --test app_state_execution_test --test managers_android_command_execution_test --test managers_ios_command_execution_test --test models_device_info_execution_test --test utils_command_execution_test --test ui_render_helper_test",
+    "test:execution": "cargo test --features test-utils --test app_mod_test --test app_state_test --test managers_android_test --test managers_ios_test --test models_device_info_test --test utils_command_test --test render_helper_test",
     "test:coverage:quick": "cargo tarpaulin --features test-utils --ignore-tests --exclude-files 'src/main.rs' --exclude-files 'src/bin/*' --exclude-files 'src/app/test_helpers.rs' --exclude-files 'src/fixtures/*' --exclude-files 'src/managers/mock.rs' --exclude-files '*/tests/*' --exclude-files '*/examples/*' --exclude-files '*/benches/*' --timeout 60 --fail-under 0 --out Stdout",
     "lint:fix": "cargo clippy --all-targets --all-features --fix -- -D warnings"
   },
