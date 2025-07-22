@@ -104,11 +104,20 @@ cargo run
 # Run with debug logging
 cargo run -- --debug
 
-# Run tests
+# Run tests (recommended - excludes doctests)
+cargo test --bins --tests
+
+# Run all tests including doctests
 cargo test
+
+# Run tests with test-utils feature (required for integration tests)
+cargo test --features test-utils
 
 # Run specific test suite
 cargo test --test comprehensive_integration_test
+
+# Run a single test function
+cargo test test_device_creation
 
 # Run with output
 cargo test -- --nocapture
@@ -186,9 +195,8 @@ std::mem::forget(_temp_dir); // Keep alive during test
 
 ### Test Coverage Status
 
-- **Current Coverage**: 47.71% (5,173/10,842 lines)
-- **Test Files**: 22+ files organized by category
-- **Test Functions**: 180+ comprehensive test cases
+- **Test Files**: 100+ files organized by category
+- **Test Functions**: 1500+ comprehensive test cases
 - **CI/CD Ready**: All tests run without external dependencies
 
 ### Performance Requirements
@@ -369,7 +377,6 @@ For detailed testing guidelines, see [docs/TESTING.md](docs/TESTING.md).
 - Ensure async operations work correctly
 - **Test all new constants**: Validate ranges, ordering, and type consistency
 - Use documentation tests for constants to verify runtime behavior
-- Current test coverage: 149 test functions, 22.33% line coverage
 
 ### Code Quality Requirements
 
