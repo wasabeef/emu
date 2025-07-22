@@ -1369,9 +1369,10 @@ impl App {
                         .any(|d| &d.name == pending_name && d.is_running);
 
                 if device_running {
-                    state.add_success_notification(format!(
-                        "Device '{pending_name}' is now running!"
-                    ));
+                    state.add_success_notification(
+                        crate::constants::messages::notifications::DEVICE_START_SUCCESS
+                            .replace("{}", pending_name),
+                    );
                     state.clear_pending_device_start();
                     device_started = Some(pending_name.clone());
                 }
