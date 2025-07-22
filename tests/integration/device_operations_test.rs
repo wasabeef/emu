@@ -103,7 +103,7 @@ fn test_pending_device_start_tracking() {
     // Test clearing pending device
     state.clear_pending_device_start();
     assert!(state.get_pending_device_start().is_none());
-    assert_eq!(state.auto_refresh_interval.as_secs(), 3); // Should return to normal
+    assert_eq!(state.auto_refresh_interval.as_secs(), 5); // Should return to normal (updated from 3 to 5 seconds)
 
     println!("✅ Pending device start tracking works correctly");
 }
