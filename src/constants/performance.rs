@@ -71,3 +71,9 @@ pub const ANIMATION_TIMING_DURATION_MS: u64 = 200;
 
 /// Event queue size multiplier
 pub const EVENT_QUEUE_SIZE_MULTIPLIER: usize = 2;
+
+/// Maximum continuous events to process before yielding (prevents UI freezing)
+pub const MAX_CONTINUOUS_EVENTS: usize = 10;
+
+/// Input handling optimization delay
+pub const INPUT_BATCH_DELAY: Duration = Duration::from_millis(1);
