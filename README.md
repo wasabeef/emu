@@ -25,12 +25,17 @@ A TUI for managing Android emulators and iOS simulators.
 ### User Experience
 
 - **Real-time Monitoring**: Live device status and log streaming with < 10ms latency
-- **High Performance**: Instant startup (<150ms, typical ~104ms) with background loading
+- **Ultra-High Performance**:
+  - Instant startup (<150ms, typical ~104ms) with parallel device loading
+  - Device details loading optimized from ~1s to ~50ms (95% improvement)
+  - Ultra-responsive keyboard input with 8ms polling (120fps)
 - **Keyboard-driven**: Vim-like keybindings with circular navigation
 - **Three-panel layout**: Android devices (30%) | iOS devices (30%) | Device details (40%)
 - **Comprehensive Details**: Device specifications, status, RAM/Storage in MB, full paths
-- **Smart Caching**: Platform-aware cache invalidation and background loading
-- **Robust Testing**: 15 test files with 31+ test functions ensuring reliability
+- **Smart Caching**:
+  - Platform-aware cache invalidation and background loading
+  - API level disk caching for instant device creation
+- **Robust Testing**: 580+ test cases with comprehensive mock-based testing
 - **API Level Management**: Install/uninstall system images directly from TUI
 
 ## Installation
