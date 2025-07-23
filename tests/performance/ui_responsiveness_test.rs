@@ -421,6 +421,7 @@ async fn test_comprehensive_responsiveness_validation() {
 fn create_test_devices(count: usize) -> Vec<AndroidDevice> {
     (1..=count)
         .map(|i| AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("ResponsivenessTest_Device_{i}"),
             device_type: format!("pixel_{}", (i % 5) + 1),
             api_level: 30 + (i % 10) as u32,

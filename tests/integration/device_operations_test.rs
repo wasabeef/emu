@@ -103,7 +103,7 @@ fn test_pending_device_start_tracking() {
     // Test clearing pending device
     state.clear_pending_device_start();
     assert!(state.get_pending_device_start().is_none());
-    assert_eq!(state.auto_refresh_interval.as_secs(), 3); // Should return to normal
+    assert_eq!(state.auto_refresh_interval.as_secs(), 5); // Should return to normal (updated from 3 to 5 seconds)
 
     println!("✅ Pending device start tracking works correctly");
 }
@@ -117,6 +117,7 @@ fn test_device_selection_and_details_sync() {
     // Set up mock Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -126,6 +127,7 @@ fn test_device_selection_and_details_sync() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 31,
@@ -280,6 +282,7 @@ fn test_panel_switching_state_consistency() {
 
     // Set up devices for both panels
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Android1".to_string(),
         device_type: "phone".to_string(),
         api_level: 30,

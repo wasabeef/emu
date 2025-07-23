@@ -11,6 +11,7 @@ fn test_android_circular_navigation() {
     // Create test Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -20,6 +21,7 @@ fn test_android_circular_navigation() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device2".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -29,6 +31,7 @@ fn test_android_circular_navigation() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device3".to_string(),
             device_type: "tablet".to_string(),
             api_level: 32,
@@ -172,6 +175,7 @@ fn test_single_device_navigation() {
     // Test Android with single device
     state.active_panel = Panel::Android;
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "OnlyDevice".to_string(),
         device_type: "phone".to_string(),
         api_level: 30,
@@ -223,6 +227,7 @@ fn test_rapid_circular_navigation() {
     // Create 5 Android devices
     state.android_devices = (0..5)
         .map(|i| AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Device{i}"),
             device_type: "phone".to_string(),
             api_level: 30 + i as u32,

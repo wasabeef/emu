@@ -93,6 +93,7 @@ async fn test_concurrent_device_list_updates() {
                 {
                     let mut state = state_clone.lock().unwrap();
                     let device = AndroidDevice {
+                        android_version_name: "API 30".to_string(),
                         name: format!("device_{i}_{j}"),
                         device_type: "pixel_7".to_string(),
                         api_level: 34,
@@ -213,6 +214,7 @@ async fn test_state_consistency_under_load() {
 
                     // Add device
                     let device = AndroidDevice {
+                        android_version_name: "API 30".to_string(),
                         name: format!("consistency_test_{i}_{j}"),
                         device_type: "pixel_7".to_string(),
                         api_level: 34,
@@ -283,6 +285,7 @@ async fn test_concurrent_mixed_operations() {
                     };
 
                     let android_device = AndroidDevice {
+                        android_version_name: "API 30".to_string(),
                         name: format!("mixed_android_{i}_{j}"),
                         device_type: "pixel_7".to_string(),
                         api_level: 34,
@@ -346,6 +349,7 @@ async fn test_high_contention_scenario() {
 
                     if j % 10 == 0 {
                         let device = AndroidDevice {
+                            android_version_name: "API 30".to_string(),
                             name: format!("high_contention_{i}_{j}"),
                             device_type: "pixel_7".to_string(),
                             api_level: 34,

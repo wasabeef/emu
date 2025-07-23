@@ -51,6 +51,7 @@ fn test_duplicate_device_name_detection() {
 
     // Add an existing device
     let existing_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_device".to_string(),
         device_type: "phone".to_string(),
         api_level: 30,
@@ -83,6 +84,7 @@ fn test_duplicate_device_name_detection() {
 #[test]
 fn test_device_state_transitions() {
     let mut device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "state_test".to_string(),
         device_type: "phone".to_string(),
         api_level: 30,
@@ -137,6 +139,7 @@ async fn test_concurrent_device_operations() {
         let handle = tokio::spawn(async move {
             // Try to add a device
             let device = AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("concurrent_device_{i}"),
                 device_type: "phone".to_string(),
                 api_level: 30,
@@ -189,6 +192,7 @@ async fn test_device_operation_error_recovery() {
     // Add a device in various states
     let devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "starting_device".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -198,6 +202,7 @@ async fn test_device_operation_error_recovery() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "stopping_device".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -262,6 +267,7 @@ fn test_device_cleanup_completeness() {
     // Add multiple devices
     for i in 0..10 {
         app_state.android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("cleanup_device_{i}"),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -351,6 +357,7 @@ fn test_api_level_compatibility() {
     for (device_type, min_api, max_api) in compatibility_tests {
         for api in min_api..=max_api {
             let device = AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("api_test_{api}"),
                 device_type: device_type.to_string(),
                 api_level: api,
@@ -385,6 +392,7 @@ fn test_device_list_filtering() {
 
     for (name, device_type, api_level, status) in devices {
         app_state.android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: name.to_string(),
             device_type: device_type.to_string(),
             api_level,
@@ -466,6 +474,7 @@ async fn test_device_operation_timeouts() {
     // Add devices in various states
     let devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "timeout_test_1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -475,6 +484,7 @@ async fn test_device_operation_timeouts() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "timeout_test_2".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -564,6 +574,7 @@ fn test_insufficient_system_resources() {
         if is_valid {
             // Simulate successful device creation
             let device = AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("resource_test_{ram}_{storage}"),
                 device_type: "phone".to_string(),
                 api_level: 30,
@@ -595,6 +606,7 @@ async fn test_parallel_device_operations_safety() {
         let mut state = app_state.lock().unwrap();
         for i in 0..3 {
             state.android_devices.push(AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("parallel_device_{i}"),
                 device_type: "phone".to_string(),
                 api_level: 30,
@@ -696,6 +708,7 @@ fn test_device_operation_failure_recovery() {
 
     for (name, status, is_running) in error_scenarios {
         app_state.android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: name.to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -745,6 +758,7 @@ fn test_system_limit_handling() {
     // Try to create devices up to and beyond the limit
     for i in 0..max_devices + 5 {
         let device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("limit_device_{i}"),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -798,6 +812,7 @@ fn test_system_limit_handling() {
 fn test_device_priority_sorting() {
     let mut devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_3".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -807,6 +822,7 @@ fn test_device_priority_sorting() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -816,6 +832,7 @@ fn test_device_priority_sorting() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_2".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,

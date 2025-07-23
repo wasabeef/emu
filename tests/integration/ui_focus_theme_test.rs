@@ -290,7 +290,7 @@ fn test_auto_refresh_behavior() {
     assert!(!state.should_auto_refresh()); // Should be false initially (just created)
 
     // Test refresh interval
-    assert_eq!(state.auto_refresh_interval.as_secs(), 3); // Default 3 seconds
+    assert_eq!(state.auto_refresh_interval.as_secs(), 5); // Default 5 seconds (updated from 3 to reduce UI interruption)
 
     // Test setting pending device changes refresh interval
     state.set_pending_device_start("Test Device".to_string());
@@ -298,7 +298,7 @@ fn test_auto_refresh_behavior() {
 
     // Test clearing pending device restores normal interval
     state.clear_pending_device_start();
-    assert_eq!(state.auto_refresh_interval.as_secs(), 3); // Back to normal
+    assert_eq!(state.auto_refresh_interval.as_secs(), 5); // Back to normal (updated from 3 to 5 seconds)
 
     // Test marking as refreshed
     state.mark_refreshed();

@@ -309,8 +309,7 @@ use anyhow::{bail, Context, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 
@@ -753,7 +752,27 @@ impl AndroidManager {
 
     /// List available Android targets (API levels) based on installed system images
     pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
-        // Get actually installed system images
+        log::debug!("list_available_targets called");
+        // Try to load from cache first for faster response
+        if let Some(cached_targets) = crate::app::state::ApiLevelCache::load_from_disk() {
+            let targets: Vec<(String, String)> = cached_targets
+                .api_levels
+                .into_iter()
+                .map(|api| {
+                    (
+                        api.api.to_string(),
+                        format!("API {} - {}", api.api, api.version),
+                    )
+                })
+                .collect();
+
+            if !targets.is_empty() {
+                log::debug!("Loaded {} API levels from cache", targets.len());
+                return Ok(targets);
+            }
+        }
+
+        // Cache miss - get actually installed system images
         let installed_images = self.list_available_system_images().await?;
 
         // Also track available tags/ABIs for each API level
@@ -796,6 +815,42 @@ impl AndroidManager {
             let api_b: u32 = b.0.parse().unwrap_or(0);
             api_b.cmp(&api_a)
         });
+
+        // Save to cache for future fast loading
+        let api_levels: Vec<crate::models::ApiLevel> = result
+            .iter()
+            .map(|(level_str, display)| {
+                let api: u32 = level_str.parse().unwrap_or(0);
+                let version = if let Some(dash_pos) = display.find(" - ") {
+                    display[dash_pos + 3..].to_string()
+                } else {
+                    format!("API {api}")
+                };
+                crate::models::ApiLevel {
+                    api,
+                    version,
+                    display_name: display.clone(),
+                    system_image_id: format!("android-{api}"),
+                    is_installed: true, // These are installed images
+                    variants: vec![],   // Empty for simple cache
+                }
+            })
+            .collect();
+
+        let cache = crate::app::state::ApiLevelCache {
+            api_levels,
+            timestamp: std::time::SystemTime::now(),
+        };
+
+        if let Err(e) = cache.save_to_disk() {
+            log::warn!("Failed to save API level cache: {e}");
+        } else {
+            log::debug!("Saved {} API levels to cache", result.len());
+        }
+        log::debug!(
+            "list_available_targets completed, returning {} targets",
+            result.len()
+        );
 
         Ok(result)
     }
@@ -893,9 +948,8 @@ impl AndroidManager {
            combined.contains("galaxy") && !combined.contains("fold") && !combined.contains("tablet") ||
            combined.contains("oneplus") ||
            combined.contains("iphone") ||
-           // Determine by screen size (smartphone range)
-           (combined.contains("5") && combined.contains("inch")) ||
-           (combined.contains("6") && combined.contains("inch")) ||
+           // Determine by screen size (smartphone range: 5-6 inches)
+           Self::is_phone_size(&combined) ||
            (combined.contains("pro") && !combined.contains("tablet") && !combined.contains("fold"))
         {
             return "phone".to_string();
@@ -904,10 +958,8 @@ impl AndroidManager {
         // Tablet - tablet devices
         if combined.contains("tablet")
             || combined.contains("pad")
-            || (combined.contains("10") && combined.contains("inch"))
-            || (combined.contains("11") && combined.contains("inch"))
-            || (combined.contains("12") && combined.contains("inch"))
-            || (combined.contains("13") && combined.contains("inch"))
+            // Tablet size range: 10-13 inches
+            || Self::is_tablet_size(&combined)
         {
             return "tablet".to_string();
         }
@@ -939,14 +991,59 @@ impl AndroidManager {
         // Desktop - desktop/large screen devices
         if combined.contains("desktop")
             || combined.contains("foldable") && combined.contains("large")
-            || (combined.contains("15") && combined.contains("inch"))
-            || (combined.contains("17") && combined.contains("inch"))
+            // Large desktop size range: 15+ inches
+            || Self::is_desktop_size(&combined)
         {
             return "desktop".to_string();
         }
 
         // Default is phone (most common)
         "phone".to_string()
+    }
+
+    /// Check if the device description indicates phone-sized screen (5-6 inches)
+    fn is_phone_size(combined: &str) -> bool {
+        if !combined.contains("inch") {
+            return false;
+        }
+
+        // Check for common phone sizes
+        for size in ["5", "6"] {
+            if combined.contains(size) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if the device description indicates tablet-sized screen (10-13 inches)
+    fn is_tablet_size(combined: &str) -> bool {
+        if !combined.contains("inch") {
+            return false;
+        }
+
+        // Check for common tablet sizes
+        for size in ["10", "11", "12", "13"] {
+            if combined.contains(size) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if the device description indicates desktop-sized screen (15+ inches)
+    fn is_desktop_size(combined: &str) -> bool {
+        if !combined.contains("inch") {
+            return false;
+        }
+
+        // Check for large desktop sizes
+        for size in ["15", "17"] {
+            if combined.contains(size) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Get device list filtered by category
@@ -1228,61 +1325,55 @@ impl AndroidManager {
     pub async fn get_device_details(
         &self,
         avd_name: &str,
+        cached_info: Option<(String, u32, String)>, // (device_type, api_level, android_version_name)
     ) -> Result<crate::app::state::DeviceDetails> {
-        // Get basic device info from list
-        let devices = self.list_devices().await?;
-        let device = devices
-            .iter()
-            .find(|d| d.name == avd_name)
-            .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", avd_name))?;
+        log::debug!("Getting device details for AVD: '{avd_name}'");
 
-        // Read AVD configuration for detailed info
+        // Initialize details with cached values or defaults
         let mut details = crate::app::state::DeviceDetails {
-            name: device.name.clone(),
-            status: if device.is_running {
-                "Running".to_string()
-            } else {
-                "Stopped".to_string()
-            },
+            name: avd_name.to_string(),
+            status: "Unknown".to_string(),
             platform: crate::app::Panel::Android,
-            device_type: device.device_type.clone(),
-            api_level_or_version: {
-                // Try dynamic lookup first for better accuracy
-                let version_name = if let Some(dynamic_version) = self
-                    .get_dynamic_android_version_name(device.api_level)
-                    .await
-                {
-                    dynamic_version
-                } else {
-                    // Fall back to hardcoded values
-                    self.get_android_version_name(device.api_level)
-                };
-                format!(
-                    "API {api_level} (Android {version_name})",
-                    api_level = device.api_level,
-                    version_name = version_name
-                )
-            },
+            device_type: cached_info
+                .as_ref()
+                .map(|(dt, _, _)| dt.clone())
+                .unwrap_or_default(),
+            api_level_or_version: cached_info
+                .as_ref()
+                .map(|(_, api, version)| format!("API {api} (Android {version})"))
+                .unwrap_or_default(),
             ram_size: None,
             storage_size: None,
             resolution: None,
             dpi: None,
             device_path: None,
             system_image: None,
-            identifier: device.name.clone(),
+            identifier: avd_name.to_string(),
+        };
+
+        // Check if device is running
+        let running_avds = self.get_running_avd_names().await?;
+        let is_running = running_avds.contains_key(avd_name);
+        details.status = if is_running {
+            "Running".to_string()
+        } else {
+            "Stopped".to_string()
         };
 
         // Read config.ini for additional details
         if let Ok(home_dir) = std::env::var(HOME) {
-            let config_path = std::path::PathBuf::from(home_dir)
+            let config_path = std::path::PathBuf::from(&home_dir)
                 .join(files::android::AVD_DIR)
                 .join("avd")
                 .join(format!("{avd_name}.avd"))
                 .join(files::CONFIG_FILE);
 
+            log::debug!("Checking config path: {config_path:?}");
             if config_path.exists() {
+                log::debug!("Config file found, reading details for {avd_name}");
                 if let Ok(config_content) = tokio::fs::read_to_string(&config_path).await {
                     // Parse configuration values
+                    let mut api_level = 0u32;
                     for line in config_content.lines() {
                         if let Some((key, value)) = line.split_once('=') {
                             match key.trim() {
@@ -1332,17 +1423,58 @@ impl AndroidManager {
                                 }
                                 "image.sysdir.1" => {
                                     details.system_image = Some(value.trim().to_string());
+                                    // Extract API level from image path
+                                    if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(value.trim()) {
+                                        if let Ok(parsed_api) = caps[1].parse::<u32>() {
+                                            api_level = parsed_api;
+                                        }
+                                    }
+                                }
+                                "hw.device.name" => {
+                                    details.device_type = value.trim().to_string();
                                 }
                                 _ => {}
                             }
                         }
+                    }
+
+                    // Set API level and version
+                    if api_level > 0 {
+                        let version_name = self.get_android_version_name(api_level);
+                        details.api_level_or_version =
+                            format!("API {api_level} (Android {version_name})");
                     }
                 }
 
                 // Set device path
                 details.device_path =
                     Some(config_path.parent().unwrap().to_string_lossy().to_string());
+            } else {
+                log::debug!("Config file not found for {avd_name}: {config_path:?}");
+                // Set device path even if config file doesn't exist
+                let avd_path = std::path::PathBuf::from(&home_dir)
+                    .join(files::android::AVD_DIR)
+                    .join(files::android::AVD_SUBDIR)
+                    .join(format!("{avd_name}.avd"));
+                details.device_path = Some(avd_path.to_string_lossy().to_string());
+
+                // Set default values when config is not found
+                if details.ram_size.is_none() {
+                    details.ram_size = Some(format!("{} MB", defaults::DEFAULT_RAM_MB));
+                }
+                if details.storage_size.is_none() {
+                    details.storage_size = Some(format!("{} MB", defaults::DEFAULT_STORAGE_MB));
+                }
+                // Set default device type and API level if not found
+                if details.device_type.is_empty() {
+                    details.device_type = "Unknown Device".to_string();
+                }
+                if details.api_level_or_version.is_empty() {
+                    details.api_level_or_version = "Unknown Version".to_string();
+                }
             }
+        } else {
+            log::warn!("HOME environment variable not set, cannot determine device path");
         }
 
         // Clean up resolution if we only got partial info
@@ -1355,34 +1487,12 @@ impl AndroidManager {
         Ok(details)
     }
 
-    /// Get Android version name from API level (with accurate mapping)
+    /// Get Android version name from API level
+    /// This is a fallback for when dynamic version is not available
     fn get_android_version_name(&self, api_level: u32) -> String {
-        match api_level {
-            36 => "Android 16 Preview".to_string(), // Preview/Beta version
-            35 => "Android 15".to_string(),
-            34 => "Android 14".to_string(),
-            33 => "Android 13".to_string(),
-            32 => "Android 12L".to_string(), // Fixed: was showing "Android 32"
-            31 => "Android 12".to_string(),
-            30 => "Android 11".to_string(),
-            29 => "Android 10".to_string(),
-            28 => "Android 9".to_string(),
-            27 => "Android 8.1".to_string(),
-            26 => "Android 8.0".to_string(),
-            25 => "Android 7.1".to_string(),
-            24 => "Android 7.0".to_string(),
-            23 => "Android 6.0".to_string(),
-            22 => "Android 5.1".to_string(),
-            21 => "Android 5.0".to_string(),
-            20 => "Android 4.4W".to_string(),
-            19 => "Android 4.4".to_string(),
-            18 => "Android 4.3".to_string(),
-            17 => "Android 4.2".to_string(),
-            16 => "Android 4.1".to_string(),
-            15 => "Android 4.0.3".to_string(),
-            14 => "Android 4.0".to_string(),
-            _ => format!("API {api_level}"), // For unknown versions, just show API level
-        }
+        // For unknown versions, just show API level
+        // The actual version names should come from SDK dynamically
+        format!("API {api_level}")
     }
 
     /// Get Android version name from SDK dynamically
@@ -1881,17 +1991,29 @@ impl AndroidManager {
 impl AndroidManager {
     /// Optimized parallel version of list_devices
     pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
-        // Run avdmanager list and get_running_avd_names in parallel
+        // Run avdmanager list, get_running_avd_names, and list_available_targets in parallel
         let avd_list_future = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "avd"]);
         let running_avds_future = self.get_running_avd_names();
+        let targets_future = self.list_available_targets();
 
-        let (avd_output_result, running_avds_result) =
-            tokio::join!(avd_list_future, running_avds_future);
+        let (avd_output_result, running_avds_result, targets_result) =
+            tokio::join!(avd_list_future, running_avds_future, targets_future);
 
         let avd_output = avd_output_result.context("Failed to list Android AVDs")?;
         let running_avds = running_avds_result?;
+        let targets = targets_result.unwrap_or_default();
+
+        // Create a version name lookup map for faster access
+        let mut version_map = std::collections::HashMap::new();
+        for (level_str, display) in targets {
+            if let Ok(level) = level_str.parse::<u32>() {
+                if let Some(dash_pos) = display.find(" - Android ") {
+                    version_map.insert(level, display[dash_pos + 11..].to_string());
+                }
+            }
+        }
 
         // Use the new parser for better testability
         let mut parser = AvdListParser::new(&avd_output);
@@ -1912,10 +2034,17 @@ impl AndroidManager {
                 defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
             );
 
+            // Get Android version name from pre-loaded cache
+            let android_version_name = version_map
+                .get(&api_level)
+                .cloned()
+                .unwrap_or_else(|| self.get_android_version_name(api_level));
+
             devices.push(AndroidDevice {
                 name,
                 device_type: device,
                 api_level,
+                android_version_name,
                 status: if is_running {
                     DeviceStatus::Running
                 } else {
@@ -2498,15 +2627,22 @@ impl AndroidManager {
 
         // If no system images found, create a default list with common API levels
         if !found_system_images {
-            let default_apis = android::ANDROID_DEFAULT_API_LEVELS.to_vec();
-            for api in default_apis {
-                let version_name = self.get_android_version_name(api);
-                let api_level = ApiLevel::new(
-                    api,
-                    version_name,
-                    format!("system-images;android-{api};google_apis;x86_64"),
-                );
-                api_levels_map.insert(api, api_level);
+            // Try to detect the latest API level from SDK, otherwise use a reasonable default
+            let max_api = api_levels_map.keys().max().copied().unwrap_or(35);
+
+            // Generate a range of recent API levels
+            let start_api = max_api.saturating_sub(android::DEFAULT_API_LEVELS_COUNT as u32 - 1);
+            let start_api = start_api.max(android::DEFAULT_MIN_API_LEVEL);
+
+            for api in start_api..=max_api {
+                api_levels_map.entry(api).or_insert_with(|| {
+                    let version_name = self.get_android_version_name(api);
+                    ApiLevel::new(
+                        api,
+                        version_name,
+                        format!("system-images;android-{api};google_apis;x86_64"),
+                    )
+                });
             }
         }
 
@@ -3021,23 +3157,23 @@ mod tests {
         let executor = std::sync::Arc::new(MockCommandExecutor::new());
         let manager = AndroidManager::with_executor(executor).expect("Failed to create manager");
 
-        // Test known API levels
-        assert_eq!(manager.get_android_version_name(34), "Android 14");
-        assert_eq!(manager.get_android_version_name(33), "Android 13");
-        assert_eq!(manager.get_android_version_name(31), "Android 12");
-        assert_eq!(manager.get_android_version_name(30), "Android 11");
-        assert_eq!(manager.get_android_version_name(29), "Android 10");
-        assert_eq!(manager.get_android_version_name(28), "Android 9");
+        // Test dynamic API level fallback format
+        assert_eq!(manager.get_android_version_name(34), "API 34");
+        assert_eq!(manager.get_android_version_name(33), "API 33");
+        assert_eq!(manager.get_android_version_name(31), "API 31");
+        assert_eq!(manager.get_android_version_name(30), "API 30");
+        assert_eq!(manager.get_android_version_name(29), "API 29");
+        assert_eq!(manager.get_android_version_name(28), "API 28");
 
-        // Old API levels
-        assert_eq!(manager.get_android_version_name(21), "Android 5.0");
-        assert_eq!(manager.get_android_version_name(16), "Android 4.1");
+        // Old API levels - now use dynamic format
+        assert_eq!(manager.get_android_version_name(21), "API 21");
+        assert_eq!(manager.get_android_version_name(16), "API 16");
 
-        // Unknown API levels (high values)
+        // Unknown API levels (high values) - all use dynamic format
         assert_eq!(manager.get_android_version_name(40), "API 40");
         assert_eq!(manager.get_android_version_name(100), "API 100");
 
-        // Boundary values
+        // Boundary values - all use dynamic format
         assert_eq!(manager.get_android_version_name(1), "API 1");
         assert_eq!(manager.get_android_version_name(0), "API 0");
 

@@ -22,9 +22,57 @@ use crate::constants::{
 };
 use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::{AndroidDevice, ApiLevel, InstallProgress, IosDevice};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Persistent API level cache stored on disk for faster device creation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiLevelCache {
+    pub api_levels: Vec<ApiLevel>,
+    pub timestamp: std::time::SystemTime,
+}
+
+impl ApiLevelCache {
+    /// Get the API cache file path in the user's config directory
+    fn cache_file_path() -> Result<PathBuf, anyhow::Error> {
+        let config_dir = dirs::config_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+        let emu_config_dir = config_dir.join("emu");
+        fs::create_dir_all(&emu_config_dir)?;
+        Ok(emu_config_dir.join("api_level_cache.json"))
+    }
+
+    /// Load API level cache from disk if it exists and is valid
+    pub fn load_from_disk() -> Option<Self> {
+        let cache_path = Self::cache_file_path().ok()?;
+        if !cache_path.exists() {
+            return None;
+        }
+
+        let cache_content = fs::read_to_string(cache_path).ok()?;
+        let cache: Self = serde_json::from_str(&cache_content).ok()?;
+
+        // Check if cache is still valid (24 hours for API levels)
+        let cache_age = cache.timestamp.elapsed().ok()?;
+        if cache_age.as_secs() < 86400 {
+            Some(cache)
+        } else {
+            None
+        }
+    }
+
+    /// Save API level cache to disk
+    pub fn save_to_disk(&self) -> Result<(), anyhow::Error> {
+        let cache_path = Self::cache_file_path()?;
+        let cache_json = serde_json::to_string_pretty(self)?;
+        fs::write(cache_path, cache_json)?;
+        Ok(())
+    }
+}
 
 /// Represents the two main device panels in the UI.
 /// The application displays Android and iOS devices in separate panels.
@@ -1072,14 +1120,20 @@ impl AppState {
                         device_type: device.device_type.clone(),
                         api_level_or_version: format!(
                             "API {} (Android {})",
-                            device.api_level,
-                            self.get_android_version_name(device.api_level)
+                            device.api_level, device.android_version_name
                         ),
                         ram_size: None,     // Will be filled by manager
                         storage_size: None, // Will be filled by manager
                         resolution: None,   // Will be filled by manager
                         dpi: None,          // Will be filled by manager
-                        device_path: None,  // Will be filled by manager
+                        device_path: {
+                            // Provide default path to avoid loading indicator
+                            if let Ok(home) = std::env::var("HOME") {
+                                Some(format!("{home}/.android/avd/{}.avd", device.name))
+                            } else {
+                                None
+                            }
+                        },
                         system_image: None, // Will be filled by manager
                         identifier: device.name.clone(),
                     })
@@ -1112,6 +1166,12 @@ impl AppState {
     /// Updates the cached device details with new information.
     /// This cache is used to avoid repeated expensive device queries.
     pub fn update_cached_device_details(&mut self, details: DeviceDetails) {
+        log::debug!(
+            "Updating cached device details for '{}' (platform: {:?}, has_path: {})",
+            details.name,
+            details.platform,
+            details.device_path.is_some()
+        );
         self.cached_device_details = Some(details);
     }
 
@@ -1127,27 +1187,6 @@ impl AppState {
             if cached.platform != new_panel {
                 self.cached_device_details = None;
             }
-        }
-    }
-
-    /// Maps Android API level to Android version name.
-    /// Returns a human-readable version string like "14" for API 34.
-    fn get_android_version_name(&self, api_level: u32) -> String {
-        match api_level {
-            35 => "15".to_string(),
-            34 => "14".to_string(),
-            33 => "13".to_string(),
-            32 => "12L".to_string(),
-            31 => "12".to_string(),
-            30 => "11".to_string(),
-            29 => "10".to_string(),
-            28 => "9".to_string(),
-            27 => "8.1".to_string(),
-            26 => "8.0".to_string(),
-            25 => "7.1".to_string(),
-            24 => "7.0".to_string(),
-            23 => "6.0".to_string(),
-            _ => "Unknown".to_string(),
         }
     }
 
@@ -1375,6 +1414,21 @@ impl AppState {
             }
             Panel::Ios => !cache.ios_device_types.is_empty() && !cache.ios_runtimes.is_empty(),
         }
+    }
+
+    /// Get cached Android device info for use in device details.
+    /// This avoids calling list_devices() again when fetching details.
+    pub fn get_cached_android_device(&self, name: &str) -> Option<(String, u32, String)> {
+        self.android_devices
+            .iter()
+            .find(|d| d.name == name)
+            .map(|d| {
+                (
+                    d.device_type.clone(),
+                    d.api_level,
+                    d.android_version_name.clone(),
+                )
+            })
     }
 }
 

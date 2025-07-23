@@ -144,6 +144,7 @@ async fn test_platform_switch_ui_state_persistence() {
     // Add Android devices
     app_state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Device_1".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -153,6 +154,7 @@ async fn test_platform_switch_ui_state_persistence() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Device_2".to_string(),
             device_type: "galaxy_s22".to_string(),
             api_level: 33,
@@ -360,6 +362,7 @@ async fn test_focus_management_integration() {
     // Set up multiple devices
     app_state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Focus_1".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -369,6 +372,7 @@ async fn test_focus_management_integration() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Focus_2".to_string(),
             device_type: "galaxy_s22".to_string(),
             api_level: 33,
@@ -378,6 +382,7 @@ async fn test_focus_management_integration() {
             storage_size: "16384".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Focus_3".to_string(),
             device_type: "pixel_tablet".to_string(),
             api_level: 31,
@@ -461,6 +466,7 @@ async fn test_platform_state_synchronization() {
 
     // Set device states
     let running_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Running_Android".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -471,6 +477,7 @@ async fn test_platform_state_synchronization() {
     };
 
     let stopped_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Stopped_Android".to_string(),
         device_type: "galaxy_s22".to_string(),
         api_level: 33,

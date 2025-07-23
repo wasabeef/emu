@@ -11,6 +11,7 @@ pub mod helpers {
             name: name.to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 33,
+            android_version_name: "13".to_string(),
             status: DeviceStatus::Stopped,
             is_running: false,
             ram_size: "2048".to_string(),
@@ -52,6 +53,7 @@ pub mod helpers {
     pub fn create_android_device_with_api(name: &str, api_level: u32) -> AndroidDevice {
         let mut device = create_test_android_device(name);
         device.api_level = api_level;
+        device.android_version_name = format!("API {api_level}");
         device
     }
 

@@ -617,6 +617,7 @@ mod tests {
             name: "Test Device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 33,
+            android_version_name: "13".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "2048".to_string(),

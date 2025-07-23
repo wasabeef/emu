@@ -37,6 +37,8 @@ pub struct AndroidDevice {
     pub device_type: String,
     /// Android API level (e.g., 34 for Android 14)
     pub api_level: u32,
+    /// Android version name (e.g., "14", "15", "16 Preview")
+    pub android_version_name: String,
     /// Current device status
     pub status: DeviceStatus,
     /// Whether the emulator is currently running
@@ -135,6 +137,7 @@ impl Default for AndroidDevice {
             name: String::new(),
             device_type: String::new(),
             api_level: 0,
+            android_version_name: String::new(),
             status: DeviceStatus::Stopped,
             is_running: false,
             ram_size: DEFAULT_RAM_MB.to_string(),
@@ -153,6 +156,7 @@ mod tests {
             name: "test_device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
+            android_version_name: "14".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "4096".to_string(),
@@ -259,6 +263,7 @@ mod tests {
             name: "test_device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
+            android_version_name: "14".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "4096".to_string(),
@@ -311,6 +316,7 @@ mod tests {
             name: "original".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
+            android_version_name: "14".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "4096".to_string(),
@@ -365,6 +371,7 @@ mod tests {
             name: "test_android".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
+            android_version_name: "14".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "4096".to_string(),
@@ -401,6 +408,7 @@ mod tests {
             name: "android_test".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
+            android_version_name: "14".to_string(),
             status: DeviceStatus::Running,
             is_running: true,
             ram_size: "4096".to_string(),
@@ -472,6 +480,7 @@ mod tests {
             name: "".to_string(), // Empty name
             device_type: "very_long_device_type_name_that_might_cause_issues".to_string(),
             api_level: 0, // Minimum API level
+            android_version_name: "API 0".to_string(),
             status: DeviceStatus::Unknown,
             is_running: false,
             ram_size: "0".to_string(),

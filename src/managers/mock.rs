@@ -208,15 +208,17 @@ impl DeviceManager for MockDeviceManager {
 
         for device in devices.values() {
             if self.platform == "android" {
+                let api_level = device
+                    .api_level
+                    .clone()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or(30);
                 result.push(Box::new(AndroidDevice {
                     name: device.name.clone(),
                     device_type: device.device_type.clone(),
-                    api_level: device
-                        .api_level
-                        .clone()
-                        .unwrap_or_default()
-                        .parse()
-                        .unwrap_or(30),
+                    api_level,
+                    android_version_name: format!("API {api_level}"),
                     status: device.status,
                     is_running: device.status == DeviceStatus::Running,
                     ram_size: "2048".to_string(),

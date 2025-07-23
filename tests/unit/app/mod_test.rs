@@ -85,6 +85,7 @@ async fn test_android_device_operations() {
         // Add Android devices with correct structure
         locked_state.android_devices = vec![
             AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: "test_device_1".to_string(),
                 device_type: "pixel_7".to_string(),
                 api_level: 29,
@@ -94,6 +95,7 @@ async fn test_android_device_operations() {
                 storage_size: "8192M".to_string(),
             },
             AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: "test_device_2".to_string(),
                 device_type: "galaxy_s22".to_string(),
                 api_level: 30,

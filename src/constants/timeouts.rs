@@ -59,8 +59,8 @@ pub const CACHE_EXPIRATION_TIME: Duration = Duration::from_secs(300);
 /// Notification auto-dismiss time
 pub const NOTIFICATION_AUTO_DISMISS_TIME: Duration = Duration::from_secs(5);
 
-/// Default auto-refresh interval
-pub const DEFAULT_AUTO_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
+/// Default auto-refresh interval (extended to reduce UI interruption)
+pub const DEFAULT_AUTO_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Auto-refresh check interval
 pub const AUTO_REFRESH_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
@@ -68,8 +68,8 @@ pub const AUTO_REFRESH_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
 /// Notification check interval  
 pub const NOTIFICATION_CHECK_INTERVAL: Duration = Duration::from_millis(500);
 
-/// Event poll timeout
-pub const EVENT_POLL_TIMEOUT: Duration = Duration::from_millis(100);
+/// Event poll timeout (reduced for ultra-responsive input)
+pub const EVENT_POLL_TIMEOUT: Duration = Duration::from_millis(8);
 
 /// Log task sleep duration
 pub const LOG_TASK_SLEEP_DURATION: Duration = Duration::from_millis(100);

@@ -51,6 +51,7 @@ impl FixtureAndroidManager {
             if trimmed.starts_with("Name: ") {
                 let name = trimmed.strip_prefix("Name: ").unwrap_or("").to_string();
                 current_device = Some(AndroidDevice {
+                    android_version_name: "API 30".to_string(),
                     name,
                     device_type: String::new(),
                     api_level: 30,

@@ -20,7 +20,7 @@ use crate::{
         keywords::{LOG_LEVEL_ERROR, LOG_LEVEL_WARNING},
         performance::{
             API_INSTALLATION_COMPLETION_DELAY, DETAIL_UPDATE_DEBOUNCE, FAST_DETAIL_UPDATE_DEBOUNCE,
-            FAST_LOG_UPDATE_DEBOUNCE, LOG_UPDATE_DEBOUNCE,
+            FAST_LOG_UPDATE_DEBOUNCE, INPUT_BATCH_DELAY, MAX_CONTINUOUS_EVENTS,
         },
         timeouts::{
             AUTO_REFRESH_CHECK_INTERVAL, DEVICE_STOP_WAIT_TIME, EVENT_POLL_TIMEOUT,
@@ -36,6 +36,7 @@ use anyhow::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyModifiers};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -175,38 +176,11 @@ impl App {
         let mut last_notification_check = std::time::Instant::now();
 
         loop {
-            // Check for auto-refresh less frequently (skip if initial loading)
-            if last_auto_refresh_check.elapsed() >= AUTO_REFRESH_CHECK_INTERVAL {
-                let state = self.state.lock().await;
-                let should_refresh = state.should_auto_refresh();
-                let has_devices =
-                    !state.android_devices.is_empty() || !state.ios_devices.is_empty();
-                drop(state);
-
-                // Only refresh if we have devices loaded (not during initial loading)
-                if should_refresh && has_devices {
-                    self.refresh_devices_smart().await?;
-                }
-                last_auto_refresh_check = std::time::Instant::now();
-            }
-
-            // Dismiss expired notifications less frequently
-            if last_notification_check.elapsed() >= NOTIFICATION_CHECK_INTERVAL {
-                let mut state = self.state.lock().await;
-                state.dismiss_expired_notifications();
-                drop(state);
-                last_notification_check = std::time::Instant::now();
-            }
-
-            // Draw UI
-            {
-                let mut state = self.state.lock().await;
-                terminal.draw(|f| ui::render::draw_app(f, &mut state, &ui::Theme::dark()))?;
-            }
-
-            // Direct event processing - wait for input with reasonable timeout
-            if event::poll(EVENT_POLL_TIMEOUT)? {
+            // Priority 1: Process multiple events in batch for ultra-responsive handling
+            let mut events_processed = 0;
+            while events_processed < MAX_CONTINUOUS_EVENTS && event::poll(INPUT_BATCH_DELAY)? {
                 if let Ok(event) = event::read() {
+                    events_processed += 1;
                     match event {
                         CrosstermEvent::Key(key) => {
                             let mut state = self.state.lock().await;
@@ -316,8 +290,8 @@ impl App {
                                             if need_update {
                                                 state.clear_cached_device_details();
                                                 drop(state);
-                                                self.schedule_device_details_update().await;
-                                                self.update_log_stream().await?;
+                                                // Non-blocking: schedule updates in background
+                                                self.schedule_non_blocking_updates();
                                             }
                                         }
                                         KeyCode::Down | KeyCode::Char('j') => {
@@ -357,8 +331,8 @@ impl App {
                                             if need_update {
                                                 state.clear_cached_device_details();
                                                 drop(state);
-                                                self.schedule_device_details_update().await;
-                                                self.update_log_stream().await?;
+                                                // Non-blocking: schedule updates in background
+                                                self.schedule_non_blocking_updates();
                                             }
                                         }
                                         KeyCode::Enter => {
@@ -1308,6 +1282,41 @@ impl App {
                     }
                 }
             }
+
+            // If no events available, poll with longer timeout for efficiency
+            if events_processed == 0 && event::poll(EVENT_POLL_TIMEOUT)? {
+                // Process single event with longer timeout
+                continue;
+            }
+
+            // Priority 2: Render UI after processing input for immediate visual feedback
+            {
+                let mut state = self.state.lock().await;
+                terminal.draw(|f| ui::render::draw_app(f, &mut state, &ui::Theme::dark()))?;
+            }
+
+            // Priority 3: Handle background tasks (less frequently to avoid blocking input)
+            if last_auto_refresh_check.elapsed() >= AUTO_REFRESH_CHECK_INTERVAL {
+                let state = self.state.lock().await;
+                let should_refresh = state.should_auto_refresh();
+                let has_devices =
+                    !state.android_devices.is_empty() || !state.ios_devices.is_empty();
+                drop(state);
+
+                // Only refresh if we have devices loaded (not during initial loading)
+                if should_refresh && has_devices {
+                    self.refresh_devices_smart().await?;
+                }
+                last_auto_refresh_check = std::time::Instant::now();
+            }
+
+            // Handle notification cleanup
+            if last_notification_check.elapsed() >= NOTIFICATION_CHECK_INTERVAL {
+                let mut state = self.state.lock().await;
+                state.dismiss_expired_notifications();
+                drop(state);
+                last_notification_check = std::time::Instant::now();
+            }
         }
     }
 
@@ -1316,25 +1325,24 @@ impl App {
     async fn refresh_devices_incremental(&mut self) -> Result<()> {
         use std::collections::HashMap;
 
-        let mut state = self.state.lock().await;
-        state.is_loading = true;
-        let pending_device = state.get_pending_device_start().cloned();
+        // Step 1: Get existing state (short lock)
+        let (existing_android, existing_ios, pending_device) = {
+            let state = self.state.lock().await;
+            let existing_android: HashMap<String, AndroidDevice> = state
+                .android_devices
+                .iter()
+                .map(|d| (d.name.clone(), d.clone()))
+                .collect();
+            let existing_ios: HashMap<String, IosDevice> = state
+                .ios_devices
+                .iter()
+                .map(|d| (d.name.clone(), d.clone()))
+                .collect();
+            let pending_device = state.get_pending_device_start().cloned();
+            (existing_android, existing_ios, pending_device)
+        };
 
-        // Create maps of existing devices for efficient lookup
-        let existing_android: HashMap<String, AndroidDevice> = state
-            .android_devices
-            .iter()
-            .map(|d| (d.name.clone(), d.clone()))
-            .collect();
-        let existing_ios: HashMap<String, IosDevice> = state
-            .ios_devices
-            .iter()
-            .map(|d| (d.name.clone(), d.clone()))
-            .collect();
-
-        drop(state);
-
-        // Fetch new device lists
+        // Step 2: Fetch new device lists (NO state lock - allows UI updates)
         let new_android_devices = self.android_manager.list_devices().await?;
         let new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
             ios_manager.list_devices().await?
@@ -1342,9 +1350,81 @@ impl App {
             Vec::new()
         };
 
-        let mut state = self.state.lock().await;
+        // Step 3: Process updates in background (NO state lock)
+        let updated_android = self.process_android_updates(existing_android, new_android_devices);
+        let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
 
-        // Update Android devices incrementally
+        // Step 4: Apply changes (short lock)
+        {
+            let mut state = self.state.lock().await;
+            // Check if pending device is now running
+            let mut device_started = None;
+            if let Some(ref pending_name) = pending_device {
+                let device_running = updated_android
+                    .iter()
+                    .any(|d| &d.name == pending_name && d.is_running)
+                    || updated_ios
+                        .iter()
+                        .any(|d| &d.name == pending_name && d.is_running);
+
+                if device_running {
+                    state.add_success_notification(
+                        crate::constants::messages::notifications::DEVICE_START_SUCCESS
+                            .replace("{}", pending_name),
+                    );
+                    state.clear_pending_device_start();
+                    device_started = Some(pending_name.clone());
+                }
+            }
+
+            // Apply updates with safe index bounds checking
+            state.android_devices = updated_android;
+            state.ios_devices = updated_ios;
+
+            // Ensure selected indices are within bounds after update
+            if state.selected_android >= state.android_devices.len() {
+                state.selected_android = state.android_devices.len().saturating_sub(1);
+            }
+            if state.selected_ios >= state.ios_devices.len() {
+                state.selected_ios = state.ios_devices.len().saturating_sub(1);
+            }
+
+            state.is_loading = false;
+            state.mark_refreshed();
+
+            // Check if we need to update device details for started device
+            let need_detail_update = if let Some(ref started_name) = device_started {
+                match state.active_panel {
+                    Panel::Android => state
+                        .android_devices
+                        .get(state.selected_android)
+                        .map(|d| &d.name == started_name)
+                        .unwrap_or(false),
+                    Panel::Ios => state
+                        .ios_devices
+                        .get(state.selected_ios)
+                        .map(|d| &d.name == started_name)
+                        .unwrap_or(false),
+                }
+            } else {
+                false
+            };
+
+            if need_detail_update {
+                drop(state);
+                self.update_device_details().await;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Process Android device updates in background (no state lock)
+    fn process_android_updates(
+        &self,
+        existing_android: std::collections::HashMap<String, AndroidDevice>,
+        new_android_devices: Vec<AndroidDevice>,
+    ) -> Vec<AndroidDevice> {
         let mut updated_android = Vec::with_capacity(new_android_devices.len());
         for new_device in new_android_devices {
             if let Some(existing) = existing_android.get(&new_device.name) {
@@ -1366,8 +1446,15 @@ impl App {
                 updated_android.push(new_device);
             }
         }
+        updated_android
+    }
 
-        // Update iOS devices incrementally
+    /// Process iOS device updates in background (no state lock)
+    fn process_ios_updates(
+        &self,
+        existing_ios: std::collections::HashMap<String, IosDevice>,
+        new_ios_devices: Vec<IosDevice>,
+    ) -> Vec<IosDevice> {
         let mut updated_ios = Vec::with_capacity(new_ios_devices.len());
         for new_device in new_ios_devices {
             if let Some(existing) = existing_ios.get(&new_device.name) {
@@ -1389,54 +1476,7 @@ impl App {
                 updated_ios.push(new_device);
             }
         }
-
-        // Check if pending device is now running
-        let mut device_started = None;
-        if let Some(ref pending_name) = pending_device {
-            let device_running = updated_android
-                .iter()
-                .any(|d| &d.name == pending_name && d.is_running)
-                || updated_ios
-                    .iter()
-                    .any(|d| &d.name == pending_name && d.is_running);
-
-            if device_running {
-                state.add_success_notification(format!("Device '{pending_name}' is now running!"));
-                state.clear_pending_device_start();
-                device_started = Some(pending_name.clone());
-            }
-        }
-
-        state.android_devices = updated_android;
-        state.ios_devices = updated_ios;
-        state.is_loading = false;
-        state.mark_refreshed();
-
-        // Check if we need to update device details for started device
-        let need_detail_update = if let Some(ref started_name) = device_started {
-            match state.active_panel {
-                Panel::Android => state
-                    .android_devices
-                    .get(state.selected_android)
-                    .map(|d| &d.name == started_name)
-                    .unwrap_or(false),
-                Panel::Ios => state
-                    .ios_devices
-                    .get(state.selected_ios)
-                    .map(|d| &d.name == started_name)
-                    .unwrap_or(false),
-            }
-        } else {
-            false
-        };
-
-        drop(state);
-
-        if need_detail_update {
-            self.update_device_details().await;
-        }
-
-        Ok(())
+        updated_ios
     }
 
     async fn toggle_device(&mut self) -> Result<()> {
@@ -1632,6 +1672,7 @@ impl App {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn update_log_stream(&mut self) -> Result<()> {
         // Clone necessary data for the delayed task
         let state_clone = Arc::clone(&self.state);
@@ -2644,11 +2685,23 @@ impl App {
 
         // Execute as a true background task (no UI blocking)
         tokio::spawn(async move {
-            // Wait briefly for UI to display before loading
-            tokio::time::sleep(LOG_UPDATE_DEBOUNCE).await;
+            // Pre-load API Level cache in background for faster device creation
+            let _ = android_manager.list_available_targets().await;
 
-            // Load Android device list
-            match android_manager.list_devices().await {
+            // Load Android and iOS devices in parallel for faster startup
+            let android_future = android_manager.list_devices_parallel();
+            let ios_future = async {
+                if let Some(ref ios_manager) = ios_manager {
+                    ios_manager.list_devices().await
+                } else {
+                    Ok(vec![])
+                }
+            };
+
+            let (android_result, ios_result) = tokio::join!(android_future, ios_future);
+
+            // Process Android devices immediately
+            match android_result {
                 Ok(android_devices) => {
                     let mut state = state_clone.lock().await;
                     state.android_devices = android_devices;
@@ -2672,10 +2725,12 @@ impl App {
                                     state.android_devices.get(state.selected_android)
                                 {
                                     let device_name = device.name.clone();
+                                    let cached_info = state.get_cached_android_device(&device_name);
                                     drop(state);
 
-                                    if let Ok(details) =
-                                        android_manager_clone.get_device_details(&device_name).await
+                                    if let Ok(details) = android_manager_clone
+                                        .get_device_details(&device_name, cached_info)
+                                        .await
                                     {
                                         let mut state = state_clone2.lock().await;
                                         state.update_cached_device_details(details);
@@ -2683,6 +2738,31 @@ impl App {
                                 }
                             }
                         });
+                    }
+
+                    // Start log streaming if device is running
+                    {
+                        let state = state_clone.lock().await;
+                        let should_start_logs = state.active_panel == Panel::Android
+                            && state
+                                .android_devices
+                                .get(state.selected_android)
+                                .map(|d| d.is_running)
+                                .unwrap_or(false);
+                        drop(state);
+
+                        if should_start_logs {
+                            let state_clone3 = Arc::clone(&state_clone);
+                            let android_manager_clone2 = android_manager.clone();
+                            tokio::spawn(async move {
+                                Self::update_log_stream_internal(
+                                    state_clone3,
+                                    android_manager_clone2,
+                                    None,
+                                )
+                                .await;
+                            });
+                        }
                     }
                 }
                 Err(e) => {
@@ -2693,64 +2773,83 @@ impl App {
                 }
             }
 
-            // Load iOS device list (macOS only)
-            if let Some(ios_manager) = ios_manager {
-                match ios_manager.list_devices().await {
-                    Ok(ios_devices) => {
-                        let mut state = state_clone.lock().await;
-                        state.ios_devices = ios_devices;
+            // Process iOS devices from parallel result
+            match ios_result {
+                Ok(ios_devices) => {
+                    let mut state = state_clone.lock().await;
+                    state.ios_devices = ios_devices;
 
-                        // Get details for first device if selected
-                        let should_update_details = state.active_panel == Panel::Ios
-                            && !state.ios_devices.is_empty()
-                            && state.cached_device_details.is_none();
+                    // Get details for first device if selected
+                    let should_update_details = state.active_panel == Panel::Ios
+                        && !state.ios_devices.is_empty()
+                        && state.cached_device_details.is_none();
+                    drop(state);
+
+                    if should_update_details {
+                        // Update device details asynchronously
+                        let state_clone2 = Arc::clone(&state_clone);
+                        tokio::spawn(async move {
+                            {
+                                let state = state_clone2.lock().await;
+                                if let Some(device) = state.ios_devices.get(state.selected_ios) {
+                                    // Generate iOS device details from basic info
+                                    let details = crate::app::state::DeviceDetails {
+                                        name: device.name.clone(),
+                                        status: if device.is_running {
+                                            "Running".to_string()
+                                        } else {
+                                            "Stopped".to_string()
+                                        },
+                                        platform: Panel::Ios,
+                                        device_type: device.device_type.clone(),
+                                        api_level_or_version: format!("iOS {}", device.ios_version),
+                                        ram_size: None,
+                                        storage_size: None,
+                                        resolution: None,
+                                        dpi: None,
+                                        device_path: None,
+                                        system_image: None,
+                                        identifier: device.udid.clone(),
+                                    };
+                                    drop(state);
+
+                                    let mut state = state_clone2.lock().await;
+                                    state.update_cached_device_details(details);
+                                }
+                            }
+                        });
+                    }
+
+                    // Start log streaming if device is running (iOS)
+                    {
+                        let state = state_clone.lock().await;
+                        let should_start_logs = state.active_panel == Panel::Ios
+                            && state
+                                .ios_devices
+                                .get(state.selected_ios)
+                                .map(|d| d.is_running)
+                                .unwrap_or(false);
                         drop(state);
 
-                        if should_update_details {
-                            // Update device details asynchronously
-                            let state_clone2 = Arc::clone(&state_clone);
-                            let _ios_manager_clone = ios_manager.clone();
+                        if should_start_logs {
+                            let state_clone3 = Arc::clone(&state_clone);
+                            let ios_manager_clone = ios_manager.clone();
                             tokio::spawn(async move {
-                                {
-                                    let state = state_clone2.lock().await;
-                                    if let Some(device) = state.ios_devices.get(state.selected_ios)
-                                    {
-                                        // Generate iOS device details from basic info
-                                        let details = crate::app::state::DeviceDetails {
-                                            name: device.name.clone(),
-                                            status: if device.is_running {
-                                                "Running".to_string()
-                                            } else {
-                                                "Stopped".to_string()
-                                            },
-                                            platform: Panel::Ios,
-                                            device_type: device.device_type.clone(),
-                                            api_level_or_version: format!(
-                                                "iOS {}",
-                                                device.ios_version
-                                            ),
-                                            ram_size: None,
-                                            storage_size: None,
-                                            resolution: None,
-                                            dpi: None,
-                                            device_path: None,
-                                            system_image: None,
-                                            identifier: device.udid.clone(),
-                                        };
-                                        drop(state);
-
-                                        let mut state = state_clone2.lock().await;
-                                        state.update_cached_device_details(details);
-                                    }
-                                }
+                                Self::update_log_stream_internal(
+                                    state_clone3,
+                                    AndroidManager::new()
+                                        .unwrap_or_else(|_| AndroidManager::new().unwrap()),
+                                    ios_manager_clone,
+                                )
+                                .await;
                             });
                         }
                     }
-                    Err(e) => {
-                        let mut state = state_clone.lock().await;
-                        state.add_error_notification(format!("Failed to load iOS devices: {e}"));
-                        drop(state);
-                    }
+                }
+                Err(e) => {
+                    let mut state = state_clone.lock().await;
+                    state.add_error_notification(format!("Failed to load iOS devices: {e}"));
+                    drop(state);
                 }
             }
         });
@@ -2758,26 +2857,38 @@ impl App {
 
     /// Update device details for the currently selected device
     async fn update_device_details(&mut self) {
-        let (active_panel, device_identifier) = {
+        let (active_panel, device_identifier, cached_device_info) = {
             let state = self.state.lock().await;
-            let identifier = match state.active_panel {
-                Panel::Android => state
-                    .android_devices
-                    .get(state.selected_android)
-                    .map(|d| d.name.clone()),
-                Panel::Ios => state
-                    .ios_devices
-                    .get(state.selected_ios)
-                    .map(|d| d.udid.clone()),
+            let (identifier, cached_info) = match state.active_panel {
+                Panel::Android => {
+                    let device_name = state
+                        .android_devices
+                        .get(state.selected_android)
+                        .map(|d| d.name.clone());
+                    let cached_info = device_name
+                        .as_ref()
+                        .and_then(|name| state.get_cached_android_device(name));
+                    (device_name, cached_info)
+                }
+                Panel::Ios => (
+                    state
+                        .ios_devices
+                        .get(state.selected_ios)
+                        .map(|d| d.udid.clone()),
+                    None,
+                ),
             };
-            (state.active_panel, identifier)
+            (state.active_panel, identifier, cached_info)
         };
 
         if let Some(identifier) = device_identifier {
             // Get detailed information asynchronously
             match active_panel {
                 Panel::Android => {
-                    if let Ok(details) = self.android_manager.get_device_details(&identifier).await
+                    if let Ok(details) = self
+                        .android_manager
+                        .get_device_details(&identifier, cached_device_info)
+                        .await
                     {
                         let mut state = self.state.lock().await;
                         state.update_cached_device_details(details);
@@ -2792,6 +2903,7 @@ impl App {
     }
 
     /// Schedule device details update with delay to avoid performance issues
+    #[allow(dead_code)]
     async fn schedule_device_details_update(&mut self) {
         // Cancel any pending detail update
         if let Some(handle) = self.detail_update_handle.take() {
@@ -2943,38 +3055,100 @@ impl App {
         android_manager: AndroidManager,
         ios_manager: Option<IosManager>,
     ) {
-        let (active_panel, device_identifier) = {
+        let (active_panel, device_identifier, cached_device_info) = {
             let state_lock = state.lock().await;
-            let identifier = match state_lock.active_panel {
-                Panel::Android => state_lock
-                    .android_devices
-                    .get(state_lock.selected_android)
-                    .map(|d| d.name.clone()),
-                Panel::Ios => state_lock
-                    .ios_devices
-                    .get(state_lock.selected_ios)
-                    .map(|d| d.udid.clone()),
+            let (identifier, cached_info) = match state_lock.active_panel {
+                Panel::Android => {
+                    let device_name = state_lock
+                        .android_devices
+                        .get(state_lock.selected_android)
+                        .map(|d| d.name.clone());
+                    let cached_info = device_name
+                        .as_ref()
+                        .and_then(|name| state_lock.get_cached_android_device(name));
+                    (device_name, cached_info)
+                }
+                Panel::Ios => (
+                    state_lock
+                        .ios_devices
+                        .get(state_lock.selected_ios)
+                        .map(|d| d.udid.clone()),
+                    None,
+                ),
             };
-            (state_lock.active_panel, identifier)
+            log::debug!(
+                "update_device_details_internal: panel={:?}, selected_index={}, identifier={:?}",
+                state_lock.active_panel,
+                if state_lock.active_panel == Panel::Android {
+                    state_lock.selected_android
+                } else {
+                    state_lock.selected_ios
+                },
+                identifier
+            );
+            (state_lock.active_panel, identifier, cached_info)
         };
 
         if let Some(identifier) = device_identifier {
             // Get detailed information asynchronously
             match active_panel {
                 Panel::Android => {
-                    if let Ok(details) = android_manager.get_device_details(&identifier).await {
-                        let mut state_lock = state.lock().await;
-                        state_lock.update_cached_device_details(details);
+                    match android_manager
+                        .get_device_details(&identifier, cached_device_info)
+                        .await
+                    {
+                        Ok(details) => {
+                            log::debug!("Got device details successfully: RAM={:?}, Storage={:?}, Path={:?}", 
+                            details.ram_size, details.storage_size, details.device_path);
+                            let mut state_lock = state.lock().await;
+                            state_lock.update_cached_device_details(details);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to get device details for '{identifier}': {e}");
+                        }
                     }
                 }
                 Panel::Ios => {
-                    // TODO: Implement iOS device details
-                    if let Some(_ios_manager) = ios_manager {
-                        // For now, just use basic details from state
+                    if let Some(ios_manager) = ios_manager {
+                        match ios_manager.get_device_details(&identifier).await {
+                            Ok(details) => {
+                                let mut state_lock = state.lock().await;
+                                state_lock.update_cached_device_details(details);
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "Failed to get iOS device details for '{identifier}': {e}"
+                                );
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Schedule non-blocking updates for device details and log streams
+    /// to prevent UI stuttering during continuous navigation
+    fn schedule_non_blocking_updates(&self) {
+        let state_clone = Arc::clone(&self.state);
+        let android_manager = self.android_manager.clone();
+        let ios_manager = self.ios_manager.clone();
+
+        tokio::spawn(async move {
+            // Small delay to prevent overwhelming with rapid navigation
+            tokio::time::sleep(Duration::from_millis(25)).await;
+
+            // Update device details first
+            Self::update_device_details_internal(
+                state_clone.clone(),
+                android_manager.clone(),
+                ios_manager.clone(),
+            )
+            .await;
+
+            // Then update log stream
+            Self::update_log_stream_internal(state_clone, android_manager, ios_manager).await;
+        });
     }
 }
 
@@ -3181,6 +3355,7 @@ mod tests {
                     name: "TestDevice".to_string(),
                     device_type: "pixel_7".to_string(),
                     api_level: 33,
+                    android_version_name: "13".to_string(),
                     status: DeviceStatus::Stopped,
                     is_running: false,
                     ram_size: "2048".to_string(),

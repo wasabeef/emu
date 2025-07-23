@@ -40,6 +40,7 @@ impl UiTestFixture {
 
         // Setup Android devices
         let android_device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_android_device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -114,6 +115,7 @@ fn test_main_layout_with_android_devices() {
     let mut app_state = AppState::new();
     app_state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Pixel_7_API_34".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -123,6 +125,7 @@ fn test_main_layout_with_android_devices() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Galaxy_S22_API_33".to_string(),
             device_type: "galaxy_s22".to_string(),
             api_level: 33,
@@ -211,6 +214,7 @@ fn test_panel_focus_and_selection() {
     let mut app_state = AppState::new();
     app_state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "TestDevice1".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -220,6 +224,7 @@ fn test_panel_focus_and_selection() {
             storage_size: "8G".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "TestDevice2".to_string(),
             device_type: "galaxy_s22".to_string(),
             api_level: 33,
@@ -279,6 +284,7 @@ fn test_responsive_layout_different_sizes() {
 
         let mut app_state = AppState::new();
         app_state.android_devices = vec![AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "TestDevice".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -314,6 +320,7 @@ fn test_device_details_panel_rendering() {
 
     let mut app_state = AppState::new();
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Pixel_7_Details_Test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -425,6 +432,7 @@ fn test_long_device_names_rendering() {
 
     let mut app_state = AppState::new();
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Very_Long_Device_Name_That_Might_Cause_Layout_Issues_Android_API_34".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -462,6 +470,7 @@ fn test_many_devices_rendering() {
     // Create many devices to test scrolling
     for i in 0..20 {
         app_state.android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Device_{i:02}"),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -544,6 +553,7 @@ fn test_text_truncation_and_layout() {
 
     let mut app_state = AppState::new();
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Device_With_Extremely_Long_Name_That_Should_Be_Truncated".to_string(),
         device_type: "pixel_7_pro_max_ultra".to_string(),
         api_level: 34,
@@ -602,6 +612,7 @@ fn test_buffer_text_extraction() {
 
     let mut app_state = AppState::new();
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "ExtractTest".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

@@ -12,7 +12,7 @@
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
 
 #[cfg(target_os = "macos")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // # xcrun simctl Command Reference
 //
@@ -321,21 +321,13 @@ impl IosManager {
     /// Creates a new IosManager instance with a custom command executor.
     /// This is primarily used for testing with mock executors.
     pub fn with_executor(executor: Arc<dyn CommandExecutor>) -> Result<Self> {
+        // Quick check for Xcode Command Line Tools
         if which::which(XCRUN).is_err() {
             bail!("Xcode Command Line Tools not found. Please install Xcode or run 'xcode-select --install'.")
         }
 
-        // Verify simctl is available
-        if let Err(e) = std::process::Command::new(XCRUN)
-            .args([SIMCTL, "help"])
-            .output()
-        {
-            bail!(
-                "Failed to access iOS Simulator: {}. Make sure Xcode is properly installed.",
-                e
-            )
-        }
-
+        // Skip expensive simctl verification at startup - will be validated on first use
+        // This improves startup performance significantly (saves ~30 seconds)
         Ok(Self {
             command_executor: executor,
         })
@@ -1003,7 +995,17 @@ impl DeviceManager for IosManager {
     }
 
     async fn is_available(&self) -> bool {
-        which::which("xcrun").is_ok()
+        // First quick check for xcrun availability
+        if which::which("xcrun").is_err() {
+            return false;
+        }
+
+        // Lazy validation: check simctl on first use (not at startup)
+        // This improves startup performance while maintaining functionality
+        self.command_executor
+            .run(&PathBuf::from("xcrun"), &["simctl", "help"])
+            .await
+            .is_ok()
     }
 }
 
@@ -1066,6 +1068,13 @@ impl IosManager {
     }
 
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
+        bail!("iOS simulator management is only available on macOS")
+    }
+
+    pub async fn get_device_details(
+        &self,
+        _udid: &str,
+    ) -> Result<crate::app::state::DeviceDetails> {
         bail!("iOS simulator management is only available on macOS")
     }
 }

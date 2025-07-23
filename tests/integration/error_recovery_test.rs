@@ -208,6 +208,7 @@ async fn test_app_state_inconsistency_recovery() {
 
     // Create inconsistent state (non-existent index)
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Recovery_Device_1".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -453,6 +454,7 @@ async fn test_ui_state_recovery_from_errors() {
 
     // Test when devices are recovered
     app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Recovered_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

@@ -10,6 +10,7 @@ fn test_complete_device_management_workflow() {
 
     // Setup initial devices
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Pixel_7_API_31".to_string(),
         device_type: "phone".to_string(),
         api_level: 31,
@@ -44,6 +45,7 @@ fn test_complete_device_management_workflow() {
 
     // Test circular navigation with multiple devices
     state.android_devices.push(AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Pixel_8_API_33".to_string(),
         device_type: "phone".to_string(),
         api_level: 33,
@@ -201,6 +203,7 @@ fn test_performance_critical_operations() {
     // Test rapid device navigation
     state.android_devices = (0..100)
         .map(|i| AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Device{i}"),
             device_type: "phone".to_string(),
             api_level: 30 + (i % 5) as u32,
@@ -253,6 +256,7 @@ fn test_state_consistency_during_complex_operations() {
     // Set up complex state
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -262,6 +266,7 @@ fn test_state_consistency_during_complex_operations() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 31,
