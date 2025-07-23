@@ -62,6 +62,7 @@ fn test_ios_device_json_round_trip() -> Result<()> {
 fn test_device_status_consistency() {
     // Create devices with consistent status/is_running combinations
     let running_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "running_test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -72,6 +73,7 @@ fn test_device_status_consistency() {
     };
 
     let stopped_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "stopped_test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -94,6 +96,7 @@ fn test_device_status_consistency() {
 fn test_android_device_edge_cases() {
     // Test with minimum valid values
     let minimal_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "a".to_string(), // Single character name
         device_type: "generic".to_string(),
         api_level: 1, // Minimum API level
@@ -110,6 +113,7 @@ fn test_android_device_edge_cases() {
 
     // Test with maximum reasonable values
     let maximal_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "a".repeat(100), // Long name
         device_type: "automotive_desktop_large".to_string(),
         api_level: 50, // High API level
@@ -156,6 +160,7 @@ fn test_ios_device_edge_cases() {
 #[test]
 fn test_empty_values_handling() {
     let empty_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: String::new(),
         device_type: String::new(),
         api_level: 0,
@@ -202,6 +207,7 @@ fn test_device_status_transitions() {
     for (from_status, to_status) in valid_transitions {
         // Create device with initial status
         let mut device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "transition_test".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -233,6 +239,7 @@ fn test_resource_size_formats() {
     for ram in &ram_formats {
         for storage in &storage_formats {
             let device = AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: "format_test".to_string(),
                 device_type: "pixel_7".to_string(),
                 api_level: 34,
@@ -253,6 +260,7 @@ fn test_resource_size_formats() {
 #[test]
 fn test_device_cloning() {
     let original = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "clone_test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -278,6 +286,7 @@ fn test_device_cloning() {
 #[test]
 fn test_device_debug_formatting() {
     let device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "debug_test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -302,6 +311,7 @@ fn test_device_debug_formatting() {
 #[test]
 fn test_polymorphic_device_handling() {
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "android_poly".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

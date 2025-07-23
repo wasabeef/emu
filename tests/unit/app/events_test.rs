@@ -132,6 +132,7 @@ async fn test_device_creation_mode_workflow() {
 
     // Simulation after device creation
     let new_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Test_Integration_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -269,6 +270,7 @@ async fn test_state_resource_management_integration() {
     let mut android_devices = Vec::new();
     for i in 0..100 {
         android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Android_Device_{i}"),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -303,6 +305,7 @@ async fn test_state_resource_management_integration() {
 fn create_test_android_devices() -> Vec<AndroidDevice> {
     vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Android_1".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -312,6 +315,7 @@ fn create_test_android_devices() -> Vec<AndroidDevice> {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Android_2".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -321,6 +325,7 @@ fn create_test_android_devices() -> Vec<AndroidDevice> {
             storage_size: "16384M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Android_3".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,

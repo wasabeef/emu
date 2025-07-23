@@ -30,6 +30,7 @@ async fn test_app_state_device_management() -> Result<()> {
     // Add Android devices
     let android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Pixel_7".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -39,6 +40,7 @@ async fn test_app_state_device_management() -> Result<()> {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Galaxy_S24".to_string(),
             device_type: "galaxy_s24".to_string(),
             api_level: 34,
@@ -233,6 +235,7 @@ async fn test_app_state_device_selection() -> Result<()> {
     // Add test devices first
     let android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device_1".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -242,6 +245,7 @@ async fn test_app_state_device_selection() -> Result<()> {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device_2".to_string(),
             device_type: "galaxy_s24".to_string(),
             api_level: 34,
@@ -519,6 +523,7 @@ async fn test_app_state_comprehensive_workflow() -> Result<()> {
 
     // 2. Add discovered devices
     let android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Pixel_7_API_34".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

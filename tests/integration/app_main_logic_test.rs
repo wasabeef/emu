@@ -41,6 +41,7 @@ async fn test_device_selection() {
     // Add Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_device_1".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -50,6 +51,7 @@ async fn test_device_selection() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_device_2".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -181,6 +183,7 @@ async fn test_device_list_updates() {
 
     // Add Android device
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "new_device".to_string(),
         device_type: "pixel_5".to_string(),
         api_level: 31,
@@ -219,6 +222,7 @@ async fn test_panel_switch_selection_persistence() {
     // Add Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "android_1".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -228,6 +232,7 @@ async fn test_panel_switch_selection_persistence() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "android_2".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -270,6 +275,7 @@ async fn test_panel_switch_selection_persistence() {
 #[tokio::test]
 async fn test_device_status_updates() {
     let mut android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_device".to_string(),
         device_type: "pixel_4".to_string(),
         api_level: 30,
@@ -302,6 +308,7 @@ async fn test_device_status_updates() {
 #[tokio::test]
 async fn test_device_details() {
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_device_details".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 33,

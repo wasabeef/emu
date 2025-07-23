@@ -117,6 +117,7 @@ fn test_device_selection_and_details_sync() {
     // Set up mock Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device1".to_string(),
             device_type: "phone".to_string(),
             api_level: 30,
@@ -126,6 +127,7 @@ fn test_device_selection_and_details_sync() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 31,
@@ -280,6 +282,7 @@ fn test_panel_switching_state_consistency() {
 
     // Set up devices for both panels
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Android1".to_string(),
         device_type: "phone".to_string(),
         api_level: 30,

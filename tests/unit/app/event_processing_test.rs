@@ -51,6 +51,7 @@ async fn test_event_processing_device_selection() {
         let mut state = state.lock().await;
         // Add Android devices
         state.android_devices.push(AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -79,6 +80,7 @@ async fn test_event_processing_device_navigation() {
         // Add multiple devices
         for i in 0..5 {
             state.android_devices.push(AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("device_{i}"),
                 device_type: "pixel_7".to_string(),
                 api_level: 34,
@@ -254,6 +256,7 @@ async fn test_event_processing_device_operations() {
 
         // Add devices
         let device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "operation_device".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -302,6 +305,7 @@ async fn test_event_processing_performance() {
             // Add device
             if i % 100 == 0 {
                 state.android_devices.push(AndroidDevice {
+                    android_version_name: "API 30".to_string(),
                     name: format!("perf_device_{i}"),
                     device_type: "pixel_7".to_string(),
                     api_level: 34,

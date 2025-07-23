@@ -22,6 +22,7 @@ fn create_state_with_devices() -> AppState {
     // Add Android devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Pixel_7_API_34".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -31,6 +32,7 @@ fn create_state_with_devices() -> AppState {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Tablet_API_33".to_string(),
             device_type: "tablet".to_string(),
             api_level: 33,

@@ -12,6 +12,7 @@ use emu::models::{AndroidDevice, DeviceError, DeviceStatus, IosDevice, Platform}
 #[tokio::test]
 async fn test_android_device_model() -> Result<()> {
     let device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Test_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -148,6 +149,7 @@ async fn test_device_info_model() -> Result<()> {
 async fn test_device_validation() -> Result<()> {
     // Test valid Android device
     let valid_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Valid_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 30,
@@ -183,6 +185,7 @@ async fn test_device_validation() -> Result<()> {
 #[tokio::test]
 async fn test_device_serialization() -> Result<()> {
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Serialization_Test".to_string(),
         device_type: "pixel_6".to_string(),
         api_level: 33,
@@ -207,6 +210,7 @@ async fn test_device_serialization() -> Result<()> {
 async fn test_platform_specific_features() -> Result<()> {
     // Test Android-specific features
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Android_Features_Test".to_string(),
         device_type: "wear_round".to_string(),
         api_level: 30,
@@ -271,6 +275,7 @@ async fn test_device_edge_cases() -> Result<()> {
 
     // Empty/minimal Android device
     let minimal_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "".to_string(),
         device_type: "".to_string(),
         api_level: 21, // Minimum API level
@@ -285,6 +290,7 @@ async fn test_device_edge_cases() -> Result<()> {
 
     // Maximum values Android device
     let max_android = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "A".repeat(100), // Long name
         device_type: "custom_device_type".to_string(),
         api_level: 35, // High API level
@@ -319,6 +325,7 @@ async fn test_device_edge_cases() -> Result<()> {
 async fn test_model_consistency() -> Result<()> {
     // Test consistency between is_running flag and status
     let consistent_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Consistent_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -332,6 +339,7 @@ async fn test_model_consistency() -> Result<()> {
     assert!(consistent_device.is_running());
 
     let stopped_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Stopped_Device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

@@ -14,6 +14,7 @@ async fn test_log_streaming_device_selection_change() {
     // Setup test devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device_A".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -23,6 +24,7 @@ async fn test_log_streaming_device_selection_change() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Device_B".to_string(),
             device_type: "phone".to_string(),
             api_level: 32,
@@ -168,6 +170,7 @@ async fn test_log_streaming_state_consistency() {
     // Setup devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Device_1".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -177,6 +180,7 @@ async fn test_log_streaming_state_consistency() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Test_Device_2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 32,
@@ -250,6 +254,7 @@ async fn test_mock_log_streaming_task_lifecycle() {
     {
         let mut state_lock = state.lock().await;
         state_lock.android_devices = vec![AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Mock_Device".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -347,6 +352,7 @@ async fn test_log_streaming_edge_cases() {
     // Test 2: Device list with stopped devices only
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Stopped_Device_1".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -356,6 +362,7 @@ async fn test_log_streaming_edge_cases() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Stopped_Device_2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 32,

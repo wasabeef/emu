@@ -25,28 +25,10 @@ pub const UNKNOWN_CATEGORY_MAX: u32 = 899;
 pub const BASE_PRIORITY_OFFSET: u32 = 100;
 pub const PRIORITY_VERSION_DIVIDER: u32 = 25;
 
-/// Screen size detection patterns
-pub const SCREEN_SIZE_5_INCH: &str = "5";
-pub const SCREEN_SIZE_6_INCH: &str = "6";
-pub const SCREEN_SIZE_10_INCH: &str = "10";
-pub const SCREEN_SIZE_11_INCH: &str = "11";
-pub const SCREEN_SIZE_12_INCH: &str = "12";
-pub const SCREEN_SIZE_13_INCH: &str = "13";
-pub const SCREEN_SIZE_15_INCH: &str = "15";
-pub const SCREEN_SIZE_17_INCH: &str = "17";
+/// Screen size detection patterns - now handled dynamically in size check methods
 pub const INCH_KEYWORD: &str = "inch";
 
-/// Android API version mappings (latest versions)
-pub const API_35_VERSION: &str = "15";
-pub const API_34_VERSION: &str = "14";
-pub const API_33_VERSION: &str = "13";
-pub const API_32_VERSION: &str = "12L";
-pub const API_31_VERSION: &str = "12";
-pub const API_30_VERSION: &str = "11";
-pub const API_29_VERSION: &str = "10";
-pub const API_28_VERSION: &str = "9";
-pub const API_27_VERSION: &str = "8.1";
-pub const API_26_VERSION: &str = "8.0";
+// API version mappings removed - now fetched dynamically from SDK
 
 /// Default storage fallback value
 pub const DEFAULT_STORAGE_FALLBACK: &str = "512M";
@@ -55,8 +37,10 @@ pub const DEFAULT_STORAGE_FALLBACK: &str = "512M";
 pub const AVD_CREATION_TIMEOUT_SECS: u64 = 2;
 pub const DEVICE_STATUS_CHECK_TIMEOUT_SECS: u64 = 2;
 
-/// Default API levels to use when system images are not available
-pub const ANDROID_DEFAULT_API_LEVELS: [u32; 8] = [35, 34, 33, 32, 31, 30, 29, 28];
+/// Default API levels range when system images are not available
+/// Shows latest 8 API levels based on current max
+pub const DEFAULT_API_LEVELS_COUNT: usize = 8;
+pub const DEFAULT_MIN_API_LEVEL: u32 = 21; // Android 5.0
 
 /// Android emulator port configuration
 pub const EMULATOR_PORT_BASE: u16 = 5554;

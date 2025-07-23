@@ -548,7 +548,7 @@ async fn test_device_details_lifecycle() {
     // so it cannot be fully tested with MockCommandExecutor.
     // Here we only verify basic operation.
     let device_details_result = android_manager
-        .get_device_details("Detail_Test_Device")
+        .get_device_details("Detail_Test_Device", None)
         .await;
 
     // Confirm an error occurs (because MockCommandExecutor doesn't support cat command)

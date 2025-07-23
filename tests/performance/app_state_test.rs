@@ -53,6 +53,7 @@ async fn test_app_state_device_lists() {
 
     // Add Android device
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -284,6 +285,7 @@ async fn test_app_state_device_status_transitions() {
 
     // Add device with different statuses
     let mut android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,

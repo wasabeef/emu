@@ -39,6 +39,7 @@ fn test_android_panel_rendering() {
     // Add Android device
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_device_1".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -48,6 +49,7 @@ fn test_android_panel_rendering() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "test_device_2".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -235,6 +237,7 @@ fn test_different_device_states_rendering() {
     // Add devices with different states
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "stopped_device".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -244,6 +247,7 @@ fn test_different_device_states_rendering() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "running_device".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -282,6 +286,7 @@ fn test_long_device_names_rendering() {
     let long_name = "a".repeat(100);
 
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: long_name,
         device_type: "pixel_4".to_string(),
         api_level: 30,
@@ -337,6 +342,7 @@ fn test_different_selection_indices() {
     // Add multiple devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_0".to_string(),
             device_type: "pixel_4".to_string(),
             api_level: 30,
@@ -346,6 +352,7 @@ fn test_different_selection_indices() {
             storage_size: "8192M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_1".to_string(),
             device_type: "pixel_6".to_string(),
             api_level: 33,
@@ -355,6 +362,7 @@ fn test_different_selection_indices() {
             storage_size: "16384M".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "device_2".to_string(),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -389,6 +397,7 @@ fn test_out_of_bounds_selection_index() {
 
     // Add only one device
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "single_device".to_string(),
         device_type: "pixel_4".to_string(),
         api_level: 30,

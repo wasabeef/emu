@@ -21,6 +21,7 @@ async fn test_basic_panel_switching() {
 
     // Setup test devices
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Android_Test_Device".to_string(),
         device_type: "phone".to_string(),
         api_level: 31,
@@ -71,6 +72,7 @@ async fn test_panel_switching_log_coordination() {
     // Setup test devices
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Device_1".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -80,6 +82,7 @@ async fn test_panel_switching_log_coordination() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Android_Device_2".to_string(),
             device_type: "tablet".to_string(),
             api_level: 32,
@@ -157,6 +160,7 @@ async fn test_panel_switching_device_details() {
 
     // Setup test devices
     state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Android_Detail_Test".to_string(),
         device_type: "phone".to_string(),
         api_level: 31,
@@ -247,6 +251,7 @@ async fn test_panel_switching_performance() {
         let mut state_lock = state.lock().await;
         state_lock.android_devices = (0..5)
             .map(|i| AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("Android_Device_{i}"),
                 device_type: "phone".to_string(),
                 api_level: 31 + i as u32,
@@ -354,6 +359,7 @@ async fn test_panel_switching_mixed_device_states() {
     // Setup mixed device states
     state.android_devices = vec![
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Running_Android".to_string(),
             device_type: "phone".to_string(),
             api_level: 31,
@@ -363,6 +369,7 @@ async fn test_panel_switching_mixed_device_states() {
             storage_size: "8192".to_string(),
         },
         AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: "Stopped_Android".to_string(),
             device_type: "tablet".to_string(),
             api_level: 32,

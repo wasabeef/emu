@@ -477,6 +477,7 @@ fn create_complex_device_list_output(device_count: usize) -> String {
 fn create_test_android_devices(count: usize) -> Vec<AndroidDevice> {
     (1..=count)
         .map(|i| AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Test_Device_{i}"),
             device_type: format!("pixel_{}", (i % 5) + 1),
             api_level: 30 + (i % 10) as u32,

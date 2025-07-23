@@ -46,6 +46,7 @@ fn test_render_state_preparation() {
 
     // Add some test devices
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Test Android".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -108,6 +109,7 @@ fn test_render_data_formatting() {
 
     // Test Android device data formatting
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "Test Device with Long Name".to_string(),
         device_type: "pixel_9_pro_fold".to_string(),
         api_level: 34,
@@ -327,6 +329,7 @@ fn test_render_device_multiple_states() {
     // Add multiple Android devices
     for i in 0..5 {
         let device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("Android Device {i}"),
             device_type: format!("pixel_{}", i + 5),
             api_level: 30 + i as u32,

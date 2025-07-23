@@ -367,9 +367,14 @@ async fn test_android_manager_create_device_invalid() {
 #[tokio::test]
 async fn test_android_manager_get_device_details_not_found() {
     let manager = create_empty_mock_android_manager();
-    let result = manager.get_device_details("Nonexistent").await;
+    let result = manager.get_device_details("Nonexistent", None).await;
 
-    assert!(result.is_err());
+    // With the new implementation, get_device_details returns Ok with default values
+    assert!(result.is_ok());
+    let details = result.unwrap();
+    assert_eq!(details.name, "Nonexistent");
+    assert_eq!(details.device_type, "Unknown Device");
+    assert_eq!(details.api_level_or_version, "Unknown Version");
 }
 
 #[tokio::test]

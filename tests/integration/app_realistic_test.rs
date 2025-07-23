@@ -34,6 +34,7 @@ async fn test_device_list_management() -> Result<()> {
 
     // Add Android device
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "test_android".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -95,6 +96,7 @@ async fn test_device_selection() -> Result<()> {
     // Add multiple devices
     for i in 0..3 {
         let android_device = AndroidDevice {
+            android_version_name: "API 30".to_string(),
             name: format!("android_{i}"),
             device_type: "pixel_7".to_string(),
             api_level: 34,
@@ -142,6 +144,7 @@ async fn test_device_status_changes() -> Result<()> {
 
     // Add a device
     let android_device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "status_test".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
@@ -253,6 +256,7 @@ async fn test_concurrent_operations_simulation() -> Result<()> {
         let mut state = app_state.lock().await;
         for i in 0..3 {
             let device = AndroidDevice {
+                android_version_name: "API 30".to_string(),
                 name: format!("concurrent_device_{i}"),
                 device_type: "pixel_7".to_string(),
                 api_level: 34,
@@ -329,6 +333,7 @@ async fn test_error_states() -> Result<()> {
 
     // Add device in error state
     let device = AndroidDevice {
+        android_version_name: "API 30".to_string(),
         name: "error_device".to_string(),
         device_type: "pixel_7".to_string(),
         api_level: 34,
