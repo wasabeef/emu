@@ -1070,6 +1070,13 @@ impl IosManager {
     pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
         bail!("iOS simulator management is only available on macOS")
     }
+
+    pub async fn get_device_details(
+        &self,
+        _udid: &str,
+    ) -> Result<crate::app::state::DeviceDetails> {
+        bail!("iOS simulator management is only available on macOS")
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
