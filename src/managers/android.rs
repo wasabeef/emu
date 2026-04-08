@@ -2697,6 +2697,10 @@ impl AndroidManager {
         let progress_callback = std::sync::Arc::new(progress_callback);
         let progress_clone = progress_callback.clone();
 
+        // Stop flag: set to true when install_system_image returns, preventing stale callbacks
+        let stop_timer = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_timer_clone = stop_timer.clone();
+
         // Start a timer-based progress update
         tokio::spawn(async move {
             let mut progress = 10u8;
@@ -2707,6 +2711,11 @@ impl AndroidManager {
                     DEVICE_START_WAIT_TIME.as_secs(),
                 ))
                 .await;
+
+                // Exit if the installation has already completed
+                if stop_timer_clone.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
 
                 match stage {
                     0 => {
@@ -2832,8 +2841,10 @@ impl AndroidManager {
 
         let output = child.wait_with_output().await?;
 
+        // Signal the timer task to stop before returning
+        stop_timer.store(true, std::sync::atomic::Ordering::Relaxed);
+
         if output.status.success() {
-            // Don't send final progress update - let the caller handle completion
             Ok(())
         } else {
             Err(anyhow::anyhow!(
