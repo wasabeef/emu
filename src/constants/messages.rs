@@ -50,6 +50,7 @@ pub mod notifications {
     pub const LOGS_CLEARED: &str = "Logs cleared";
     pub const SYSTEM_IMAGE_INSTALLED: &str = "System image installed successfully";
     pub const SYSTEM_IMAGE_UNINSTALLED: &str = "System image uninstalled successfully";
+    pub const INSTALL_PROGRESS_COMPLETE: &str = "✅ Installation completed successfully!";
 
     // Status operations
     pub const STOPPING_DEVICE: &str = "Stopping device '{}'...";
