@@ -1488,8 +1488,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     }
 
     // Shortcuts at the bottom - dynamic based on selected item
-    let shortcuts = if api_mgmt.install_progress.is_some() || api_mgmt.installing_package.is_some()
-    {
+    let shortcuts = if api_mgmt.is_busy() {
         PROCESSING_WAIT
     } else if let Some(selected_api) = api_mgmt.get_selected_api_level() {
         if selected_api.is_installed {

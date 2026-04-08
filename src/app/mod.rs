@@ -974,9 +974,7 @@ impl App {
                                     KeyCode::Esc => {
                                         // Only allow closing if not currently installing/uninstalling
                                         if let Some(ref api_mgmt) = state.api_level_management {
-                                            if api_mgmt.install_progress.is_none()
-                                                && api_mgmt.installing_package.is_none()
-                                            {
+                                            if !api_mgmt.is_busy() {
                                                 state.mode = Mode::Normal;
                                                 state.api_level_management = None;
                                             }
