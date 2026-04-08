@@ -482,7 +482,7 @@ impl IosManager {
             }
         }
 
-        device_details.ok_or_else(|| anyhow::anyhow!("Device with UDID {} not found", udid))
+        device_details.ok_or_else(|| anyhow::anyhow!("Device with UDID {udid} not found"))
     }
 
     /// Get approximate resolution for known iOS device types

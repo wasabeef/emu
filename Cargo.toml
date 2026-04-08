@@ -7,6 +7,7 @@ description = "A terminal user interface for managing Android emulators and iOS 
 readme = "README.md"
 repository = "https://github.com/wasabeef/emu"
 license = "MIT OR Apache-2.0"
+default-run = "emu"
 keywords = ["android", "ios", "emulator", "simulator", "tui"]
 categories = ["command-line-utilities", "development-tools"]
 

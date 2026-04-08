@@ -96,7 +96,7 @@ impl MockCommandExecutor {
                 stderr: stderr.as_bytes().to_vec(),
             })
         } else {
-            Err(anyhow::anyhow!("Command not found: {}", command))
+            Err(anyhow::anyhow!("Command not found: {command}"))
         }
     }
 

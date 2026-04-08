@@ -18,10 +18,12 @@ pub mod event_processing;
 use crate::{
     constants::{
         keywords::{LOG_LEVEL_ERROR, LOG_LEVEL_WARNING},
+        messages::notifications::INSTALL_PROGRESS_COMPLETE,
         performance::{
             API_INSTALLATION_COMPLETION_DELAY, DETAIL_UPDATE_DEBOUNCE, FAST_DETAIL_UPDATE_DEBOUNCE,
             FAST_LOG_UPDATE_DEBOUNCE, INPUT_BATCH_DELAY, MAX_CONTINUOUS_EVENTS,
         },
+        progress::PROGRESS_PHASE_100_PERCENT,
         timeouts::{
             AUTO_REFRESH_CHECK_INTERVAL, DEVICE_STOP_WAIT_TIME, EVENT_POLL_TIMEOUT,
             NOTIFICATION_CHECK_INTERVAL,
@@ -972,9 +974,7 @@ impl App {
                                     KeyCode::Esc => {
                                         // Only allow closing if not currently installing/uninstalling
                                         if let Some(ref api_mgmt) = state.api_level_management {
-                                            if api_mgmt.install_progress.is_none()
-                                                && api_mgmt.installing_package.is_none()
-                                            {
+                                            if !api_mgmt.is_busy() {
                                                 state.mode = Mode::Normal;
                                                 state.api_level_management = None;
                                             }
@@ -1033,15 +1033,40 @@ impl App {
                                                                             if let Some(ref mut api_mgmt) =
                                                                                 state.api_level_management
                                                                             {
-                                                                                api_mgmt.install_progress =
-                                                                                    Some(progress);
+                                                                                // Guard: stale callbacks must not overwrite
+                                                                                // the explicit 100% set on completion
+                                                                                let already_complete = api_mgmt
+                                                                                    .install_progress
+                                                                                    .as_ref()
+                                                                                    .map(|p| p.percentage >= PROGRESS_PHASE_100_PERCENT)
+                                                                                    .unwrap_or(false);
+                                                                                if !already_complete {
+                                                                                    api_mgmt.install_progress =
+                                                                                        Some(progress);
+                                                                                }
                                                                             }
                                                                         });
                                                                     },
                                                                 )
                                                                 .await;
 
-                                                            // Small delay to ensure final progress update is shown
+                                                            // On success, explicitly show 100% before clearing
+                                                            if result.is_ok() {
+                                                                let mut state =
+                                                                    state_clone.lock().await;
+                                                                if let Some(ref mut api_mgmt) =
+                                                                    state.api_level_management
+                                                                {
+                                                                    api_mgmt.install_progress =
+                                                                        Some(crate::models::InstallProgress {
+                                                                            operation: INSTALL_PROGRESS_COMPLETE.to_string(),
+                                                                            percentage: PROGRESS_PHASE_100_PERCENT,
+                                                                            eta_seconds: None,
+                                                                        });
+                                                                }
+                                                            }
+
+                                                            // Delay to show final state before clearing
                                                             tokio::time::sleep(
                                                                 API_INSTALLATION_COMPLETION_DELAY,
                                                             )

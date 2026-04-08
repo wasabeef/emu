@@ -7,9 +7,12 @@ use crate::{
     },
     constants::{
         colors::*,
-        messages::ui::{
-            DIALOG_SHORTCUT_CANCEL, DIALOG_SHORTCUT_NO, DIALOG_SHORTCUT_YES,
-            TERMINAL_TOO_SMALL_ERROR,
+        messages::{
+            notifications::INSTALL_PROGRESS_COMPLETE,
+            ui::{
+                DIALOG_SHORTCUT_CANCEL, DIALOG_SHORTCUT_NO, DIALOG_SHORTCUT_YES,
+                TERMINAL_TOO_SMALL_ERROR,
+            },
         },
         ui_layout::{
             ANDROID_PANEL_PERCENTAGE, API_LEVEL_LIST_MIN_HEIGHT, DEVICE_DETAILS_PANEL_PERCENTAGE,
@@ -1449,10 +1452,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
         frame.render_widget(loading_msg, chunks[3]);
     } else if let Some(ref progress) = api_mgmt.install_progress {
         let (progress_text, color) = if progress.percentage >= 100 {
-            (
-                "✅ Installation completed successfully!".to_string(),
-                STATUS_COLOR_SUCCESS,
-            )
+            (INSTALL_PROGRESS_COMPLETE.to_string(), STATUS_COLOR_SUCCESS)
         } else {
             (
                 format!(
@@ -1488,8 +1488,7 @@ fn render_api_level_dialog(frame: &mut Frame, state: &AppState, theme: &Theme) {
     }
 
     // Shortcuts at the bottom - dynamic based on selected item
-    let shortcuts = if api_mgmt.install_progress.is_some() || api_mgmt.installing_package.is_some()
-    {
+    let shortcuts = if api_mgmt.is_busy() {
         PROCESSING_WAIT
     } else if let Some(selected_api) = api_mgmt.get_selected_api_level() {
         if selected_api.is_installed {

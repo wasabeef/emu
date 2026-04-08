@@ -1489,6 +1489,11 @@ impl ApiLevelManagementState {
         }
     }
 
+    /// Returns true if an install or uninstall operation is currently in progress.
+    pub fn is_busy(&self) -> bool {
+        self.install_progress.is_some() || self.installing_package.is_some()
+    }
+
     /// Gets the currently selected API level.
     pub fn get_selected_api_level(&self) -> Option<&ApiLevel> {
         self.api_levels.get(self.selected_index)
