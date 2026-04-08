@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty'); if echo \"$file_path\" | grep -q '\\.rs$'; then cargo check --all-targets --all-features 2>&1 | grep -E '^error' | head -5; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
