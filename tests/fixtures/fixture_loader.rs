@@ -38,10 +38,10 @@ impl FixtureLoader {
         if !self.cache.contains_key(filename) {
             let file_path = Path::new(&self.base_path).join(filename);
             let content = fs::read_to_string(&file_path)
-                .map_err(|e| anyhow::anyhow!("Failed to read fixture file {}: {}", filename, e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to read fixture file {filename}: {e}"))?;
 
             let json: Value = serde_json::from_str(&content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse fixture JSON {}: {}", filename, e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to parse fixture JSON {filename}: {e}"))?;
 
             self.cache.insert(filename.to_string(), json);
         }

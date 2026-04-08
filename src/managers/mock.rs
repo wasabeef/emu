@@ -178,7 +178,7 @@ impl MockDeviceManager {
     fn check_failure(&self, operation: &str) -> Result<()> {
         let behavior = self.behavior.lock().unwrap();
         if let Some(error_msg) = behavior.failing_operations.get(operation) {
-            return Err(anyhow::anyhow!("{}", error_msg));
+            return Err(anyhow::anyhow!("{error_msg}"));
         }
         Ok(())
     }
@@ -263,7 +263,7 @@ impl DeviceManager for MockDeviceManager {
             }
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Device not found: {}", device_id))
+            Err(anyhow::anyhow!("Device not found: {device_id}"))
         }
     }
 
@@ -286,7 +286,7 @@ impl DeviceManager for MockDeviceManager {
             }
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Device not found: {}", device_id))
+            Err(anyhow::anyhow!("Device not found: {device_id}"))
         }
     }
 
@@ -344,7 +344,7 @@ impl DeviceManager for MockDeviceManager {
             devices.remove(&key);
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Device not found: {}", device_id))
+            Err(anyhow::anyhow!("Device not found: {device_id}"))
         }
     }
 
@@ -363,7 +363,7 @@ impl DeviceManager for MockDeviceManager {
         if device_exists {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Device not found: {}", device_id))
+            Err(anyhow::anyhow!("Device not found: {device_id}"))
         }
     }
 

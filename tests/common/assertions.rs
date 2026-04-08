@@ -127,8 +127,7 @@ pub async fn assert_device_status(
     }
 
     Err(anyhow::anyhow!(
-        "Device '{}' not found in either Android or iOS devices",
-        device_name
+        "Device '{device_name}' not found in either Android or iOS devices"
     ))
 }
 
@@ -167,9 +166,7 @@ pub async fn assert_selection_state(
 
             if current_index != index {
                 return Err(anyhow::anyhow!(
-                    "Expected selected index {}, found {}",
-                    index,
-                    current_index
+                    "Expected selected index {index}, found {current_index}"
                 ));
             }
 

@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Install color-eyre for enhanced error reporting with colored output
-    color_eyre::install().map_err(|e| anyhow::anyhow!("Failed to install color_eyre: {}", e))?;
+    color_eyre::install().map_err(|e| anyhow::anyhow!("Failed to install color_eyre: {e}"))?;
 
     // Configure logging based on debug mode
     if cli.debug {

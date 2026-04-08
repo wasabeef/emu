@@ -540,7 +540,7 @@ impl AndroidManager {
             }
         }
 
-        bail!("Tool '{}' not found in Android SDK", tool)
+        bail!("Tool '{tool}' not found in Android SDK")
     }
 
     /// Maps running emulator instances to their AVD names.
@@ -587,7 +587,7 @@ impl AndroidManager {
         for handle in handles {
             match handle.await {
                 Ok(result) => results.push(result),
-                Err(e) => results.push(Err(anyhow::anyhow!("Task join error: {}", e))),
+                Err(e) => results.push(Err(anyhow::anyhow!("Task join error: {e}"))),
             }
         }
         results
@@ -2231,8 +2231,7 @@ impl DeviceManager for AndroidManager {
         let existing_devices = self.list_devices().await?;
         if existing_devices.iter().any(|d| d.name == safe_name) {
             return Err(anyhow::anyhow!(
-                "Device with name '{}' already exists. Please choose a different name or delete the existing device first.",
-                safe_name
+                "Device with name '{safe_name}' already exists. Please choose a different name or delete the existing device first."
             ));
         }
 
