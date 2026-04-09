@@ -44,7 +44,9 @@ impl FixtureLoader {
 
     /// Get a string value from a fixture.
     pub fn get_string(&mut self, filename: &str, path: &[&str]) -> Result<Option<String>> {
-        Ok(self.get(filename, path)?.and_then(|v| v.as_str().map(String::from)))
+        Ok(self
+            .get(filename, path)?
+            .and_then(|v| v.as_str().map(String::from)))
     }
 }
 

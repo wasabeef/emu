@@ -45,11 +45,7 @@ pub fn assert_device_counts(state: &AppState, android: usize, ios: usize) {
         android,
         "Android device count mismatch"
     );
-    assert_eq!(
-        state.ios_device_count(),
-        ios,
-        "iOS device count mismatch"
-    );
+    assert_eq!(state.ios_device_count(), ios, "iOS device count mismatch");
 }
 
 /// Assert a device status via predicate method.
@@ -72,11 +68,7 @@ pub async fn assert_locked_panel(app: &Arc<Mutex<AppState>>, expected: Panel) {
 }
 
 /// Assert device counts on a locked AppState.
-pub async fn assert_locked_device_counts(
-    app: &Arc<Mutex<AppState>>,
-    android: usize,
-    ios: usize,
-) {
+pub async fn assert_locked_device_counts(app: &Arc<Mutex<AppState>>, android: usize, ios: usize) {
     let state = app.lock().await;
     assert_device_counts(&state, android, ios);
 }
