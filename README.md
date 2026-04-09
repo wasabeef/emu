@@ -35,7 +35,7 @@ A TUI for managing Android emulators and iOS simulators.
 - **Smart Caching**:
   - Platform-aware cache invalidation and background loading
   - API level disk caching for instant device creation
-- **Robust Testing**: 580+ test cases with comprehensive mock-based testing
+- **Robust Testing**: 720+ test cases with comprehensive mock-based testing
 - **API Level Management**: Install/uninstall system images directly from TUI
 
 ## Installation

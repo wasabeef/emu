@@ -14,9 +14,9 @@ cargo test --features test-utils
 cargo test -- --nocapture
 
 # Run specific test categories
-cargo test --test unit
-cargo test --test integration
-cargo test --test performance
+cargo test --lib                              # Inline unit tests
+cargo test --test lib                         # Integration tests (via lib.rs)
+cargo test --test app_state_test              # Standalone test binary
 
 # Measure test coverage
 cargo llvm-cov --lcov --output-path coverage/lcov.info --features test-utils \
@@ -166,12 +166,14 @@ fn test_parse_real_avd_output() {
 ### 2. Use Test Helpers
 
 ```rust
-// Common test setup
-use common::{setup_mock_android_sdk, create_test_app_state};
+// Shared test infrastructure lives in tests/support/
+use support::{android_device, ios_device, TestStateBuilder};
 
-// Create pre-configured managers
-let android_manager = create_mock_android_manager();
-let ios_manager = create_mock_ios_manager();
+// Create test state via builder (decoupled from AppState fields)
+let state = TestStateBuilder::new()
+    .with_android_devices(vec![android_device("Pixel")])
+    .in_mode(Mode::Normal)
+    .build();
 ```
 
 ### 3. Follow Naming Conventions
@@ -255,9 +257,9 @@ fn test_isolated_operation() {
 
 ### Current Status
 
-- **Coverage**: 47.71% (5,173/10,842 lines)
-- **Test Files**: 22+
-- **Test Functions**: 180+
+- **Coverage**: ~41% (varies by platform)
+- **Test Files**: ~67
+- **Test Functions**: 720+
 
 ### Measuring Coverage
 
@@ -286,14 +288,15 @@ open target/llvm-cov/html/index.html
 
 ## Advanced Testing
 
-### Custom Matchers
+### Custom Assertions (`tests/support/assertions.rs`)
 
 ```rust
-// Custom assertion helpers
-fn assert_device_running(device: &AndroidDevice) {
-    assert_eq!(device.status, DeviceStatus::Running);
-    assert!(device.pid.is_some());
-}
+// Predicate-based assertions (survive field renames)
+use support::assertions::{assert_mode, assert_panel, assert_device_counts};
+
+assert_mode(&state, Mode::Normal);
+assert_panel(&state, Panel::Android);
+assert_device_counts(&state, 2, 1);
 ```
 
 ### Test Scenarios
