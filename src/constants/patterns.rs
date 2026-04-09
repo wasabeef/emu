@@ -62,6 +62,42 @@ pub mod errors {
     pub const ADB_UNKNOWN_COMMAND: &str = "unknown command";
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_image_regex() {
+        let caps = SYSTEM_IMAGE_PACKAGE
+            .captures("system-images;android-34;google_apis;arm64-v8a")
+            .unwrap();
+        assert_eq!(&caps[1], "34");
+        assert_eq!(&caps[2], "google_apis");
+        assert_eq!(&caps[3], "arm64-v8a");
+    }
+
+    #[test]
+    fn test_api_level_regex_variants() {
+        assert!(API_LEVEL_CONFIG.is_match("image.sysdir.1=system-images/android-34/"));
+        assert!(API_LEVEL_TARGET.is_match("target=android-33"));
+        assert!(API_LEVEL_BASED_ON.is_match("Based on: Android 14"));
+        assert!(API_LEVEL_GENERIC.is_match("API level 34"));
+    }
+
+    #[test]
+    fn test_emulator_serial_regex() {
+        assert!(EMULATOR_SERIAL.is_match("emulator-5554"));
+        assert!(!EMULATOR_SERIAL.is_match("device-5554"));
+    }
+
+    #[test]
+    fn test_device_name_pattern_valid() {
+        let re = regex::Regex::new(DEVICE_NAME_PATTERN).unwrap();
+        assert!(re.is_match("Pixel_7_API34"));
+        assert!(!re.is_match("invalid name!"));
+    }
+}
+
 /// Character patterns for text processing
 pub mod text_patterns {
     /// Inch measurement indicator

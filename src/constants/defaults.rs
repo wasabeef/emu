@@ -79,3 +79,83 @@ pub const TEST_API_LEVEL_33_NUM: u32 = 33;
 pub const UNKNOWN_VALUE: &str = "Unknown";
 pub const NO_DEVICE_SELECTED: &str = "No device selected";
 pub const DEFAULT_DEVICE_CATEGORY: &str = "all";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::limits::*;
+    use crate::constants::progress::*;
+    use crate::constants::ui_layout::*;
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_memory_limits_consistency() {
+        assert!(MIN_RAM_MB < MAX_RAM_MB);
+        assert!(MIN_STORAGE_MB < MAX_STORAGE_MB);
+        assert!((MIN_RAM_MB..=MAX_RAM_MB).contains(&DEFAULT_RAM_MB));
+        assert!((MIN_STORAGE_MB..=MAX_STORAGE_MB).contains(&DEFAULT_STORAGE_MB));
+        assert!(DEFAULT_STORAGE_MB >= DEFAULT_RAM_MB);
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_memory_validation_tiers_ordered() {
+        assert!(MEMORY_VALIDATION_MIN_MB <= MEMORY_VALIDATION_BASE_MB);
+        assert!(MEMORY_VALIDATION_BASE_MB <= MEMORY_VALIDATION_HIGH_MB);
+        assert!(MEMORY_VALIDATION_HIGH_MB <= MEMORY_VALIDATION_MAX_MB);
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_duration_relationships() {
+        assert!(CACHE_EXPIRATION > DEVICE_REFRESH_INTERVAL);
+        assert!(DEVICE_REFRESH_INTERVAL > NOTIFICATION_DURATION);
+    }
+
+    #[test]
+    fn test_api_levels_descending() {
+        for pair in DEFAULT_API_LEVELS.windows(2) {
+            assert!(pair[0] > pair[1], "API levels must be in descending order");
+        }
+    }
+
+    #[test]
+    fn test_panel_percentages_sum() {
+        assert_eq!(
+            ANDROID_PANEL_PERCENTAGE + IOS_PANEL_PERCENTAGE + DEVICE_DETAILS_PANEL_PERCENTAGE,
+            100
+        );
+        assert_eq!(
+            ANDROID_PANEL_PERCENTAGE + IOS_PANEL_PERCENTAGE,
+            DEVICE_PANELS_PERCENTAGE
+        );
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_progress_phases_ascending() {
+        assert!(DOWNLOAD_PHASE_START_PERCENTAGE < EXTRACT_PHASE_START_PERCENTAGE);
+        assert!(EXTRACT_PHASE_START_PERCENTAGE < INSTALL_PHASE_START_PERCENTAGE);
+        assert!(INSTALL_PHASE_START_PERCENTAGE < COMPLETION_THRESHOLD_PERCENTAGE);
+        assert!(COMPLETION_THRESHOLD_PERCENTAGE <= PROGRESS_PHASE_100_PERCENT);
+    }
+
+    #[test]
+    fn test_default_abi_returns_valid() {
+        let abi = default_abi();
+        assert!(!abi.is_empty());
+        assert!(
+            abi == "x86_64" || abi == "arm64-v8a",
+            "Unexpected ABI: {abi}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn test_dialog_size_ordering() {
+        assert!(DIALOG_WIDTH_SMALL < DIALOG_WIDTH_MEDIUM);
+        assert!(DIALOG_WIDTH_MEDIUM < DIALOG_WIDTH_LARGE);
+        assert!(DIALOG_HEIGHT_SMALL < DIALOG_HEIGHT_MEDIUM);
+        assert!(DIALOG_HEIGHT_MEDIUM < DIALOG_HEIGHT_LARGE);
+    }
+}

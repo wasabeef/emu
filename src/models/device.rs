@@ -95,6 +95,28 @@ pub enum DeviceStatus {
     Unknown,
 }
 
+impl DeviceStatus {
+    /// Returns true if the device is running.
+    pub fn is_running(&self) -> bool {
+        matches!(self, Self::Running)
+    }
+
+    /// Returns true if the device is stopped.
+    pub fn is_stopped(&self) -> bool {
+        matches!(self, Self::Stopped)
+    }
+
+    /// Returns true if the device is in an error state.
+    pub fn is_error(&self) -> bool {
+        matches!(self, Self::Error)
+    }
+
+    /// Returns true if the device is transitioning (starting, stopping, or creating).
+    pub fn is_transitioning(&self) -> bool {
+        matches!(self, Self::Starting | Self::Stopping | Self::Creating)
+    }
+}
+
 impl Device for AndroidDevice {
     fn id(&self) -> &str {
         &self.name

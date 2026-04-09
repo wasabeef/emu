@@ -77,6 +77,13 @@ cargo test -- --nocapture                 # With output
 RUST_TEST_THREADS=1 cargo test ...        # Serial (avoids env var races)
 ```
 
+### Test Infrastructure
+
+- `tests/support/` — shared test foundation (device factories, TestStateBuilder, assertions, contract tests)
+- `src/` inline `#[cfg(test)]` — pure logic tests (state, models, validation, constants)
+- `tests/integration/` — multi-component integration tests
+- `tests/` root — standalone test binaries (android, ios, app, ui)
+
 See [docs/TESTING.md](docs/TESTING.md) for full testing guide.
 
 ## Current Status
@@ -92,7 +99,7 @@ See [docs/TESTING.md](docs/TESTING.md) for full testing guide.
 - ✅ Install progress: 100% shown on completion, stale callbacks prevented
 - ✅ Ultra-responsive input (8ms polling, no debouncing)
 - ✅ Background loading, smart caching, incremental refresh
-- ✅ Comprehensive test suite (1500+ tests, CI/CD ready)
+- ✅ Comprehensive test suite (720+ tests, CI/CD ready)
 - ✅ PostToolUse hook (`.claude/settings.json`): `cargo check` after `.rs` edits
 
 ### Known Issues
