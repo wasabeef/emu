@@ -762,6 +762,72 @@ impl AppState {
         Self::default()
     }
 
+    // --- Mode predicates ---
+
+    /// Returns true if the app is in normal mode.
+    pub fn is_normal_mode(&self) -> bool {
+        self.mode == Mode::Normal
+    }
+
+    /// Returns true if the app is in device creation mode.
+    pub fn is_create_mode(&self) -> bool {
+        self.mode == Mode::CreateDevice
+    }
+
+    /// Returns true if the app is in help mode.
+    pub fn is_help_mode(&self) -> bool {
+        self.mode == Mode::Help
+    }
+
+    /// Returns true if the app is in confirm delete mode.
+    pub fn is_confirm_delete_mode(&self) -> bool {
+        self.mode == Mode::ConfirmDelete
+    }
+
+    /// Returns true if the app is in confirm wipe mode.
+    pub fn is_confirm_wipe_mode(&self) -> bool {
+        self.mode == Mode::ConfirmWipe
+    }
+
+    /// Returns true if the app is in API level management mode.
+    pub fn is_api_level_mode(&self) -> bool {
+        self.mode == Mode::ManageApiLevels
+    }
+
+    // --- Panel predicates ---
+
+    /// Returns true if the Android panel is active.
+    pub fn is_android_panel(&self) -> bool {
+        self.active_panel == Panel::Android
+    }
+
+    /// Returns true if the iOS panel is active.
+    pub fn is_ios_panel(&self) -> bool {
+        self.active_panel == Panel::Ios
+    }
+
+    // --- Device accessors ---
+
+    /// Returns the number of Android devices.
+    pub fn android_device_count(&self) -> usize {
+        self.android_devices.len()
+    }
+
+    /// Returns the number of iOS devices.
+    pub fn ios_device_count(&self) -> usize {
+        self.ios_devices.len()
+    }
+
+    /// Returns the currently selected Android device, if any.
+    pub fn selected_android_device(&self) -> Option<&AndroidDevice> {
+        self.android_devices.get(self.selected_android)
+    }
+
+    /// Returns the currently selected iOS device, if any.
+    pub fn selected_ios_device(&self) -> Option<&IosDevice> {
+        self.ios_devices.get(self.selected_ios)
+    }
+
     /// Switches between Android and iOS panels.
     pub fn next_panel(&mut self) {
         self.active_panel = match self.active_panel {
