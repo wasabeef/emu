@@ -10,7 +10,6 @@ mod app_realistic_test;
 mod app_state_concurrency_test;
 mod cache_background_test;
 mod comprehensive_test;
-mod constants_test;
 mod device_creation_navigation_test;
 mod device_creation_test;
 mod device_lifecycle_models_test;
