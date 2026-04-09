@@ -11,17 +11,15 @@ use emu::models::DeviceStatus;
 /// Create a MockDeviceManager pre-loaded with default Android devices.
 #[cfg(feature = "test-utils")]
 pub fn mock_android_manager() -> MockDeviceManager {
-    let manager = MockDeviceManager::new_android();
     // new_android() already includes Pixel_4_API_30 and Pixel_4_API_33
-    manager
+    MockDeviceManager::new_android()
 }
 
 /// Create a MockDeviceManager pre-loaded with default iOS devices.
 #[cfg(feature = "test-utils")]
 pub fn mock_ios_manager() -> MockDeviceManager {
-    let manager = MockDeviceManager::new_ios();
     // new_ios() already includes iPhone 14 and iPad Air
-    manager
+    MockDeviceManager::new_ios()
 }
 
 /// Create an Android manager with a custom device set.
