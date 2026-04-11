@@ -6,13 +6,14 @@
 use emu::app::App;
 use std::time::Duration;
 
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
 /// Test initialization timing and performance (consolidated)
 #[tokio::test]
 async fn test_initialization_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let mut times = Vec::new();
 
@@ -60,8 +61,9 @@ async fn test_initialization_performance() {
 /// Test timeout and responsiveness during initialization
 #[tokio::test]
 async fn test_initialization_responsiveness() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let start_time = std::time::Instant::now();
 
@@ -99,8 +101,9 @@ async fn test_initialization_responsiveness() {
 /// Test multiple App::new() calls for consistent performance
 #[tokio::test]
 async fn test_app_new_multiple_initializations() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test multiple App::new() calls
     for i in 0..3 {
@@ -135,8 +138,9 @@ async fn test_app_new_multiple_initializations() {
 /// Test concurrent App::new() calls for performance
 #[tokio::test]
 async fn test_app_new_concurrent_initialization() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test concurrent App::new() calls
     let mut handles = vec![];
@@ -200,8 +204,9 @@ async fn test_app_new_concurrent_initialization() {
 /// Test app initialization completes within reasonable time
 #[tokio::test]
 async fn test_app_initialization_performance_basic() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test that App::new() completes within reasonable time
     let start = std::time::Instant::now();
@@ -232,8 +237,9 @@ async fn test_app_initialization_performance_basic() {
 /// Test app memory usage patterns
 #[tokio::test]
 async fn test_app_new_memory_usage() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test that App::new() doesn't cause memory issues
     let initial_memory = get_memory_usage();
@@ -258,8 +264,9 @@ async fn test_app_new_memory_usage() {
 /// Test app async behavior with timeout
 #[tokio::test]
 async fn test_app_new_async_behavior() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test that App::new() properly handles async operations
     let app_future = App::new();
@@ -292,8 +299,9 @@ async fn test_app_new_async_behavior() {
 /// Test app initialization with timeout using select
 #[tokio::test]
 async fn test_app_new_with_timeout() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test that App::new() completes within reasonable timeout
     let app_future = App::new();
@@ -327,8 +335,9 @@ async fn test_app_new_with_timeout() {
 /// Test rapid successive initialization
 #[tokio::test]
 async fn test_rapid_initialization() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     // Test rapid successive App creation
     let mut durations = Vec::new();

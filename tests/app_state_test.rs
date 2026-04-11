@@ -449,6 +449,115 @@ fn test_cached_device_details() {
     assert_eq!(cached.unwrap().name, "Test Device");
 }
 
+#[test]
+fn test_smart_clear_cached_device_details_only_on_platform_change() {
+    let mut state = AppState::new();
+    state.cached_device_details = Some(DeviceDetails {
+        platform: Panel::Android,
+        name: "Pixel_7_API_34".to_string(),
+        identifier: "Pixel_7_API_34".to_string(),
+        api_level_or_version: "API 34".to_string(),
+        device_type: "pixel_7".to_string(),
+        status: "Stopped".to_string(),
+        resolution: None,
+        dpi: None,
+        ram_size: None,
+        storage_size: None,
+        system_image: None,
+        device_path: None,
+    });
+
+    state.smart_clear_cached_device_details(Panel::Android);
+    assert!(state.cached_device_details.is_some());
+
+    state.smart_clear_cached_device_details(Panel::Ios);
+    assert!(state.cached_device_details.is_none());
+}
+
+#[test]
+fn test_clear_device_operation_status_helper() {
+    let mut state = AppState::new();
+
+    state.set_device_operation_status("Starting device...".to_string());
+    assert_eq!(
+        state.get_device_operation_status().map(String::as_str),
+        Some("Starting device...")
+    );
+
+    state.clear_device_operation_status();
+    assert!(state.get_device_operation_status().is_none());
+}
+
+#[test]
+fn test_update_single_android_device_status_updates_device_and_cache() {
+    let mut state = create_state_with_devices();
+    state.cached_device_details = Some(DeviceDetails {
+        platform: Panel::Android,
+        name: "Tablet_API_33".to_string(),
+        identifier: "Tablet_API_33".to_string(),
+        api_level_or_version: "API 33".to_string(),
+        device_type: "tablet".to_string(),
+        status: "Stopped".to_string(),
+        resolution: None,
+        dpi: None,
+        ram_size: None,
+        storage_size: None,
+        system_image: None,
+        device_path: None,
+    });
+
+    state.update_single_android_device_status("Tablet_API_33", true);
+
+    let device = state
+        .android_devices
+        .iter()
+        .find(|device| device.name == "Tablet_API_33")
+        .unwrap();
+    assert!(device.is_running);
+    assert_eq!(
+        state
+            .cached_device_details
+            .as_ref()
+            .map(|details| details.status.as_str()),
+        Some("Running")
+    );
+}
+
+#[test]
+fn test_update_single_ios_device_status_updates_device_and_cache() {
+    let mut state = create_state_with_devices();
+    state.cached_device_details = Some(DeviceDetails {
+        platform: Panel::Ios,
+        name: "iPad Air".to_string(),
+        identifier: "09876-54321-FEDCBA".to_string(),
+        api_level_or_version: "iOS 16.4".to_string(),
+        device_type: "iPad".to_string(),
+        status: "Shutdown".to_string(),
+        resolution: None,
+        dpi: None,
+        ram_size: None,
+        storage_size: None,
+        system_image: None,
+        device_path: None,
+    });
+
+    state.update_single_ios_device_status("09876-54321-FEDCBA", true);
+
+    let device = state
+        .ios_devices
+        .iter()
+        .find(|device| device.udid == "09876-54321-FEDCBA")
+        .unwrap();
+    assert!(device.is_running);
+    assert_eq!(
+        state
+            .cached_device_details
+            .as_ref()
+            .map(|details| details.status.as_str()),
+        Some("Booted")
+    );
+}
+
 #[tokio::test]
 async fn test_device_cache() {
     let cache = Arc::new(RwLock::new(DeviceCache::default()));
@@ -480,6 +589,90 @@ async fn test_device_cache() {
         );
         assert_eq!(cache_guard.android_device_types.len(), 2);
     }
+}
+
+#[tokio::test]
+async fn test_populate_form_from_cache_for_android_sets_defaults_and_cache() {
+    let mut state = AppState::new();
+    {
+        let mut cache = state.device_cache.write().await;
+        cache.android_device_types = vec![
+            ("pixel_7".to_string(), "Pixel 7".to_string()),
+            ("tablet_10".to_string(), "Tablet 10".to_string()),
+        ];
+        cache.android_api_levels = vec![
+            ("34".to_string(), "API 34 - Android 14".to_string()),
+            ("33".to_string(), "API 33 - Android 13".to_string()),
+        ];
+    }
+
+    state.create_device_form.selected_device_type_index = 1;
+    state.create_device_form.selected_api_level_index = 0;
+    state.create_device_form.is_loading_cache = true;
+
+    state.populate_form_from_cache(Panel::Android).await;
+
+    assert_eq!(state.create_device_form.available_device_types.len(), 2);
+    assert_eq!(state.create_device_form.available_versions.len(), 2);
+    assert_eq!(state.create_device_form.device_type_id, "tablet_10");
+    assert_eq!(state.create_device_form.device_type, "Tablet 10");
+    assert_eq!(state.create_device_form.version, "34");
+    assert_eq!(
+        state.create_device_form.version_display,
+        "API 34 - Android 14"
+    );
+    assert!(!state.create_device_form.is_loading_cache);
+
+    let cache = state.device_cache.read().await;
+    assert_eq!(cache.android_device_cache.as_ref().map(Vec::len), Some(2));
+}
+
+#[tokio::test]
+async fn test_populate_form_from_cache_for_ios_sets_defaults() {
+    let mut state = AppState::new();
+    {
+        let mut cache = state.device_cache.write().await;
+        cache.ios_device_types = vec![
+            (
+                "com.apple.CoreSimulator.SimDeviceType.iPhone-15".to_string(),
+                "iPhone 15".to_string(),
+            ),
+            (
+                "com.apple.CoreSimulator.SimDeviceType.iPad-Air".to_string(),
+                "iPad Air".to_string(),
+            ),
+        ];
+        cache.ios_runtimes = vec![
+            (
+                "com.apple.CoreSimulator.SimRuntime.iOS-17-0".to_string(),
+                "iOS 17.0".to_string(),
+            ),
+            (
+                "com.apple.CoreSimulator.SimRuntime.iOS-16-4".to_string(),
+                "iOS 16.4".to_string(),
+            ),
+        ];
+    }
+
+    state.create_device_form.selected_device_type_index = 1;
+    state.create_device_form.selected_api_level_index = 0;
+    state.create_device_form.is_loading_cache = true;
+
+    state.populate_form_from_cache(Panel::Ios).await;
+
+    assert_eq!(state.create_device_form.available_device_types.len(), 2);
+    assert_eq!(state.create_device_form.available_versions.len(), 2);
+    assert_eq!(
+        state.create_device_form.device_type_id,
+        "com.apple.CoreSimulator.SimDeviceType.iPad-Air"
+    );
+    assert_eq!(state.create_device_form.device_type, "iPad Air");
+    assert_eq!(
+        state.create_device_form.version,
+        "com.apple.CoreSimulator.SimRuntime.iOS-17-0"
+    );
+    assert_eq!(state.create_device_form.version_display, "iOS 17.0");
+    assert!(!state.create_device_form.is_loading_cache);
 }
 
 #[test]

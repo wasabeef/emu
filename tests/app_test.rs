@@ -1,6 +1,9 @@
 //! Comprehensive app module tests
 //! Tests all major functions in src/app/mod.rs to improve coverage from 2.5%
 
+mod common;
+
+use common::EnvVarGuard;
 use emu::app::{App, AppState, Mode, Panel};
 
 /// Helper to set up mock Android SDK for testing
@@ -91,24 +94,24 @@ exit 0
     temp_dir
 }
 
+fn setup_mock_android_sdk_env() -> (tempfile::TempDir, EnvVarGuard) {
+    let temp_dir = setup_mock_android_sdk();
+    let android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+    (temp_dir, android_home)
+}
+
 #[tokio::test]
 async fn test_app_new() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     let _app = App::new().await.unwrap();
-
-    // App should be created successfully
-    // We can't access private fields, so just verify creation succeeded
-
-    // Cleanup
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_creation_with_ios_manager() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     let result = App::new().await;
     assert!(result.is_ok());
@@ -125,14 +128,12 @@ async fn test_app_creation_with_ios_manager() {
     {
         let _app = result.unwrap();
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_state_initialization() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     let app_result = App::new().await;
 
@@ -147,14 +148,13 @@ async fn test_app_state_initialization() {
             assert!(!error_msg.is_empty());
         }
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_creation_without_sdk() {
+    let _env_lock = common::acquire_test_env_lock().await;
     // Test app creation without Android SDK
-    std::env::remove_var("ANDROID_HOME");
+    let _android_home = EnvVarGuard::remove("ANDROID_HOME");
 
     let result = App::new().await;
 
@@ -179,8 +179,9 @@ async fn test_app_creation_without_sdk() {
 
 #[tokio::test]
 async fn test_app_creation_with_invalid_sdk() {
+    let _env_lock = common::acquire_test_env_lock().await;
     // Test app creation with invalid Android SDK path
-    std::env::set_var("ANDROID_HOME", "/nonexistent/path");
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", "/nonexistent/path");
 
     let result = App::new().await;
 
@@ -189,14 +190,12 @@ async fn test_app_creation_with_invalid_sdk() {
         let error_msg = format!("{e}");
         assert!(!error_msg.is_empty());
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_creation_performance() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     let start = std::time::Instant::now();
     let result = App::new().await;
@@ -210,14 +209,12 @@ async fn test_app_creation_performance() {
     } else {
         // Even failure should be fast
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_multiple_creation() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     // Test creating multiple app instances
     let app1_result = App::new().await;
@@ -232,14 +229,12 @@ async fn test_app_multiple_creation() {
             // One or both failed, which is acceptable
         }
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_creation_stress() {
-    let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _env_lock = common::acquire_test_env_lock().await;
+    let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
     // Test creating multiple apps concurrently
     let mut tasks = Vec::new();
@@ -257,24 +252,22 @@ async fn test_app_creation_stress() {
             }
         }
     }
-
     // At least one should succeed (or all fail gracefully)
     assert!(success_count >= 0);
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_constructor_error_handling() {
+    let _env_lock = common::acquire_test_env_lock().await;
     // Test various error conditions
 
     // Test with empty ANDROID_HOME
-    std::env::set_var("ANDROID_HOME", "");
+    let _empty_android_home = EnvVarGuard::set("ANDROID_HOME", "");
     let result1 = App::new().await;
 
     // Test with directory that exists but is not SDK
     let temp_dir = tempfile::tempdir().unwrap();
-    std::env::set_var("ANDROID_HOME", temp_dir.path());
+    let _temp_android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
     let result2 = App::new().await;
 
     // Both should handle errors gracefully
@@ -290,18 +283,17 @@ async fn test_app_constructor_error_handling() {
             assert!(!format!("{e}").is_empty());
         }
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[tokio::test]
 async fn test_app_sdk_validation() {
+    let _env_lock = common::acquire_test_env_lock().await;
     let temp_dir = tempfile::tempdir().unwrap();
     let sdk_path = temp_dir.path();
 
     // Create directory but missing required tools
     std::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin")).unwrap();
-    std::env::set_var("ANDROID_HOME", sdk_path);
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", sdk_path);
 
     let result = App::new().await;
 
@@ -315,8 +307,6 @@ async fn test_app_sdk_validation() {
             assert!(!format!("{e}").is_empty());
         }
     }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[cfg(test)]
@@ -348,7 +338,8 @@ mod constructor_tests {
     /// Test error message formatting
     #[tokio::test]
     async fn test_error_message_quality() {
-        std::env::set_var("ANDROID_HOME", "/definitely/nonexistent/path/12345");
+        let _env_lock = common::acquire_test_env_lock().await;
+        let _android_home = EnvVarGuard::set("ANDROID_HOME", "/definitely/nonexistent/path/12345");
 
         let result = App::new().await;
 
@@ -358,8 +349,6 @@ mod constructor_tests {
             assert!(!error_msg.is_empty());
             assert!(error_msg.len() > 10); // Should be descriptive
         }
-
-        std::env::remove_var("ANDROID_HOME");
     }
 }
 
@@ -384,8 +373,8 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_concurrent_app_creation() {
-        let _temp_dir = setup_mock_android_sdk();
-        std::env::set_var("ANDROID_HOME", _temp_dir.path());
+        let _env_lock = common::acquire_test_env_lock().await;
+        let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
         // Test that concurrent app creation doesn't cause issues
         let task1 = tokio::spawn(App::new());
@@ -396,16 +385,13 @@ mod integration_tests {
         // At least one creation attempt should complete without panicking
         let completed1 = result1.is_ok();
         let completed2 = result2.is_ok();
-
         assert!(completed1 || completed2);
-
-        std::env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]
     async fn test_app_memory_safety() {
-        let _temp_dir = setup_mock_android_sdk();
-        std::env::set_var("ANDROID_HOME", _temp_dir.path());
+        let _env_lock = common::acquire_test_env_lock().await;
+        let (_temp_dir, _android_home) = setup_mock_android_sdk_env();
 
         // Test that app can be created and dropped safely
         for _ in 0..5 {
@@ -413,7 +399,5 @@ mod integration_tests {
                 // App created successfully, will be dropped at end of scope
             }
         }
-
-        std::env::remove_var("ANDROID_HOME");
     }
 }

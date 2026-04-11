@@ -13,13 +13,14 @@ use std::time::{Duration, Instant};
 const MEMORY_LEAK_DETECTION_CYCLES: usize = 100;
 const CACHE_PERFORMANCE_TARGET_MS: u64 = 500;
 
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
 /// Memory efficiency benchmark
 #[tokio::test]
 async fn test_memory_efficiency_benchmark() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -78,8 +79,9 @@ async fn test_memory_efficiency_benchmark() {
 #[ignore = "Takes too long for CI environments"]
 #[tokio::test]
 async fn test_memory_leak_detection() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -150,8 +152,9 @@ async fn test_memory_leak_detection() {
 /// Cache performance test
 #[tokio::test]
 async fn test_cache_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -256,8 +259,9 @@ async fn test_large_dataset_memory_efficiency() {
 /// Memory safety test during concurrent access
 #[tokio::test]
 async fn test_concurrent_memory_safety() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -317,8 +321,9 @@ async fn test_concurrent_memory_safety() {
 /// Garbage collection efficiency test (Rust drop efficiency)
 #[tokio::test]
 async fn test_resource_cleanup_efficiency() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");

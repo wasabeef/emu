@@ -6,6 +6,67 @@
 pub mod assertions;
 pub mod helpers;
 
+use std::ffi::OsString;
+use std::sync::OnceLock;
+use tokio::sync::{Mutex, MutexGuard};
+
+/// RAII helper that saves and restores a process-global environment variable.
+///
+/// Tests in this repository frequently mutate variables like `ANDROID_HOME`.
+/// This guard keeps those mutations scoped to the current test body.
+pub struct EnvVarGuard {
+    key: &'static str,
+    original: Option<OsString>,
+}
+
+impl EnvVarGuard {
+    /// Set an environment variable for the lifetime of this guard.
+    #[allow(dead_code)]
+    pub fn set<K, V>(key: K, value: V) -> Self
+    where
+        K: Into<&'static str>,
+        V: Into<OsString>,
+    {
+        let key = key.into();
+        let original = std::env::var_os(key);
+        std::env::set_var(key, value.into());
+        Self { key, original }
+    }
+
+    /// Remove an environment variable for the lifetime of this guard.
+    #[allow(dead_code)]
+    pub fn remove<K>(key: K) -> Self
+    where
+        K: Into<&'static str>,
+    {
+        let key = key.into();
+        let original = std::env::var_os(key);
+        std::env::remove_var(key);
+        Self { key, original }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        match &self.original {
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
+/// Global mutex for tests that mutate process-global environment variables.
+#[allow(dead_code)]
+pub fn test_env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+#[allow(dead_code)]
+pub async fn acquire_test_env_lock() -> MutexGuard<'static, ()> {
+    test_env_lock().lock().await
+}
+
 /// Helper function to create a mock Android SDK environment for testing
 ///
 /// This function creates a temporary directory structure that mimics
@@ -154,22 +215,22 @@ use emu::app::state::AppState;
 #[cfg(feature = "test-utils")]
 use std::sync::Arc;
 #[cfg(feature = "test-utils")]
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 /// Create a test AppState with MockDeviceManager
 #[cfg(feature = "test-utils")]
 #[allow(dead_code)]
-pub async fn setup_test_app(_android_count: usize, _ios_count: usize) -> Arc<Mutex<AppState>> {
+pub async fn setup_test_app(_android_count: usize, _ios_count: usize) -> Arc<AsyncMutex<AppState>> {
     // For now, return a basic AppState until we implement MockDeviceManager integration
     let app_state = AppState::new();
-    Arc::new(Mutex::new(app_state))
+    Arc::new(AsyncMutex::new(app_state))
 }
 
 /// Create a test AppState with specific device configuration
 #[cfg(feature = "test-utils")]
 #[allow(dead_code)]
-pub async fn setup_test_app_with_scenario() -> Arc<Mutex<AppState>> {
+pub async fn setup_test_app_with_scenario() -> Arc<AsyncMutex<AppState>> {
     // For now, return a basic AppState until we implement MockDeviceManager integration
     let app_state = AppState::new();
-    Arc::new(Mutex::new(app_state))
+    Arc::new(AsyncMutex::new(app_state))
 }
