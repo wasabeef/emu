@@ -8,6 +8,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
+use crate::common::{acquire_test_env_lock, EnvVarGuard};
+
 #[tokio::test]
 async fn test_input_latency_measurement() {
     // Skip on CI where timing can be unreliable
@@ -15,9 +17,11 @@ async fn test_input_latency_measurement() {
         return;
     }
 
+    let _env_lock = acquire_test_env_lock().await;
+
     // Setup mock Android SDK environment
     let temp_dir = tempfile::tempdir().unwrap();
-    std::env::set_var("ANDROID_HOME", temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
 
     // Create minimal SDK structure
     let sdk_path = temp_dir.path();
@@ -60,9 +64,6 @@ async fn test_input_latency_measurement() {
 
         println!("✓ Input latency test passed - all updates under 1ms");
     }
-
-    std::env::remove_var("ANDROID_HOME");
-    std::mem::forget(temp_dir);
 }
 
 #[tokio::test]
@@ -72,9 +73,11 @@ async fn test_continuous_key_processing() {
         return;
     }
 
+    let _env_lock = acquire_test_env_lock().await;
+
     // Setup mock Android SDK environment
     let temp_dir = tempfile::tempdir().unwrap();
-    std::env::set_var("ANDROID_HOME", temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
 
     let sdk_path = temp_dir.path();
     tokio::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin"))
@@ -123,18 +126,17 @@ async fn test_continuous_key_processing() {
 
         println!("✓ Continuous key processing test passed - avg {avg_per_key:?} per key");
     }
-
-    std::env::remove_var("ANDROID_HOME");
-    std::mem::forget(temp_dir);
 }
 
 #[tokio::test]
 async fn test_event_batching_performance() {
     // Test that batched event processing is more efficient than single events
+
+    let _env_lock = acquire_test_env_lock().await;
     
     // Setup mock Android SDK environment
     let temp_dir = tempfile::tempdir().unwrap();
-    std::env::set_var("ANDROID_HOME", temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
 
     let sdk_path = temp_dir.path();
     tokio::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin"))
@@ -180,7 +182,4 @@ async fn test_event_batching_performance() {
 
         println!("✓ Event batching test passed - processed in {batch_time:?}");
     }
-
-    std::env::remove_var("ANDROID_HOME");
-    std::mem::forget(temp_dir);
 }

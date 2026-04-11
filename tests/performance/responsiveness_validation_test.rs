@@ -1,17 +1,19 @@
+#[cfg(feature = "test-utils")]
 use emu::app::App;
 use std::time::Instant;
 
 #[cfg(feature = "test-utils")]
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
 #[tokio::test]
 #[cfg(feature = "test-utils")]
 async fn test_ui_responsiveness_validation() {
     println!("=== UI RESPONSIVENESS VALIDATION TEST ===");
+    let _env_lock = acquire_test_env_lock().await;
 
     // Set up mock Android SDK for testing
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let app = App::new()
         .await
@@ -38,10 +40,11 @@ async fn test_ui_responsiveness_validation() {
 #[cfg(feature = "test-utils")]
 async fn test_rapid_operations_simulation() {
     println!("=== RAPID OPERATIONS SIMULATION TEST ===");
+    let _env_lock = acquire_test_env_lock().await;
 
     // Set up mock Android SDK for testing
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let _app = App::new()
         .await

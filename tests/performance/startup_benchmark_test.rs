@@ -6,6 +6,7 @@
 use emu::app::state::AppState;
 use emu::managers::android::AndroidManager;
 use emu::managers::common::DeviceManager;
+#[cfg(feature = "test-utils")]
 use emu::models::{AndroidDevice, DeviceStatus};
 use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::sync::Arc;
@@ -15,13 +16,14 @@ const PERFORMANCE_TARGET_STARTUP_MS: u64 = 150;
 const PERFORMANCE_TARGET_DEVICE_LIST_MS: u64 = 100;
 const PERFORMANCE_TARGET_UI_RENDER_MS: u64 = 50;
 
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
 /// Application-wide startup time benchmark
 #[tokio::test]
 async fn test_application_startup_benchmark() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -71,11 +73,12 @@ async fn test_application_startup_benchmark() {
 /// Device list retrieval performance test
 #[tokio::test]
 async fn test_device_list_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let test_cases = vec![("small", 1), ("medium", 10), ("large", 50), ("xlarge", 100)];
 
     for (size_name, device_count) in test_cases {
         let _temp_dir = setup_mock_android_sdk();
-        std::env::set_var("ANDROID_HOME", _temp_dir.path());
+        let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
         let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
         let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -97,6 +100,10 @@ async fn test_device_list_performance() {
             );
 
         let android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+        // Warm up parsing once to reduce cold-start timing noise in the benchmark.
+        let warmup_devices = android_manager.list_devices().await.unwrap();
+        assert_eq!(warmup_devices.len(), device_count);
 
         let start_time = Instant::now();
         let devices = android_manager.list_devices().await.unwrap();
@@ -161,8 +168,9 @@ async fn test_ui_rendering_performance() {
 /// Concurrent device operations performance test
 #[tokio::test]
 async fn test_concurrent_operations_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -219,8 +227,9 @@ async fn test_concurrent_operations_performance() {
 /// Memory usage performance test
 #[tokio::test]
 async fn test_memory_usage_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -272,8 +281,9 @@ async fn test_memory_usage_performance() {
 /// Responsiveness validation test
 #[tokio::test]
 async fn test_responsiveness_validation() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -332,8 +342,9 @@ async fn test_responsiveness_validation() {
 /// Stress test
 #[tokio::test]
 async fn test_stress_performance() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -397,6 +408,7 @@ async fn test_stress_performance() {
 /// Performance regression detection test
 #[tokio::test]
 async fn test_performance_regression_detection() {
+    let _env_lock = acquire_test_env_lock().await;
     let baseline_metrics = vec![
         ("startup", PERFORMANCE_TARGET_STARTUP_MS),
         ("device_list", PERFORMANCE_TARGET_DEVICE_LIST_MS),
@@ -416,7 +428,7 @@ async fn test_performance_regression_detection() {
             }
             "device_list" => {
                 let _temp_dir = setup_mock_android_sdk();
-                std::env::set_var("ANDROID_HOME", _temp_dir.path());
+                let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path());
 
                 let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
                 let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -474,6 +486,7 @@ fn create_complex_device_list_output(device_count: usize) -> String {
     output
 }
 
+#[cfg(feature = "test-utils")]
 fn create_test_android_devices(count: usize) -> Vec<AndroidDevice> {
     (1..=count)
         .map(|i| AndroidDevice {
