@@ -2708,43 +2708,36 @@ impl App {
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();
 
-        // Execute as a true background task (no UI blocking)
-        tokio::spawn(async move {
-            // Pre-load API Level cache in background for faster device creation
-            let _ = android_manager.list_available_targets().await;
+        // Pre-load API Level cache in background for faster device creation.
+        tokio::spawn({
+            let android_manager = android_manager.clone();
+            async move {
+                let _ = android_manager.list_available_targets().await;
+            }
+        });
 
-            // Load Android and iOS devices in parallel for faster startup
-            let android_future = android_manager.list_devices_parallel();
-            let ios_future = async {
-                if let Some(ref ios_manager) = ios_manager {
-                    ios_manager.list_devices().await
-                } else {
-                    Ok(vec![])
-                }
-            };
+        // Load Android devices without waiting for iOS startup work.
+        tokio::spawn({
+            let state_clone = Arc::clone(&state_clone);
+            let android_manager = android_manager.clone();
+            async move {
+                match android_manager.list_devices_parallel().await {
+                    Ok(android_devices) => {
+                        let mut state = state_clone.lock().await;
+                        state.android_devices = android_devices;
+                        state.is_loading = false;
+                        state.mark_refreshed();
 
-            let (android_result, ios_result) = tokio::join!(android_future, ios_future);
+                        // Get details for first device if selected
+                        let should_update_details = state.active_panel == Panel::Android
+                            && !state.android_devices.is_empty()
+                            && state.cached_device_details.is_none();
+                        drop(state);
 
-            // Process Android devices immediately
-            match android_result {
-                Ok(android_devices) => {
-                    let mut state = state_clone.lock().await;
-                    state.android_devices = android_devices;
-                    state.is_loading = false;
-                    state.mark_refreshed();
-
-                    // Get details for first device if selected
-                    let should_update_details = state.active_panel == Panel::Android
-                        && !state.android_devices.is_empty()
-                        && state.cached_device_details.is_none();
-                    drop(state);
-
-                    if should_update_details {
-                        // Update device details asynchronously
-                        let state_clone2 = Arc::clone(&state_clone);
-                        let android_manager_clone = android_manager.clone();
-                        tokio::spawn(async move {
-                            {
+                        if should_update_details {
+                            let state_clone2 = Arc::clone(&state_clone);
+                            let android_manager_clone = android_manager.clone();
+                            tokio::spawn(async move {
                                 let state = state_clone2.lock().await;
                                 if let Some(device) =
                                     state.android_devices.get(state.selected_android)
@@ -2761,12 +2754,10 @@ impl App {
                                         state.update_cached_device_details(details);
                                     }
                                 }
-                            }
-                        });
-                    }
+                            });
+                        }
 
-                    // Start log streaming if device is running
-                    {
+                        // Start log streaming if device is running
                         let state = state_clone.lock().await;
                         let should_start_logs = state.active_panel == Panel::Android
                             && state
@@ -2789,17 +2780,23 @@ impl App {
                             });
                         }
                     }
-                }
-                Err(e) => {
-                    let mut state = state_clone.lock().await;
-                    state.is_loading = false;
-                    state.add_error_notification(format!("Failed to load Android devices: {e}"));
-                    drop(state);
+                    Err(e) => {
+                        let mut state = state_clone.lock().await;
+                        state.is_loading = false;
+                        state
+                            .add_error_notification(format!("Failed to load Android devices: {e}"));
+                    }
                 }
             }
+        });
 
-            // Process iOS devices from parallel result
-            match ios_result {
+        // Load iOS devices independently so they cannot block Android startup.
+        tokio::spawn(async move {
+            let Some(ios_manager) = ios_manager else {
+                return;
+            };
+
+            match ios_manager.list_devices().await {
                 Ok(ios_devices) => {
                     let mut state = state_clone.lock().await;
                     state.ios_devices = ios_devices;
@@ -2811,70 +2808,62 @@ impl App {
                     drop(state);
 
                     if should_update_details {
-                        // Update device details asynchronously
                         let state_clone2 = Arc::clone(&state_clone);
                         tokio::spawn(async move {
-                            {
-                                let state = state_clone2.lock().await;
-                                if let Some(device) = state.ios_devices.get(state.selected_ios) {
-                                    // Generate iOS device details from basic info
-                                    let details = crate::app::state::DeviceDetails {
-                                        name: device.name.clone(),
-                                        status: if device.is_running {
-                                            "Running".to_string()
-                                        } else {
-                                            "Stopped".to_string()
-                                        },
-                                        platform: Panel::Ios,
-                                        device_type: device.device_type.clone(),
-                                        api_level_or_version: format!("iOS {}", device.ios_version),
-                                        ram_size: None,
-                                        storage_size: None,
-                                        resolution: None,
-                                        dpi: None,
-                                        device_path: None,
-                                        system_image: None,
-                                        identifier: device.udid.clone(),
-                                    };
-                                    drop(state);
+                            let state = state_clone2.lock().await;
+                            if let Some(device) = state.ios_devices.get(state.selected_ios) {
+                                let details = crate::app::state::DeviceDetails {
+                                    name: device.name.clone(),
+                                    status: if device.is_running {
+                                        "Running".to_string()
+                                    } else {
+                                        "Stopped".to_string()
+                                    },
+                                    platform: Panel::Ios,
+                                    device_type: device.device_type.clone(),
+                                    api_level_or_version: format!("iOS {}", device.ios_version),
+                                    ram_size: None,
+                                    storage_size: None,
+                                    resolution: None,
+                                    dpi: None,
+                                    device_path: None,
+                                    system_image: None,
+                                    identifier: device.udid.clone(),
+                                };
+                                drop(state);
 
-                                    let mut state = state_clone2.lock().await;
-                                    state.update_cached_device_details(details);
-                                }
+                                let mut state = state_clone2.lock().await;
+                                state.update_cached_device_details(details);
                             }
                         });
                     }
 
                     // Start log streaming if device is running (iOS)
-                    {
-                        let state = state_clone.lock().await;
-                        let should_start_logs = state.active_panel == Panel::Ios
-                            && state
-                                .ios_devices
-                                .get(state.selected_ios)
-                                .map(|d| d.is_running)
-                                .unwrap_or(false);
-                        drop(state);
+                    let state = state_clone.lock().await;
+                    let should_start_logs = state.active_panel == Panel::Ios
+                        && state
+                            .ios_devices
+                            .get(state.selected_ios)
+                            .map(|d| d.is_running)
+                            .unwrap_or(false);
+                    drop(state);
 
-                        if should_start_logs {
-                            let state_clone3 = Arc::clone(&state_clone);
-                            let ios_manager_clone = ios_manager.clone();
-                            tokio::spawn(async move {
-                                Self::update_log_stream_internal(
-                                    state_clone3,
-                                    AndroidManager::new()
-                                        .unwrap_or_else(|_| AndroidManager::new().unwrap()),
-                                    ios_manager_clone,
-                                )
-                                .await;
-                            });
-                        }
+                    if should_start_logs {
+                        let state_clone3 = Arc::clone(&state_clone);
+                        tokio::spawn(async move {
+                            Self::update_log_stream_internal(
+                                state_clone3,
+                                AndroidManager::new()
+                                    .unwrap_or_else(|_| AndroidManager::new().unwrap()),
+                                Some(ios_manager),
+                            )
+                            .await;
+                        });
                     }
                 }
                 Err(e) => {
                     let mut state = state_clone.lock().await;
                     state.add_error_notification(format!("Failed to load iOS devices: {e}"));
-                    drop(state);
                 }
             }
         });
