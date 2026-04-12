@@ -43,7 +43,7 @@ The main hotspots are:
 - [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs) `3924` lines before module extraction started
 - [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `1668` lines before state module extraction started
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) `1510` lines
-- [src/managers/ios.rs](/Users/a12622/git/emu/src/managers/ios.rs) `1466` lines
+- [src/managers/ios/mod.rs](/Users/a12622/git/emu/src/managers/ios/mod.rs) `1466` lines before module extraction started
 
 These files currently hold multiple responsibilities at once.
 
@@ -57,6 +57,7 @@ Completed structural checkpoints:
 - `ApiLevelCache` extracted from `app::state`
 - `src/app/state.rs` converted into `src/app/state/mod.rs` plus sibling modules
 - `src/managers/android.rs` converted into `src/managers/android/mod.rs`
+- `src/managers/ios.rs` converted into `src/managers/ios/mod.rs`
 - Android helper modules extracted so far:
   - `parser.rs`
   - `sdk.rs`
@@ -84,7 +85,7 @@ The current cross-layer dependencies that matter for the refactor are:
    - imports `crate::app::state::ApiLevelCache`
    - imports `crate::app::Panel`
 
-2. [src/managers/ios.rs](/Users/a12622/git/emu/src/managers/ios.rs)
+2. [src/managers/ios/mod.rs](/Users/a12622/git/emu/src/managers/ios/mod.rs)
    - imports `crate::app::state::DeviceDetails`
    - imports `crate::app::state::Panel`
 
@@ -541,7 +542,7 @@ Files expected to change:
 - [src/models/mod.rs](/Users/a12622/git/emu/src/models/mod.rs)
 - new `src/models/details.rs`
 - [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs)
-- [src/managers/ios.rs](/Users/a12622/git/emu/src/managers/ios.rs)
+- [src/managers/ios/mod.rs](/Users/a12622/git/emu/src/managers/ios/mod.rs)
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
 - tests using `DeviceDetails`
 

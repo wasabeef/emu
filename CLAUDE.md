@@ -29,7 +29,7 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/app/state/mod.rs`        | `AppState`, `ApiLevelManagementState::is_busy()`                                         |
 | `src/managers/android/mod.rs` | Android AVD facade and runtime orchestration                                             |
 | `src/managers/android/*.rs`   | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
-| `src/managers/ios.rs`         | iOS simulator management (macOS only)                                                    |
+| `src/managers/ios/mod.rs`     | iOS simulator management (macOS only)                                                    |
 | `src/managers/common.rs`      | `DeviceManager` trait                                                                    |
 | `src/ui/render.rs`            | Three-panel layout rendering                                                             |
 | `src/constants/`              | All constants (NO hardcoded values in source)                                            |
