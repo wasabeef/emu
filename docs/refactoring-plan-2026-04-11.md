@@ -40,12 +40,37 @@ If any of the above changes, the PR is not structural-only and must be treated a
 The main hotspots are:
 
 - [src/app/mod.rs](/Users/a12622/git/emu/src/app/mod.rs) `4317` lines
-- [src/managers/android.rs](/Users/a12622/git/emu/src/managers/android.rs) `3924` lines
-- [src/app/state.rs](/Users/a12622/git/emu/src/app/state.rs) `1668` lines
+- [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs) `3924` lines before module extraction started
+- [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `1668` lines before state module extraction started
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) `1510` lines
 - [src/managers/ios.rs](/Users/a12622/git/emu/src/managers/ios.rs) `1466` lines
 
 These files currently hold multiple responsibilities at once.
+
+## Progress Snapshot
+
+The plan is now partially executed.
+
+Completed structural checkpoints:
+
+- `DeviceDetails` extracted from `app::state`
+- `ApiLevelCache` extracted from `app::state`
+- `src/app/state.rs` converted into `src/app/state/mod.rs` plus sibling modules
+- `src/managers/android.rs` converted into `src/managers/android/mod.rs`
+- Android helper modules extracted so far:
+  - `parser.rs`
+  - `sdk.rs`
+  - `version.rs`
+  - `details.rs`
+  - `create.rs`
+  - `install.rs`
+  - `discovery.rs`
+
+Current review stance:
+
+- these extractions are still required to preserve behavior exactly
+- all structural checkpoints must continue to pass targeted tests and `cargo clippy --all-targets --all-features -- -D warnings`
+- any policy change, parsing correction, or fallback adjustment must stay in a separate behavior commit
 
 ## Dependency Inventory
 
@@ -53,7 +78,7 @@ The current cross-layer dependencies that matter for the refactor are:
 
 ### Inversions that should be removed early
 
-1. [src/managers/android.rs](/Users/a12622/git/emu/src/managers/android.rs)
+1. [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs)
    - imports `crate::app::state::DeviceDetails`
    - imports `crate::app::state::ApiLevelCache`
    - imports `crate::app::Panel`
@@ -511,10 +536,10 @@ Remove the worst architecture violations before any broad extraction.
 
 Files expected to change:
 
-- [src/app/state.rs](/Users/a12622/git/emu/src/app/state.rs)
+- [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs)
 - [src/models/mod.rs](/Users/a12622/git/emu/src/models/mod.rs)
 - new `src/models/details.rs`
-- [src/managers/android.rs](/Users/a12622/git/emu/src/managers/android.rs)
+- [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs)
 - [src/managers/ios.rs](/Users/a12622/git/emu/src/managers/ios.rs)
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
 - tests using `DeviceDetails`
@@ -536,8 +561,8 @@ Acceptance criteria:
 
 Files expected to change:
 
-- [src/app/state.rs](/Users/a12622/git/emu/src/app/state.rs)
-- [src/managers/android.rs](/Users/a12622/git/emu/src/managers/android.rs)
+- [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs)
+- [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs)
 - new `src/utils/cache.rs` or other neutral cache module
 
 Rules:
@@ -557,7 +582,7 @@ Acceptance criteria:
 
 Files expected to change:
 
-- [src/app/state.rs](/Users/a12622/git/emu/src/app/state.rs)
+- [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs)
 - [src/models/device_info.rs](/Users/a12622/git/emu/src/models/device_info.rs)
 - new `src/models/device_naming.rs` or equivalent pure helper
 
@@ -927,8 +952,8 @@ This plan should be judged not only by “does it compile” but by whether the 
 Target metrics:
 
 - `src/app/mod.rs` reduced from `4317` lines to under `1000`
-- `src/managers/android.rs` reduced from `3924` lines to a small facade plus focused siblings
-- `src/app/state.rs` converted into `app/state/*` with one main shell file
+- `src/managers/android/mod.rs` reduced from `3924` lines to a small facade plus focused siblings
+- `src/app/state/mod.rs` converted into `app/state/*` with one main shell file
 - no production lower-layer module importing `app::state::DeviceDetails`
 - no production manager importing `app::state::ApiLevelCache`
 - targeted tests for each extracted responsibility remain green
