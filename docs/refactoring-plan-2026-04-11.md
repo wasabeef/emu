@@ -73,6 +73,7 @@ Completed structural checkpoints:
   - `lifecycle.rs`
 - UI helper modules extracted so far:
   - `dialogs.rs`
+  - `panels.rs`
 
 Current review stance:
 

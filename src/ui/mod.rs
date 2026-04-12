@@ -16,6 +16,7 @@
 //! each frame, with optimizations for minimal redraws.
 
 pub(crate) mod dialogs;
+pub(crate) mod panels;
 pub mod render;
 pub mod theme;
 pub mod widgets;
