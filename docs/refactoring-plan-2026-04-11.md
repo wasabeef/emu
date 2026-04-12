@@ -71,6 +71,8 @@ Completed structural checkpoints:
   - `discovery.rs`
   - `details.rs`
   - `lifecycle.rs`
+- UI helper modules extracted so far:
+  - `dialogs.rs`
 
 Current review stance:
 
@@ -837,10 +839,12 @@ Files expected to change:
 Files expected to change:
 
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
-- `src/ui/dialogs/create_device.rs`
-- `src/ui/dialogs/confirm_delete.rs`
-- `src/ui/dialogs/confirm_wipe.rs`
-- `src/ui/dialogs/api_levels.rs`
+- `src/ui/dialogs.rs`
+- optional later split:
+  - `src/ui/dialogs/create_device.rs`
+  - `src/ui/dialogs/confirm_delete.rs`
+  - `src/ui/dialogs/confirm_wipe.rs`
+  - `src/ui/dialogs/api_levels.rs`
 
 Acceptance criteria for Phase 6:
 

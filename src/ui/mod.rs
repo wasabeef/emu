@@ -15,6 +15,7 @@
 //! rendering pattern. The application state is rendered to the terminal on
 //! each frame, with optimizations for minimal redraws.
 
+pub(crate) mod dialogs;
 pub mod render;
 pub mod theme;
 pub mod widgets;
