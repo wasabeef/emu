@@ -705,6 +705,7 @@ Rules:
 - keep the public `AndroidManager` facade intact
 - no capability extraction in the same PR
 - if API level is ambiguous, prefer `unknown` over inferred Android-version-to-API guesses
+- if a fallback uses Android version text, allow only exact, unambiguous mappings and reject major-version guesses
 
 ### PR 4B: extract parser and SDK discovery
 

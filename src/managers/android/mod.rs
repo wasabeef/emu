@@ -2677,31 +2677,63 @@ mod tests {
 
     #[test]
     fn test_parse_android_version_to_api_level() {
-        // Normal cases: known mappings
+        // Normal cases: only exact, unambiguous mappings are supported
         assert_eq!(AndroidManager::parse_android_version_to_api_level("15"), 35);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("14"), 34);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("13"), 33);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("12"), 32);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("11"), 30);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("10"), 29);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("9"), 28);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("8"), 26);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("7"), 24);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("6"), 23);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("5"), 21);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("4"), 15);
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("8.1"),
+            27
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("8.0"),
+            26
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("7.1"),
+            25
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("7.0"),
+            24
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("5.1"),
+            22
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("5.0"),
+            21
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("4.4"),
+            19
+        );
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("4.1"),
+            16
+        );
 
         // Test version strings (with decimal points)
         assert_eq!(
             AndroidManager::parse_android_version_to_api_level("14.0"),
             34
         );
-        assert_eq!(
-            AndroidManager::parse_android_version_to_api_level("8.1"),
-            26
-        ); // Consider only major version
 
-        // Unknown future versions should remain unknown rather than guessed
+        // Ambiguous or unknown versions should remain unknown rather than guessed
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("12"), 0);
+        assert_eq!(
+            AndroidManager::parse_android_version_to_api_level("12.0"),
+            0
+        );
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("8"), 0);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("7"), 0);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("5"), 0);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("4"), 0);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 0);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 0);
 
@@ -3438,23 +3470,27 @@ Available Android Virtual Devices:
         // Set up Android SDK environment for testing
         let temp_dir = setup_test_android_sdk();
         env::set_var("ANDROID_HOME", temp_dir.path());
+        let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
 
-        // Mock get_available_targets output
-        let system_images_output = r#"
+        let platforms_output = r#"
 Installed packages:
-  system-images;android-34;google_apis;arm64-v8a | 1 | Google APIs ARM 64 v8a System Image
-  system-images;android-33;google_apis_playstore;x86_64 | 1 | Google APIs with Playstore Intel x86_64 System Image
-  system-images;android-31;default;x86_64 | 1 | Intel x86_64 System Image
-
-Available Packages:
-  system-images;android-32;google_apis;arm64-v8a | 1 | Google APIs ARM 64 v8a System Image
+  Path                                        | Version | Description                    | Location
+  -------                                     | ------- | -------                        | -------
+  platforms;android-34                        | 3       | Android SDK Platform 34        | platforms/android-34 | Android API 34, revision 2 | Android 14
+  platforms;android-33                        | 3       | Android SDK Platform 33        | platforms/android-33 | Android API 33, revision 3 | Android 13
 "#;
 
-        let mock_executor = MockCommandExecutor::new().with_success(
-            "sdkmanager",
-            &["--list", "--include_obsolete"],
-            system_images_output,
-        );
+        let mock_executor = MockCommandExecutor::new()
+            .with_error(
+                &sdkmanager_path.to_string_lossy(),
+                &["--list", "--verbose", "--include_obsolete"],
+                "verbose list failed",
+            )
+            .with_success(
+                &sdkmanager_path.to_string_lossy(),
+                &["--list"],
+                platforms_output,
+            );
 
         let manager = match AndroidManager::with_executor(Arc::new(mock_executor)) {
             Ok(manager) => manager,
@@ -3465,16 +3501,53 @@ Available Packages:
             }
         };
 
-        // Test existing API level
+        // Fall back to parsing sdkmanager --list output when targets are unavailable
         let version_name = manager.get_dynamic_android_version_name(34).await;
-        // Expected value may vary due to complex implementation, but confirm it's not None
-        assert!(version_name.is_none() || version_name.is_some());
+        assert_eq!(version_name, Some("14".to_string()));
 
         // Test non-existent API level
         let version_name = manager.get_dynamic_android_version_name(999).await;
         assert!(version_name.is_none());
 
         // Cleanup
+        env::remove_var("ANDROID_HOME");
+    }
+
+    #[tokio::test]
+    async fn test_detect_api_level_for_device_prefers_explicit_api_level() {
+        let temp_dir = setup_test_android_sdk();
+        env::set_var("ANDROID_HOME", temp_dir.path());
+
+        let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+
+        let api_level = manager
+            .detect_api_level_for_device(
+                "Pixel_12_API",
+                "Google APIs (Google Inc.) Based on: Android 12.0 (API level 31) Tag/ABI: google_apis/arm64-v8a",
+            )
+            .await;
+
+        assert_eq!(api_level, 31);
+
+        env::remove_var("ANDROID_HOME");
+    }
+
+    #[tokio::test]
+    async fn test_detect_api_level_for_device_keeps_ambiguous_version_unknown() {
+        let temp_dir = setup_test_android_sdk();
+        env::set_var("ANDROID_HOME", temp_dir.path());
+
+        let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+
+        let api_level = manager
+            .detect_api_level_for_device(
+                "Pixel_12_API",
+                "Google APIs (Google Inc.) Based on: Android 12.0 Tag/ABI: google_apis/arm64-v8a",
+            )
+            .await;
+
+        assert_eq!(api_level, 0);
+
         env::remove_var("ANDROID_HOME");
     }
 
