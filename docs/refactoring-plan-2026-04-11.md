@@ -94,7 +94,11 @@ Completed structural checkpoints:
   - `lifecycle.rs`
   - `tests.rs`
 - UI helper modules extracted so far:
-  - `dialogs.rs`
+  - `dialogs/mod.rs`
+  - `dialogs/create_device.rs`
+  - `dialogs/confirmation.rs`
+  - `dialogs/api_levels.rs`
+  - `dialogs/notifications.rs`
   - `panels.rs`
 
 Current file sizes after the latest structural checkpoints:
@@ -104,7 +108,7 @@ Current file sizes after the latest structural checkpoints:
 - [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs) `517` lines
 - [src/managers/android/tests.rs](/Users/a12622/git/emu/src/managers/android/tests.rs) `943` lines
 - [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `337` lines
-- [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) remains the main remaining rendering shell, with [src/ui/dialogs.rs](/Users/a12622/git/emu/src/ui/dialogs.rs) and [src/ui/panels.rs](/Users/a12622/git/emu/src/ui/panels.rs) already split out
+- [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) remains the main rendering shell, with [src/ui/dialogs/mod.rs](/Users/a12622/git/emu/src/ui/dialogs/mod.rs) and [src/ui/panels.rs](/Users/a12622/git/emu/src/ui/panels.rs) already split out
 
 Current review stance:
 

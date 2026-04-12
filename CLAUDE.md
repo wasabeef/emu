@@ -39,7 +39,8 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/managers/android/tests.rs` | `AndroidManager` facade and helper module regression tests                               |
 | `src/managers/ios/tests.rs`     | `IosManager` facade and helper module regression tests                                   |
 | `src/ui/render.rs`              | Three-panel layout rendering and panel composition                                       |
-| `src/ui/dialogs.rs`             | Modal dialog rendering (`create/confirm/api-level/notifications`)                        |
+| `src/ui/dialogs/mod.rs`         | Modal dialog entrypoint and dialog composition                                           |
+| `src/ui/dialogs/*.rs`           | Dialog-specific renderers (`create/confirm/api-level/notifications`)                     |
 | `src/ui/panels.rs`              | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
 | `src/constants/`                | All constants (NO hardcoded values in source)                                            |
 | `src/models/`                   | Core data structures                                                                     |
