@@ -65,6 +65,7 @@ Completed structural checkpoints:
   - `create.rs`
   - `install.rs`
   - `discovery.rs`
+  - `lifecycle.rs`
 
 Current review stance:
 

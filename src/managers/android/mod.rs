@@ -281,31 +281,23 @@ mod create;
 mod details;
 mod discovery;
 mod install;
+mod lifecycle;
 mod parser;
 mod sdk;
 mod version;
 
 use crate::{
-    constants::{
-        commands, defaults,
-        env_vars::HOME,
-        files,
-        limits::STORAGE_MB_TO_GB_DIVISOR,
-        timeouts::{DEVICE_START_WAIT_TIME, DEVICE_STATUS_CHECK_DELAY},
-    },
+    constants::commands,
     managers::common::{DeviceConfig, DeviceManager},
-    models::{AndroidDevice, DeviceStatus},
+    models::AndroidDevice,
     utils::command::CommandRunner,
     utils::command_executor::CommandExecutor,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::fs;
-
-use self::parser::AvdListParser;
 
 lazy_static! {
     // Device listing regexes
@@ -452,222 +444,19 @@ impl AndroidManager {
     }
 }
 
-impl AndroidManager {
-    /// Optimized parallel version of list_devices
-    pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
-        // Run avdmanager list, get_running_avd_names, and list_available_targets in parallel
-        let avd_list_future = self
-            .command_executor
-            .run(&self.avdmanager_path, &["list", "avd"]);
-        let running_avds_future = self.get_running_avd_names();
-        let targets_future = self.list_available_targets();
-
-        let (avd_output_result, running_avds_result, targets_result) =
-            tokio::join!(avd_list_future, running_avds_future, targets_future);
-
-        let avd_output = avd_output_result.context("Failed to list Android AVDs")?;
-        let running_avds = running_avds_result?;
-        let targets = targets_result.unwrap_or_default();
-
-        // Create a version name lookup map for faster access
-        let mut version_map = std::collections::HashMap::new();
-        for (level_str, display) in targets {
-            if let Ok(level) = level_str.parse::<u32>() {
-                if let Some(dash_pos) = display.find(" - Android ") {
-                    version_map.insert(level, display[dash_pos + 11..].to_string());
-                }
-            }
-        }
-
-        // Use the new parser for better testability
-        let mut parser = AvdListParser::new(&avd_output);
-        let mut devices = Vec::new();
-
-        while let Some((name, _path, target, _abi, device)) = parser.parse_next_device() {
-            let is_running = running_avds.contains_key(&name);
-
-            // For now, still do API level detection synchronously
-            // (can be optimized further if needed)
-            let api_level = self.detect_api_level_for_device(&name, &target).await;
-
-            // For parallel version, use default values for now
-            // TODO: Optimize hardware property reading in parallel
-            let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
-            let storage_size = format!(
-                "{}M",
-                defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
-            );
-
-            // Get Android version name from pre-loaded cache
-            let android_version_name = version_map
-                .get(&api_level)
-                .cloned()
-                .unwrap_or_else(|| self.get_android_version_name(api_level));
-
-            devices.push(AndroidDevice {
-                name,
-                device_type: device,
-                api_level,
-                android_version_name,
-                status: if is_running {
-                    DeviceStatus::Running
-                } else {
-                    DeviceStatus::Stopped
-                },
-                is_running,
-                ram_size,
-                storage_size,
-            });
-        }
-
-        Ok(devices)
-    }
-
-    /// Helper method to detect API level for a device
-    async fn detect_api_level_for_device(&self, name: &str, target: &str) -> u32 {
-        let mut api = 0u32;
-
-        // Method 1: Try to read from config.ini in standard location
-        if let Ok(home) = std::env::var(HOME) {
-            let config_path = PathBuf::from(home)
-                .join(files::android::AVD_DIR)
-                .join("avd")
-                .join(format!("{name}.avd"))
-                .join(files::CONFIG_FILE);
-
-            if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
-                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                        api = parsed_api;
-                    }
-                } else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content) {
-                    if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                        api = parsed_api;
-                    }
-                }
-            }
-        }
-
-        // Method 2: If still no API found, try get_avd_path method
-        if api == 0 {
-            if let Ok(Some(avd_path)) = self.get_avd_path(name).await {
-                let config_path = avd_path.join(files::CONFIG_FILE);
-                if let Ok(config_content) = fs::read_to_string(&config_path).await {
-                    if let Some(caps) = IMAGE_SYSDIR_REGEX.captures(&config_content) {
-                        if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                            api = parsed_api;
-                        }
-                    } else if let Some(caps) = TARGET_CONFIG_REGEX.captures(&config_content) {
-                        if let Ok(parsed_api) = caps[1].parse::<u32>() {
-                            api = parsed_api;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Method 3: Fallback to parsing from avdmanager target string
-        if api == 0 {
-            if let Some(caps) = API_LEVEL_REGEX.captures(target) {
-                api = caps[1].parse().unwrap_or(0);
-            } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(target) {
-                api = caps[1].parse().unwrap_or(0);
-            } else if let Some(caps) = BASED_ON_REGEX.captures(target) {
-                let version = &caps[1];
-                api = Self::parse_android_version_to_api_level(version);
-            }
-        }
-
-        api
-    }
-}
-
 impl DeviceManager for AndroidManager {
     type Device = AndroidDevice;
 
     async fn list_devices(&self) -> Result<Vec<Self::Device>> {
-        // Use parallel execution for optimal performance
         self.list_devices_parallel().await
     }
 
     async fn start_device(&self, identifier: &str) -> Result<()> {
-        // Start emulator with reduced console output
-        let args = vec![
-            "-avd",
-            identifier,
-            "-no-audio",         // Disable audio for less output
-            "-no-snapshot-save", // Don't save snapshot on exit
-            "-no-boot-anim",     // Skip boot animation
-            "-netfast",          // Faster network emulation
-        ];
-
-        self.command_executor
-            .spawn(&self.emulator_path, &args)
-            .await?;
-        Ok(())
+        self.start_device_internal(identifier).await
     }
 
     async fn stop_device(&self, identifier: &str) -> Result<()> {
-        // log::info!("Attempting to stop Android emulator: {}", identifier);
-
-        // Get running AVDs to find the emulator ID for the given AVD name
-        let running_avds = self.get_running_avd_names().await?;
-
-        if let Some(emulator_id) = running_avds.get(identifier) {
-            // log::info!("Found emulator {} for AVD {}, stopping it", emulator_id, identifier);
-
-            // Use a graceful shutdown method instead of killing the emulator process
-            // This sends a shutdown command to the Android OS, not the emulator itself
-            // Important: This approach allows the emulator process to remain running
-            // even when the emu TUI application exits, preventing accidental data loss
-            // First try to send a shutdown broadcast to Android
-            let shutdown_result = self
-                .command_executor
-                .run(
-                    Path::new(commands::ADB),
-                    &[
-                        "-s",
-                        emulator_id,
-                        "shell",
-                        "am",
-                        "broadcast",
-                        "-a",
-                        "android.intent.action.ACTION_SHUTDOWN",
-                    ],
-                )
-                .await;
-
-            if shutdown_result.is_ok() {
-                // Give the OS a moment to process the shutdown
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    DEVICE_STATUS_CHECK_DELAY.as_millis() as u64,
-                ))
-                .await;
-
-                // Then use reboot -p as a fallback to power off
-                let _ = self
-                    .command_executor
-                    .run(
-                        Path::new(commands::ADB),
-                        &["-s", emulator_id, "shell", "reboot", "-p"],
-                    )
-                    .await;
-            } else {
-                // If the graceful shutdown failed, fall back to emu kill
-                // but only as a last resort
-                self.command_executor
-                    .run(
-                        Path::new(commands::ADB),
-                        &["-s", emulator_id, "emu", "kill"],
-                    )
-                    .await
-                    .context(format!("Failed to stop emulator {emulator_id}"))?;
-            }
-        } else {
-            // log::warn!("AVD '{}' is not currently running", identifier);
-        }
-
-        Ok(())
+        self.stop_device_internal(identifier).await
     }
 
     async fn create_device(&self, config: &DeviceConfig) -> Result<()> {
@@ -675,97 +464,11 @@ impl DeviceManager for AndroidManager {
     }
 
     async fn delete_device(&self, identifier: &str) -> Result<()> {
-        // Check if device is running and stop it first
-        let running_avds = self.get_running_avd_names().await.unwrap_or_default();
-        if running_avds.contains_key(identifier) {
-            log::info!("Device '{identifier}' is running, stopping before deletion");
-            if let Err(e) = self.stop_device(identifier).await {
-                log::warn!("Failed to stop device '{identifier}' before deletion: {e}");
-                // Continue with deletion even if stop fails
-            }
-
-            // Wait a bit for the device to fully stop
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                DEVICE_START_WAIT_TIME.as_secs(),
-            ))
-            .await;
-        }
-
-        // Delete the AVD
-        self.command_executor
-            .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
-            .await
-            .context(format!("Failed to delete Android AVD '{identifier}'"))?;
-        Ok(())
+        self.delete_device_internal(identifier).await
     }
 
     async fn wipe_device(&self, identifier: &str) -> Result<()> {
-        // For Android, wipe means clearing user data without starting the device
-        // First, stop the device if it's running
-        let running_avds = self.get_running_avd_names().await?;
-        if running_avds.contains_key(identifier) {
-            log::info!("Device '{identifier}' is running, stopping before wipe");
-            self.stop_device(identifier).await?;
-            // Wait briefly for the emulator to shut down
-            tokio::time::sleep(tokio::time::Duration::from_millis(
-                DEVICE_STATUS_CHECK_DELAY.as_millis() as u64,
-            ))
-            .await;
-        }
-
-        // Directly delete user data files from AVD directory instead of starting emulator
-        if let Ok(home_dir) = std::env::var(HOME) {
-            let avd_path = std::path::PathBuf::from(home_dir)
-                .join(files::android::AVD_DIR)
-                .join("avd")
-                .join(format!("{identifier}.avd"));
-
-            if avd_path.exists() {
-                // Delete user data files that get recreated on next boot
-                let files_to_delete = [
-                    "userdata.img",
-                    "userdata-qemu.img",
-                    "cache.img",
-                    "cache.img.qcow2",
-                    "userdata.img.qcow2",
-                    "sdcard.img",
-                    "sdcard.img.qcow2",
-                    "multiinstance.lock",
-                ];
-
-                for file_name in &files_to_delete {
-                    let file_path = avd_path.join(file_name);
-                    if file_path.exists() {
-                        if let Err(e) = tokio::fs::remove_file(&file_path).await {
-                            log::warn!("Failed to remove {}: {}", file_path.display(), e);
-                        } else {
-                            log::debug!("Removed user data file: {}", file_path.display());
-                        }
-                    }
-                }
-
-                // Also clear snapshots directory if it exists
-                let snapshots_dir = avd_path.join("snapshots");
-                if snapshots_dir.exists() {
-                    if let Err(e) = tokio::fs::remove_dir_all(&snapshots_dir).await {
-                        log::warn!("Failed to remove snapshots directory: {e}");
-                    } else {
-                        log::debug!("Removed snapshots directory");
-                    }
-                }
-
-                log::info!("Successfully wiped user data for device '{identifier}'");
-            } else {
-                return Err(anyhow::anyhow!(
-                    "AVD directory not found: {}",
-                    avd_path.display()
-                ));
-            }
-        } else {
-            return Err(anyhow::anyhow!("HOME environment variable not set"));
-        }
-
-        Ok(())
+        self.wipe_device_internal(identifier).await
     }
 
     async fn is_available(&self) -> bool {
@@ -813,6 +516,7 @@ impl crate::managers::common::UnifiedDeviceManager for AndroidManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::managers::android::parser::AvdListParser;
     use crate::managers::common::DeviceConfig;
     use crate::models::device_info::DynamicDeviceProvider;
     use crate::utils::command_executor::mock::MockCommandExecutor;
