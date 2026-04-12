@@ -58,6 +58,9 @@ Completed structural checkpoints:
 - `src/app/state.rs` converted into `src/app/state/mod.rs` plus sibling modules
 - app helper modules extracted so far:
   - `api_levels.rs`
+- app state helper modules extracted so far:
+  - `ui.rs`
+  - `logs.rs`
 - `src/managers/android.rs` converted into `src/managers/android/mod.rs`
 - `src/managers/ios.rs` converted into `src/managers/ios/mod.rs`
 - Android helper modules extracted so far:
