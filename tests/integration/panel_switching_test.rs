@@ -7,7 +7,7 @@
 //! - Performance and responsiveness of panel switches
 
 use emu::app::state::{AppState, DeviceDetails, Panel};
-use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
+use emu::models::{AndroidDevice, DeviceStatus, IosDevice, Platform};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -190,7 +190,7 @@ async fn test_panel_switching_device_details() {
     let mock_android_details = DeviceDetails {
         name: "Android_Detail_Test".to_string(),
         status: "Running".to_string(),
-        platform: Panel::Android,
+        platform: Platform::Android,
         device_type: "Pixel 7".to_string(),
         api_level_or_version: "API 31".to_string(),
         ram_size: Some("2048MB".to_string()),
@@ -215,7 +215,7 @@ async fn test_panel_switching_device_details() {
     let mock_ios_details = DeviceDetails {
         name: "iPhone Detail Test".to_string(),
         status: "Running".to_string(),
-        platform: Panel::Ios,
+        platform: Platform::Ios,
         device_type: "iPhone 14".to_string(),
         api_level_or_version: "iOS 16.0".to_string(),
         ram_size: Some("6GB".to_string()),
@@ -230,7 +230,7 @@ async fn test_panel_switching_device_details() {
 
     // Test 5: Verify iOS details are properly set
     if let Some(details) = &state.cached_device_details {
-        assert_eq!(details.platform, Panel::Ios);
+        assert_eq!(details.platform, Platform::Ios);
         assert_eq!(details.name, "iPhone Detail Test");
         assert_eq!(details.api_level_or_version, "iOS 16.0");
         assert_eq!(details.identifier, "ios-detail-test-789");

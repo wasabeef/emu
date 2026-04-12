@@ -15,13 +15,14 @@ use emu::managers::ios::IosManager;
 #[cfg(target_os = "macos")]
 use emu::models::IosDevice;
 
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
 /// Test in mixed environment with Android and iOS devices
 #[tokio::test]
 async fn test_mixed_platform_device_management() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path().as_os_str());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -211,8 +212,9 @@ async fn test_platform_switch_ui_state_persistence() {
 /// Concurrent device operations test on multiple platforms
 #[tokio::test]
 async fn test_conactive_panel_operations() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path().as_os_str());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
     let adb_path = _temp_dir.path().join("platform-tools/adb");
@@ -311,8 +313,9 @@ async fn test_conactive_panel_operations() {
 /// Platform-specific error handling test
 #[tokio::test]
 async fn test_platform_specific_error_handling() {
+    let _env_lock = acquire_test_env_lock().await;
     let _temp_dir = setup_mock_android_sdk();
-    std::env::set_var("ANDROID_HOME", _temp_dir.path());
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", _temp_dir.path().as_os_str());
 
     let avdmanager_path = _temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
 

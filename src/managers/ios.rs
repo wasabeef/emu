@@ -397,7 +397,7 @@ impl IosManager {
     // and not directly part of the DeviceManager trait's public API contract for all managers.
 
     /// Get detailed device information for an iOS simulator
-    pub async fn get_device_details(&self, udid: &str) -> Result<crate::app::state::DeviceDetails> {
+    pub async fn get_device_details(&self, udid: &str) -> Result<crate::models::DeviceDetails> {
         // Get device information
         let device_output = self
             .command_executor
@@ -456,10 +456,10 @@ impl IosManager {
                                 // Get screen resolution from device type if possible
                                 let resolution = self.get_device_resolution(&device_type);
 
-                                device_details = Some(crate::app::state::DeviceDetails {
+                                device_details = Some(crate::models::DeviceDetails {
                                     name: name.clone(),
                                     status: state,
-                                    platform: crate::app::state::Panel::Ios,
+                                    platform: crate::models::Platform::Ios,
                                     device_type,
                                     api_level_or_version: format!("iOS {version}"),
                                     ram_size: None, // iOS simulators don't have configurable RAM
@@ -1071,10 +1071,7 @@ impl IosManager {
         bail!("iOS simulator management is only available on macOS")
     }
 
-    pub async fn get_device_details(
-        &self,
-        _udid: &str,
-    ) -> Result<crate::app::state::DeviceDetails> {
+    pub async fn get_device_details(&self, _udid: &str) -> Result<crate::models::DeviceDetails> {
         bail!("iOS simulator management is only available on macOS")
     }
 }

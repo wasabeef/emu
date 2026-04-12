@@ -1,5 +1,5 @@
 use emu::app::state::{AppState, CreateDeviceField, CreateDeviceForm, FocusedPanel, Mode, Panel};
-use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
+use emu::models::{AndroidDevice, DeviceStatus, IosDevice, Platform};
 
 /// Integration test that verifies the complete workflow
 #[test]
@@ -125,7 +125,7 @@ fn test_complete_device_management_workflow() {
     assert!(details.is_some());
     let details = details.unwrap();
     assert_eq!(details.name, "Pixel_8_API_33"); // Currently selected (index 1)
-    assert_eq!(details.platform, Panel::Android);
+    assert_eq!(details.platform, Platform::Android);
 
     // Test cache clearing on panel switch
     state.smart_clear_cached_device_details(Panel::Ios);

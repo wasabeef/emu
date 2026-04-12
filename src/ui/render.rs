@@ -29,6 +29,7 @@ use crate::{
             text_formatting::*,
         },
     },
+    models::Platform,
     ui::{widgets::get_animated_moon, Theme},
 };
 use ratatui::{
@@ -973,8 +974,8 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         // === HEADER: Device Name & Platform ===
         let platform_icon = match details.platform {
-            crate::app::Panel::Android => "🤖",
-            crate::app::Panel::Ios => "🍎",
+            Platform::Android => "🤖",
+            Platform::Ios => "🍎",
         };
         lines.push(Line::from(vec![
             Span::styled(platform_icon, Style::default().fg(theme.primary)),
@@ -1046,7 +1047,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
         }
 
         // Architecture info (only if available from system image)
-        if details.platform == crate::app::Panel::Android {
+        if details.platform == Platform::Android {
             if let Some(ref sys_img) = details.system_image {
                 let architecture = if sys_img.contains("arm64") {
                     ARM64
@@ -1113,8 +1114,7 @@ fn render_device_details_panel(frame: &mut Frame, area: Rect, state: &AppState, 
 
         // Show loading indicator in bottom-right corner if key data is still loading
         // Only show for Android devices that should have additional data loaded
-        let is_loading =
-            details.platform == crate::app::Panel::Android && details.device_path.is_none();
+        let is_loading = details.platform == Platform::Android && details.device_path.is_none();
 
         if is_loading {
             let moon_icon = get_animated_moon();

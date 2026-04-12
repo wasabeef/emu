@@ -754,7 +754,7 @@ impl AndroidManager {
     pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
         log::debug!("list_available_targets called");
         // Try to load from cache first for faster response
-        if let Some(cached_targets) = crate::app::state::ApiLevelCache::load_from_disk() {
+        if let Some(cached_targets) = crate::utils::ApiLevelCache::load_from_disk() {
             let targets: Vec<(String, String)> = cached_targets
                 .api_levels
                 .into_iter()
@@ -837,7 +837,7 @@ impl AndroidManager {
             })
             .collect();
 
-        let cache = crate::app::state::ApiLevelCache {
+        let cache = crate::utils::ApiLevelCache {
             api_levels,
             timestamp: std::time::SystemTime::now(),
         };
@@ -1326,14 +1326,14 @@ impl AndroidManager {
         &self,
         avd_name: &str,
         cached_info: Option<(String, u32, String)>, // (device_type, api_level, android_version_name)
-    ) -> Result<crate::app::state::DeviceDetails> {
+    ) -> Result<crate::models::DeviceDetails> {
         log::debug!("Getting device details for AVD: '{avd_name}'");
 
         // Initialize details with cached values or defaults
-        let mut details = crate::app::state::DeviceDetails {
+        let mut details = crate::models::DeviceDetails {
             name: avd_name.to_string(),
             status: "Unknown".to_string(),
-            platform: crate::app::Panel::Android,
+            platform: crate::models::Platform::Android,
             device_type: cached_info
                 .as_ref()
                 .map(|(dt, _, _)| dt.clone())
