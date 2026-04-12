@@ -58,9 +58,24 @@ Completed structural checkpoints:
 - `src/app/state.rs` converted into `src/app/state/mod.rs` plus sibling modules
 - app helper modules extracted so far:
   - `api_levels.rs`
+  - `background.rs`
+  - `details.rs`
+  - `logs.rs`
+  - `refresh.rs`
+  - `input.rs`
+  - `create_device.rs`
+  - `device_actions.rs`
+  - `tests.rs`
 - app state helper modules extracted so far:
   - `ui.rs`
   - `logs.rs`
+  - `cache.rs`
+  - `api_levels.rs`
+  - `details.rs`
+  - `forms.rs`
+  - `navigation.rs`
+  - `notifications.rs`
+  - `tests.rs`
 - `src/managers/android.rs` converted into `src/managers/android/mod.rs`
 - `src/managers/ios.rs` converted into `src/managers/ios/mod.rs`
 - Android helper modules extracted so far:
@@ -72,13 +87,24 @@ Completed structural checkpoints:
   - `install.rs`
   - `discovery.rs`
   - `lifecycle.rs`
+  - `tests.rs`
 - iOS helper modules extracted so far:
   - `discovery.rs`
   - `details.rs`
   - `lifecycle.rs`
+  - `tests.rs`
 - UI helper modules extracted so far:
   - `dialogs.rs`
   - `panels.rs`
+
+Current file sizes after the latest structural checkpoints:
+
+- [src/app/mod.rs](/Users/a12622/git/emu/src/app/mod.rs) `234` lines
+- [src/app/tests.rs](/Users/a12622/git/emu/src/app/tests.rs) `1082` lines
+- [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs) `517` lines
+- [src/managers/android/tests.rs](/Users/a12622/git/emu/src/managers/android/tests.rs) `943` lines
+- [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `337` lines
+- [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) remains the main remaining rendering shell, with [src/ui/dialogs.rs](/Users/a12622/git/emu/src/ui/dialogs.rs) and [src/ui/panels.rs](/Users/a12622/git/emu/src/ui/panels.rs) already split out
 
 Current review stance:
 

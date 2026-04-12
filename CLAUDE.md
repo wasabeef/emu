@@ -23,23 +23,26 @@ cargo test --features test-utils                         # Run all tests includi
 
 ## Key Files
 
-| File                          | Role                                                                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `src/app/mod.rs`              | Main event loop shell and app coordination                                               |
-| `src/app/state/mod.rs`        | `AppState`, `ApiLevelManagementState::is_busy()`                                         |
-| `src/managers/android/mod.rs` | Android AVD facade and runtime orchestration                                             |
-| `src/managers/android/*.rs`   | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
-| `src/managers/ios/mod.rs`     | iOS simulator facade and orchestration (macOS only)                                      |
-| `src/managers/ios/*.rs`       | iOS helper modules (`details/discovery/lifecycle` and upcoming splits)                   |
-| `src/managers/common.rs`      | `DeviceManager` trait                                                                    |
-| `src/app/api_levels.rs`       | API level management mode handling and install/uninstall orchestration                   |
-| `src/app/state/ui.rs`         | UI-facing state enums and confirmation dialog structs                                    |
-| `src/app/state/logs.rs`       | Log entry state and log-related `AppState` methods                                       |
-| `src/ui/render.rs`            | Three-panel layout rendering and panel composition                                       |
-| `src/ui/dialogs.rs`           | Modal dialog rendering (`create/confirm/api-level/notifications`)                        |
-| `src/ui/panels.rs`            | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
-| `src/constants/`              | All constants (NO hardcoded values in source)                                            |
-| `src/models/`                 | Core data structures                                                                     |
+| File                            | Role                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/app/mod.rs`                | Main event loop shell and app coordination                                               |
+| `src/app/state/mod.rs`          | `AppState`, `ApiLevelManagementState::is_busy()`                                         |
+| `src/managers/android/mod.rs`   | Android AVD facade and runtime orchestration                                             |
+| `src/managers/android/*.rs`     | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
+| `src/managers/ios/mod.rs`       | iOS simulator facade and orchestration (macOS only)                                      |
+| `src/managers/ios/*.rs`         | iOS helper modules (`details/discovery/lifecycle` and upcoming splits)                   |
+| `src/managers/common.rs`        | `DeviceManager` trait                                                                    |
+| `src/app/api_levels.rs`         | API level management mode handling and install/uninstall orchestration                   |
+| `src/app/tests.rs`              | `App` orchestration characterization tests and startup fixtures                          |
+| `src/app/state/ui.rs`           | UI-facing state enums and confirmation dialog structs                                    |
+| `src/app/state/logs.rs`         | Log entry state and log-related `AppState` methods                                       |
+| `src/managers/android/tests.rs` | `AndroidManager` facade and helper module regression tests                               |
+| `src/managers/ios/tests.rs`     | `IosManager` facade and helper module regression tests                                   |
+| `src/ui/render.rs`              | Three-panel layout rendering and panel composition                                       |
+| `src/ui/dialogs.rs`             | Modal dialog rendering (`create/confirm/api-level/notifications`)                        |
+| `src/ui/panels.rs`              | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
+| `src/constants/`                | All constants (NO hardcoded values in source)                                            |
+| `src/models/`                   | Core data structures                                                                     |
 
 ## Code Conventions
 
