@@ -1,4 +1,4 @@
-use super::{state, App, Mode, Panel};
+use super::{App, Mode, Panel};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 impl App {
@@ -158,112 +158,6 @@ impl App {
         if should_update {
             self.schedule_non_blocking_updates();
         }
-    }
-
-    async fn open_delete_confirmation(&mut self) {
-        let mut state = self.state.lock().await;
-        let dialog =
-            match state.active_panel {
-                Panel::Android => state
-                    .android_devices
-                    .get(state.selected_android)
-                    .map(|device| state::ConfirmDeleteDialog {
-                        device_name: device.name.clone(),
-                        device_identifier: device.name.clone(),
-                        platform: Panel::Android,
-                    }),
-                Panel::Ios => state.ios_devices.get(state.selected_ios).map(|device| {
-                    state::ConfirmDeleteDialog {
-                        device_name: device.name.clone(),
-                        device_identifier: device.udid.clone(),
-                        platform: Panel::Ios,
-                    }
-                }),
-            };
-
-        if let Some(dialog) = dialog {
-            state.mode = Mode::ConfirmDelete;
-            state.confirm_delete_dialog = Some(dialog);
-        }
-    }
-
-    async fn open_wipe_confirmation(&mut self) {
-        let mut state = self.state.lock().await;
-        let dialog =
-            match state.active_panel {
-                Panel::Android => state
-                    .android_devices
-                    .get(state.selected_android)
-                    .map(|device| state::ConfirmWipeDialog {
-                        device_name: device.name.clone(),
-                        device_identifier: device.name.clone(),
-                        platform: Panel::Android,
-                    }),
-                Panel::Ios => state.ios_devices.get(state.selected_ios).map(|device| {
-                    state::ConfirmWipeDialog {
-                        device_name: device.name.clone(),
-                        device_identifier: device.udid.clone(),
-                        platform: Panel::Ios,
-                    }
-                }),
-            };
-
-        if let Some(dialog) = dialog {
-            state.mode = Mode::ConfirmWipe;
-            state.confirm_wipe_dialog = Some(dialog);
-        }
-    }
-
-    async fn handle_confirm_delete_key(&mut self, key: KeyEvent) -> anyhow::Result<()> {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => {
-                {
-                    let mut state = self.state.lock().await;
-                    state.mode = Mode::Normal;
-                    if let Some(dialog) = state.confirm_delete_dialog.clone() {
-                        state.set_device_operation_status(format!(
-                            "Deleting device '{}'...",
-                            dialog.device_name
-                        ));
-                    }
-                }
-                self.execute_delete_device().await?;
-            }
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                let mut state = self.state.lock().await;
-                state.mode = Mode::Normal;
-                state.confirm_delete_dialog = None;
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    async fn handle_confirm_wipe_key(&mut self, key: KeyEvent) -> anyhow::Result<()> {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => {
-                {
-                    let mut state = self.state.lock().await;
-                    state.mode = Mode::Normal;
-                    if let Some(dialog) = state.confirm_wipe_dialog.clone() {
-                        state.set_device_operation_status(format!(
-                            "Wiping device '{}'...",
-                            dialog.device_name
-                        ));
-                    }
-                }
-                self.execute_wipe_device().await?;
-            }
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                let mut state = self.state.lock().await;
-                state.mode = Mode::Normal;
-                state.confirm_wipe_dialog = None;
-            }
-            _ => {}
-        }
-
-        Ok(())
     }
 
     async fn handle_help_mode_key(&mut self, key: KeyEvent) {
