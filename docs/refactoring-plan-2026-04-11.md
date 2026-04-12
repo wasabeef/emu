@@ -67,6 +67,8 @@ Completed structural checkpoints:
   - `install.rs`
   - `discovery.rs`
   - `lifecycle.rs`
+- iOS helper modules extracted so far:
+  - `discovery.rs`
 
 Current review stance:
 

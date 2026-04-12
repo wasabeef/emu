@@ -11,6 +11,8 @@
 //! - **Graceful Error Handling**: Handles already-booted and already-shutdown states
 //! - **Cross-Platform Safety**: Compile-time stubs for non-macOS platforms
 
+mod discovery;
+
 #[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
 
@@ -200,8 +202,7 @@ use std::path::{Path, PathBuf};
 #[cfg(target_os = "macos")]
 use crate::constants::ios::{
     IOS_ALREADY_BOOTED_ERROR, IOS_ALREADY_SHUTDOWN_ERROR, IOS_DEVICE_STATUS_BOOTED,
-    IOS_DEVICE_STATUS_CREATING, IOS_DEVICE_STATUS_SHUTDOWN, IOS_DEVICE_TYPE_PREFIX,
-    IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT, IOS_RUNTIME_PREFIX, SIMULATOR_APP_NAME,
+    IOS_DEVICE_STATUS_CREATING, IOS_DEVICE_STATUS_SHUTDOWN, IOS_RUNTIME_PREFIX, SIMULATOR_APP_NAME,
     SIMULATOR_OPEN_FLAG, SIMULATOR_QUIT_COMMAND,
 };
 #[cfg(target_os = "macos")]
@@ -212,16 +213,12 @@ use crate::constants::{
         DEVICE_KEYWORD_AIR, DEVICE_KEYWORD_IPAD, DEVICE_KEYWORD_IPHONE, DEVICE_KEYWORD_MINI,
         DEVICE_KEYWORD_PLUS, DEVICE_KEYWORD_PRO, DEVICE_KEYWORD_PRO_MAX, DEVICE_KEYWORD_SE,
         DEVICE_SIZE_11, DEVICE_SIZE_12_9, DEVICE_VERSION_13, DEVICE_VERSION_14, DEVICE_VERSION_15,
-        DEVICE_VERSION_16, *,
+        DEVICE_VERSION_16,
     },
     limits::{IOS_NAME_PARTS_MINIMUM, SINGLE_VERSION_PART},
     numeric::{
         BYTES_PER_MB, IOS_DEVICE_PARSE_BATCH_SIZE, VERSION_DEFAULT, VERSION_MINOR_DIVISOR,
         VERSION_PATCH_DIVISOR,
-    },
-    patterns::text_patterns::{
-        APPLE_DEVICE_IPAD, APPLE_DEVICE_IPHONE, APPLE_DEVICE_IPOD, APPLE_DEVICE_PREFIX_I,
-        CHIP_PREFIX_A, CHIP_PREFIX_M, INCH_INDICATOR, MEMORY_CLOSE_BRACKET, MEMORY_OPEN_BRACKET,
     },
     resolutions::*,
 };
@@ -541,187 +538,6 @@ impl IosManager {
             .await
             .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
-    }
-
-    pub async fn list_device_types(&self) -> Result<Vec<String>> {
-        let output = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "list", "devicetypes", "--json"])
-            .await
-            .context("Failed to list device types")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse device types JSON")?;
-        let mut device_types = Vec::new();
-        if let Some(types_array) = json.get("devicetypes").and_then(|v| v.as_array()) {
-            for device_type_json in types_array {
-                if let Some(identifier) =
-                    device_type_json.get("identifier").and_then(|v| v.as_str())
-                {
-                    device_types.push(identifier.to_string());
-                }
-            }
-        }
-        Ok(device_types)
-    }
-
-    /// Get device types with display names (similar to Android's approach)
-    pub async fn list_device_types_with_names(&self) -> Result<Vec<(String, String)>> {
-        let output = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "list", "devicetypes", "--json"])
-            .await
-            .context("Failed to list device types")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse device types JSON")?;
-        let mut device_types = Vec::new();
-
-        if let Some(types_array) = json.get("devicetypes").and_then(|v| v.as_array()) {
-            for device_type_json in types_array {
-                if let Some(identifier) =
-                    device_type_json.get("identifier").and_then(|v| v.as_str())
-                {
-                    // Try to get the name from JSON first
-                    let display_name =
-                        if let Some(name) = device_type_json.get("name").and_then(|v| v.as_str()) {
-                            name.to_string()
-                        } else {
-                            // Fallback: parse from identifier
-                            // com.apple.CoreSimulator.SimDeviceType.iPhone-15 -> iPhone 15
-                            Self::parse_device_type_display_name(identifier)
-                        };
-
-                    device_types.push((identifier.to_string(), display_name));
-                }
-            }
-        }
-
-        // Sort devices by priority (similar to Android)
-        device_types.sort_by(|a, b| {
-            let priority_a = DynamicDeviceConfig::calculate_ios_device_priority(&a.1);
-            let priority_b = DynamicDeviceConfig::calculate_ios_device_priority(&b.1);
-            priority_a.cmp(&priority_b)
-        });
-
-        Ok(device_types)
-    }
-
-    /// Parse device type identifier to display name
-    ///
-    /// Converts identifiers like "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro"
-    /// into human-readable names like "iPhone 15 Pro"
-    fn parse_device_type_display_name(identifier: &str) -> String {
-        // com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro -> iPhone 15 Pro
-        let cleaned = identifier
-            .replace(IOS_DEVICE_TYPE_PREFIX, "")
-            .replace("-", " ")
-            .replace("_", " ");
-
-        // Special case handling for inch sizes and technical specifications
-        let mut display = cleaned.replace(IOS_INCH_PATTERN, IOS_INCH_REPLACEMENT); // 12.9 inch -> 12.9"
-
-        // Handle additional inch sizes that might not be covered by the pattern
-        display = display.replace(INCH_13_PATTERN, INCH_13_REPLACEMENT);
-        display = display.replace(INCH_11_PATTERN, INCH_11_REPLACEMENT);
-
-        // Handle memory specifications
-        display = display.replace(MEMORY_8GB_PATTERN, MEMORY_8GB_REPLACEMENT);
-        display = display.replace(MEMORY_16GB_PATTERN, MEMORY_16GB_REPLACEMENT);
-
-        // Capitalize properly with enhanced special case handling
-        display
-            .split_whitespace()
-            .map(|word| {
-                let word_lower = word.to_lowercase();
-
-                // Preserve special cases exactly as they should appear
-                if word_lower == "inch"
-                    || word_lower == "se"
-                    || word_lower == "mini"
-                    || word_lower == "max"
-                    || word_lower == "plus"
-                    || word_lower == "pro"
-                    || word_lower == "air"
-                    || word_lower == "ultra"
-                    || word.contains(INCH_INDICATOR) // Inch measurements like 12.9"
-                    || word.contains(MEMORY_OPEN_BRACKET) || word.contains(MEMORY_CLOSE_BRACKET) // Memory specs like (8GB)
-                    || (word.starts_with(APPLE_DEVICE_PREFIX_I) &&
-                        (word.starts_with(APPLE_DEVICE_IPHONE) || word.starts_with(APPLE_DEVICE_IPAD) || word.starts_with(APPLE_DEVICE_IPOD)))
-                    || word_lower.starts_with(CHIP_PREFIX_M) && word.len() <= 3 // M4, M3, M2, M1 chips
-                    || word_lower.starts_with(CHIP_PREFIX_A) && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) // A17, A16 chips
-                {
-                    // For chip names, ensure proper capitalization
-                    if word_lower.starts_with(CHIP_PREFIX_M) && word.len() <= 3 {
-                        return word.to_uppercase(); // m4 -> M4
-                    } else if word_lower.starts_with(CHIP_PREFIX_A) && word.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
-                        return word.to_uppercase(); // a17 -> A17
-                    }
-
-                    word.to_string() // Preserve these special cases as-is
-                } else {
-                    // Capitalize first letter for regular words
-                    let mut chars = word.chars();
-                    match chars.next() {
-                        None => String::new(),
-                        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                    }
-                }
-            })
-            .collect::<Vec<String>>()
-            .join(" ")
-    }
-
-    pub async fn list_runtimes(&self) -> Result<Vec<(String, String)>> {
-        let output = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "list", "runtimes", "--json"])
-            .await
-            .context("Failed to list runtimes")?;
-        let json: Value = serde_json::from_str(&output).context("Failed to parse runtimes JSON")?;
-        let mut runtimes = Vec::new();
-        if let Some(runtimes_array) = json.get("runtimes").and_then(|v| v.as_array()) {
-            for runtime_json in runtimes_array {
-                if let Some(identifier) = runtime_json.get("identifier").and_then(|v| v.as_str()) {
-                    if runtime_json
-                        .get("isAvailable")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                    {
-                        // Extract display name from various possible fields
-                        let display_name =
-                            if let Some(name) = runtime_json.get("name").and_then(|v| v.as_str()) {
-                                // Use the name field if available
-                                name.to_string()
-                            } else if let Some(version) =
-                                runtime_json.get("version").and_then(|v| v.as_str())
-                            {
-                                // Use version if name is not available
-                                format!("iOS {version}")
-                            } else {
-                                // Fallback: parse from identifier
-                                // com.apple.CoreSimulator.SimRuntime.iOS-17-0 -> iOS 17.0
-                                identifier
-                                    .replace("com.apple.CoreSimulator.SimRuntime.", "")
-                                    .replace("-", ".")
-                                    .replace("iOS.", "iOS ")
-                            };
-
-                        runtimes.push((identifier.to_string(), display_name));
-                    }
-                }
-            }
-        }
-
-        // Sort by version (newest first) - similar to Android's approach
-        runtimes.sort_by(|a, b| {
-            // Extract version numbers for sorting
-            let version_a = extract_ios_version(&a.1);
-            let version_b = extract_ios_version(&b.1);
-            version_b
-                .partial_cmp(&version_a)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        Ok(runtimes)
     }
 
     /// Helper method to quit Simulator.app if no devices are running
