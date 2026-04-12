@@ -522,6 +522,45 @@ mod tests {
     use crate::utils::command_executor::mock::MockCommandExecutor;
     use std::collections::HashMap;
     use std::env;
+    use std::ffi::OsString;
+    use std::sync::OnceLock;
+    use tokio::sync::{Mutex, MutexGuard};
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set<K, V>(key: K, value: V) -> Self
+        where
+            K: Into<&'static str>,
+            V: Into<OsString>,
+        {
+            let key = key.into();
+            let original = env::var_os(key);
+            env::set_var(key, value.into());
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => env::set_var(self.key, value),
+                None => env::remove_var(self.key),
+            }
+        }
+    }
+
+    fn test_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    async fn acquire_test_env_lock() -> MutexGuard<'static, ()> {
+        test_env_lock().lock().await
+    }
 
     /// Set up Android SDK environment for testing
     fn setup_test_android_sdk() -> tempfile::TempDir {
@@ -1413,8 +1452,9 @@ Installed packages:
 
     #[tokio::test]
     async fn test_detect_api_level_for_device_prefers_explicit_api_level() {
+        let _env_lock = acquire_test_env_lock().await;
         let temp_dir = setup_test_android_sdk();
-        env::set_var("ANDROID_HOME", temp_dir.path());
+        let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
 
         let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
 
@@ -1426,14 +1466,13 @@ Installed packages:
             .await;
 
         assert_eq!(api_level, 31);
-
-        env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]
     async fn test_detect_api_level_for_device_keeps_ambiguous_version_unknown() {
+        let _env_lock = acquire_test_env_lock().await;
         let temp_dir = setup_test_android_sdk();
-        env::set_var("ANDROID_HOME", temp_dir.path());
+        let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
 
         let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
 
@@ -1445,8 +1484,6 @@ Installed packages:
             .await;
 
         assert_eq!(api_level, 0);
-
-        env::remove_var("ANDROID_HOME");
     }
 
     #[tokio::test]

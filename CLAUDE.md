@@ -32,6 +32,7 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/managers/ios/mod.rs`     | iOS simulator facade and orchestration (macOS only)                                      |
 | `src/managers/ios/*.rs`       | iOS helper modules (`details/discovery/lifecycle` and upcoming splits)                   |
 | `src/managers/common.rs`      | `DeviceManager` trait                                                                    |
+| `src/app/api_levels.rs`       | API level management mode handling and install/uninstall orchestration                   |
 | `src/ui/render.rs`            | Three-panel layout rendering and panel composition                                       |
 | `src/ui/dialogs.rs`           | Modal dialog rendering (`create/confirm/api-level/notifications`)                        |
 | `src/ui/panels.rs`            | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
