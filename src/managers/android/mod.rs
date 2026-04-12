@@ -277,6 +277,9 @@
 //! This ensures consistent, predictable device ordering without hardcoded device lists.
 //!
 
+mod parser;
+mod version;
+
 use crate::{
     constants::{
         android, commands, defaults,
@@ -313,6 +316,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 
+use self::parser::AvdListParser;
+
 lazy_static! {
     // Device listing regexes
     static ref ID_REGEX: Regex = Regex::new(r#"id:\s*\d+\s*or\s*\"(.+)\""#).unwrap();
@@ -335,93 +340,6 @@ lazy_static! {
     static ref AVD_DISPLAYNAME_REGEX: Regex = Regex::new(r"avd\.ini\.displayname=(.+)").unwrap();
     static ref NUMBER_PATTERN_REGEX: Regex = Regex::new(r"(\d{2,3})").unwrap();
     static ref API_OR_ANDROID_REGEX: Regex = Regex::new(r"(?:API level |android-)(\d+)").unwrap();
-}
-
-/// AVD list parser for better testability
-struct AvdListParser<'a> {
-    lines: std::str::Lines<'a>,
-    current_device_info: Option<(String, String, String, String, String)>,
-    current_target_full: String,
-}
-
-impl<'a> AvdListParser<'a> {
-    fn new(output: &'a str) -> Self {
-        Self {
-            lines: output.lines(),
-            current_device_info: None,
-            current_target_full: String::new(),
-        }
-    }
-
-    fn parse_next_device(&mut self) -> Option<(String, String, String, String, String)> {
-        for line in self.lines.by_ref() {
-            let trimmed_line = line.trim();
-
-            if self.current_device_info.is_some() && line.starts_with("          Based on:") {
-                self.current_target_full.push(' ');
-                self.current_target_full.push_str(trimmed_line);
-            }
-
-            if trimmed_line.starts_with("---") || trimmed_line.is_empty() {
-                if let Some((name, path, mut target, abi, device)) = self.current_device_info.take()
-                {
-                    if !self.current_target_full.is_empty() {
-                        target.push_str(&self.current_target_full);
-                        self.current_target_full.clear();
-                    }
-                    return Some((name, path, target, abi, device));
-                }
-                continue;
-            }
-
-            if let Some(captures) = AVD_NAME_REGEX.captures(trimmed_line) {
-                if let Some(name) = captures.get(1) {
-                    self.current_device_info = Some((
-                        name.as_str().to_string(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                    ));
-                }
-            } else if let Some(captures) = PATH_REGEX.captures(trimmed_line) {
-                if let Some(path) = captures.get(1) {
-                    if let Some(ref mut info) = self.current_device_info {
-                        info.1 = path.as_str().to_string();
-                    }
-                }
-            } else if let Some(captures) = TARGET_REGEX.captures(trimmed_line) {
-                if let Some(target) = captures.get(1) {
-                    if let Some(ref mut info) = self.current_device_info {
-                        info.2 = target.as_str().to_string();
-                    }
-                }
-            } else if let Some(captures) = ABI_REGEX.captures(trimmed_line) {
-                if let Some(abi) = captures.get(1) {
-                    if let Some(ref mut info) = self.current_device_info {
-                        info.3 = abi.as_str().to_string();
-                    }
-                }
-            } else if let Some(captures) = DEVICE_REGEX.captures(trimmed_line) {
-                if let Some(device) = captures.get(1) {
-                    if let Some(ref mut info) = self.current_device_info {
-                        info.4 = device.as_str().to_string();
-                    }
-                }
-            }
-        }
-
-        // Handle the last device if no closing line
-        if let Some((name, path, mut target, abi, device)) = self.current_device_info.take() {
-            if !self.current_target_full.is_empty() {
-                target.push_str(&self.current_target_full);
-                self.current_target_full.clear();
-            }
-            return Some((name, path, target, abi, device));
-        }
-
-        None
-    }
 }
 
 /// Android Virtual Device (AVD) manager implementation.
@@ -722,32 +640,6 @@ impl AndroidManager {
         }
 
         Ok(avd_map)
-    }
-
-    fn parse_android_version_to_api_level(version: &str) -> u32 {
-        // Extract major version number from strings like "15.0", "14.0", etc.
-        let major_version = version
-            .split('.')
-            .next()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(0);
-
-        // Map Android version to API level
-        match major_version {
-            15 => 35,
-            14 => 34,
-            13 => 33,
-            12 => 32,
-            11 => 30,
-            10 => 29,
-            9 => 28,
-            8 => 26,
-            7 => 24,
-            6 => 23,
-            5 => 21,
-            4 => 15,
-            _ => major_version, // Fallback to version number
-        }
     }
 
     /// List available Android targets (API levels) based on installed system images
@@ -1485,69 +1377,6 @@ impl AndroidManager {
         }
 
         Ok(details)
-    }
-
-    /// Get Android version name from API level
-    /// This is a fallback for when dynamic version is not available
-    fn get_android_version_name(&self, api_level: u32) -> String {
-        // For unknown versions, just show API level
-        // The actual version names should come from SDK dynamically
-        format!("API {api_level}")
-    }
-
-    /// Get Android version name from SDK dynamically
-    async fn get_dynamic_android_version_name(&self, api_level: u32) -> Option<String> {
-        // Try to get from available targets list
-        if let Ok(targets) = self.list_available_targets().await {
-            for (level_str, display) in targets {
-                if let Ok(level) = level_str.parse::<u32>() {
-                    if level == api_level {
-                        // Extract version from display string like "API 34 - Android 14"
-                        if let Some(dash_pos) = display.find(" - Android ") {
-                            return Some(display[dash_pos + 11..].to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Try to parse from sdkmanager output
-        if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
-            if let Ok(output) = self
-                .command_executor
-                .run(&sdkmanager_path, &["--list"])
-                .await
-            {
-                // Look for platform entries like "platforms;android-34 | 1 | Android SDK Platform 34"
-                let pattern = format!(
-                    r"platforms;android-{api_level}\s*\|\s*\d+\s*\|\s*Android SDK Platform"
-                );
-                if let Ok(regex) = Regex::new(&pattern) {
-                    if regex.is_match(&output) {
-                        // Try to extract more detailed version info from subsequent lines
-                        for line in output.lines() {
-                            if line.contains(&format!("android-{api_level}"))
-                                && line.contains("Android")
-                            {
-                                // Extract version number if present
-                                if let Some(version_match) = line.split("Android").nth(1) {
-                                    let version = version_match
-                                        .split_whitespace()
-                                        .next()
-                                        .unwrap_or("")
-                                        .trim_matches(|c: char| !c.is_numeric() && c != '.');
-                                    if !version.is_empty() {
-                                        return Some(version.to_string());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        None
     }
 
     /// Get appropriate skin name for device type using dynamic lookup
@@ -2982,7 +2811,7 @@ mod tests {
 
     #[test]
     fn test_parse_android_version_to_api_level() {
-        // Normal cases: Test known versions
+        // Normal cases: known mappings
         assert_eq!(AndroidManager::parse_android_version_to_api_level("15"), 35);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("14"), 34);
         assert_eq!(AndroidManager::parse_android_version_to_api_level("13"), 33);
@@ -3007,20 +2836,20 @@ mod tests {
         ); // Consider only major version
 
         // Edge case: Unknown versions (fallback)
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 16); // Fallback: use version number as-is
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 20); // Fallback
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 16);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 20);
 
-        // Error case: Invalid input (Fallback)
-        assert_eq!(AndroidManager::parse_android_version_to_api_level(""), 0); // Return 0 on parse failure
+        // Error case: Invalid input
+        assert_eq!(AndroidManager::parse_android_version_to_api_level(""), 0);
         assert_eq!(
             AndroidManager::parse_android_version_to_api_level("invalid"),
             0
-        ); // Return 0 on parse failure
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("abc"), 0); // Return 0 on parse failure
+        );
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("abc"), 0);
 
-        // Boundary value: Very old version (Fallback)
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 3); // Fallback
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 2); // Fallback
+        // Boundary value: very old versions keep the current fallback behavior
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 3);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 2);
     }
 
     #[test]
@@ -3829,7 +3658,7 @@ Available Packages:
         env::set_var("ANDROID_HOME", temp_dir.path());
 
         // Load directly from fixture
-        let fixture_content = include_str!("../../tests/fixtures/android_outputs.json");
+        let fixture_content = include_str!("../../../tests/fixtures/android_outputs.json");
         let fixture: serde_json::Value =
             serde_json::from_str(fixture_content).expect("Invalid JSON in fixture");
         let device_list_output = fixture["avdmanager_list_device"]["comprehensive"]
@@ -3878,7 +3707,7 @@ Available Packages:
         let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
 
         // Load directly from fixture
-        let fixture_content = include_str!("../../tests/fixtures/android_outputs.json");
+        let fixture_content = include_str!("../../../tests/fixtures/android_outputs.json");
         let fixture: serde_json::Value =
             serde_json::from_str(fixture_content).expect("Invalid JSON in fixture");
         let sdkmanager_output = fixture["sdkmanager_list"]["system_images"]
