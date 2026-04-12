@@ -1933,11 +1933,13 @@ impl AndroidManager {
 
         // Method 3: Fallback to parsing from avdmanager target string
         if api == 0 {
-            if let Some(caps) = BASED_ON_REGEX.captures(target) {
+            if let Some(caps) = API_LEVEL_REGEX.captures(target) {
+                api = caps[1].parse().unwrap_or(0);
+            } else if let Some(caps) = API_OR_ANDROID_REGEX.captures(target) {
+                api = caps[1].parse().unwrap_or(0);
+            } else if let Some(caps) = BASED_ON_REGEX.captures(target) {
                 let version = &caps[1];
                 api = Self::parse_android_version_to_api_level(version);
-            } else if let Some(caps) = API_LEVEL_REGEX.captures(target) {
-                api = caps[1].parse().unwrap_or(0);
             }
         }
 
@@ -2835,9 +2837,9 @@ mod tests {
             26
         ); // Consider only major version
 
-        // Edge case: Unknown versions (fallback)
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 16);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 20);
+        // Unknown future versions should remain unknown rather than guessed
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("16"), 0);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("20"), 0);
 
         // Error case: Invalid input
         assert_eq!(AndroidManager::parse_android_version_to_api_level(""), 0);
@@ -2847,9 +2849,9 @@ mod tests {
         );
         assert_eq!(AndroidManager::parse_android_version_to_api_level("abc"), 0);
 
-        // Boundary value: very old versions keep the current fallback behavior
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 3);
-        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 2);
+        // Boundary value: unsupported versions also remain unknown
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("3"), 0);
+        assert_eq!(AndroidManager::parse_android_version_to_api_level("2"), 0);
     }
 
     #[test]

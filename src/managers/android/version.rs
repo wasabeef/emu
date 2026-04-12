@@ -22,7 +22,7 @@ impl AndroidManager {
             6 => 23,
             5 => 21,
             4 => 15,
-            _ => major_version,
+            _ => 0,
         }
     }
 
