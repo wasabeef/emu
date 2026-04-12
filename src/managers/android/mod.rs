@@ -278,6 +278,7 @@
 //!
 
 mod parser;
+mod sdk;
 mod version;
 
 use crate::{
@@ -308,7 +309,7 @@ use crate::{
     utils::command::CommandRunner,
     utils::command_executor::CommandExecutor,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -410,55 +411,6 @@ impl AndroidManager {
             avdmanager_path,
             emulator_path,
         })
-    }
-
-    /// Locates the Android SDK home directory from environment variables.
-    ///
-    /// # Returns
-    /// - `Ok(PathBuf)` - Path to Android SDK
-    /// - `Err` - If neither ANDROID_HOME nor ANDROID_SDK_ROOT is set
-    fn find_android_home() -> Result<PathBuf> {
-        if let Ok(path) = std::env::var(env_vars::ANDROID_HOME) {
-            return Ok(PathBuf::from(path));
-        }
-
-        if let Ok(path) = std::env::var(env_vars::ANDROID_SDK_ROOT) {
-            return Ok(PathBuf::from(path));
-        }
-
-        bail!("Android SDK not found. Please set ANDROID_HOME or ANDROID_SDK_ROOT")
-    }
-
-    /// Finds a specific tool within the Android SDK directory structure.
-    ///
-    /// Searches multiple possible locations in order:
-    /// 1. cmdline-tools/latest/bin/
-    /// 2. tools/bin/
-    /// 3. emulator/ (for emulator tool)
-    ///
-    /// # Arguments
-    /// * `android_home` - Android SDK root directory
-    /// * `tool` - Tool name to find (e.g., "avdmanager", "emulator")
-    ///
-    /// # Returns
-    /// - `Ok(PathBuf)` - Full path to the tool executable
-    /// - `Err` - If tool is not found in any expected location
-    fn find_tool(android_home: &Path, tool: &str) -> Result<PathBuf> {
-        let paths = [
-            android_home
-                .join(files::android::CMDLINE_TOOLS_LATEST_BIN)
-                .join(tool),
-            android_home.join(files::android::TOOLS_BIN).join(tool),
-            android_home.join(files::android::EMULATOR_DIR).join(tool),
-        ];
-
-        for path in &paths {
-            if path.exists() {
-                return Ok(path.clone());
-            }
-        }
-
-        bail!("Tool '{tool}' not found in Android SDK")
     }
 
     /// Maps running emulator instances to their AVD names.
@@ -962,94 +914,6 @@ impl AndroidManager {
         } else {
             Ok(all_devices)
         }
-    }
-
-    /// Check if a system image is available for the given API level, tag, and ABI
-    pub async fn check_system_image_available(
-        &self,
-        api_level: &str,
-        tag: &str,
-        abi: &str,
-    ) -> Result<bool> {
-        let package_path = format!("system-images;android-{api_level};{tag};{abi}");
-
-        let installed_images = self.list_available_system_images().await?;
-        let is_installed = installed_images.contains(&package_path);
-
-        Ok(is_installed)
-    }
-
-    /// Get a list of available system images
-    pub async fn list_available_system_images(&self) -> Result<Vec<String>> {
-        let mut images = Vec::new();
-
-        if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, "sdkmanager") {
-            let output = self
-                .command_executor
-                .run(
-                    &sdkmanager_path,
-                    &["--list", "--verbose", "--include_obsolete"],
-                )
-                .await?;
-
-            let mut in_installed_section = false;
-
-            for line in output.lines() {
-                let trimmed = line.trim();
-
-                // Track when we're in the installed packages section
-                if trimmed.starts_with("Installed packages:") {
-                    in_installed_section = true;
-                    continue;
-                }
-
-                // Track when we exit the installed section
-                if in_installed_section
-                    && (trimmed.starts_with("Available Packages:")
-                        || trimmed.starts_with("Available Updates:"))
-                {
-                    in_installed_section = false;
-                    continue;
-                }
-
-                // Only process lines in the installed section
-                if in_installed_section && trimmed.starts_with("system-images;") {
-                    // Parse the line to extract just the package path
-                    if let Some(space_pos) = trimmed.find(' ') {
-                        let package_path = &trimmed[..space_pos];
-                        images.push(package_path.to_string());
-                    } else {
-                        // If no space found, the whole line might be the package path
-                        images.push(trimmed.to_string());
-                    }
-                }
-            }
-        }
-
-        Ok(images)
-    }
-
-    /// Get the first available system image for a given API level
-    pub async fn get_first_available_system_image(
-        &self,
-        api_level: &str,
-    ) -> Result<Option<(String, String)>> {
-        let installed_images = self.list_available_system_images().await?;
-
-        // Find system images for this API level
-        for image in installed_images {
-            let parts: Vec<&str> = image.split(';').collect();
-            if parts.len() >= SYSTEM_IMAGE_PARTS_REQUIRED {
-                if let Some(android_part) = parts.get(1) {
-                    if android_part == &format!("android-{api_level}") {
-                        // Return first available tag and abi
-                        return Ok(Some((parts[2].to_string(), parts[3].to_string())));
-                    }
-                }
-            }
-        }
-
-        Ok(None)
     }
 
     /// Get the AVD directory path for a given AVD name
