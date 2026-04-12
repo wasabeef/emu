@@ -13,9 +13,10 @@
 
 mod details;
 mod discovery;
+mod lifecycle;
 
 #[cfg(target_os = "macos")]
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 // # xcrun simctl Command Reference
 //
@@ -201,21 +202,12 @@ use std::path::{Path, PathBuf};
 // - The `which` crate is used to verify `xcrun` availability at runtime
 
 #[cfg(target_os = "macos")]
-use crate::constants::ios::{
-    IOS_ALREADY_BOOTED_ERROR, IOS_ALREADY_SHUTDOWN_ERROR, IOS_DEVICE_STATUS_BOOTED,
-    SIMULATOR_APP_NAME, SIMULATOR_OPEN_FLAG, SIMULATOR_QUIT_COMMAND,
-};
-#[cfg(target_os = "macos")]
 use crate::constants::{
-    commands::{KILLALL, OSASCRIPT, SIMCTL, XCRUN},
+    commands::{SIMCTL, XCRUN},
     limits::{IOS_NAME_PARTS_MINIMUM, SINGLE_VERSION_PART},
-    numeric::{
-        IOS_DEVICE_PARSE_BATCH_SIZE, VERSION_DEFAULT, VERSION_MINOR_DIVISOR, VERSION_PATCH_DIVISOR,
-    },
+    numeric::{VERSION_DEFAULT, VERSION_MINOR_DIVISOR, VERSION_PATCH_DIVISOR},
 };
 use crate::managers::common::{DeviceConfig, DeviceManager};
-#[cfg(target_os = "macos")]
-use crate::models::device_info::DynamicDeviceConfig;
 use crate::models::IosDevice;
 #[cfg(target_os = "macos")]
 use anyhow::Context;
@@ -225,10 +217,6 @@ use anyhow::{bail, Result};
 use crate::utils::command::CommandRunner;
 #[cfg(target_os = "macos")]
 use crate::utils::command_executor::CommandExecutor;
-#[cfg(target_os = "macos")]
-use log;
-#[cfg(target_os = "macos")]
-use serde_json::Value;
 #[cfg(target_os = "macos")]
 use std::sync::Arc;
 #[cfg(target_os = "macos")]
@@ -329,64 +317,6 @@ impl IosManager {
             .context(format!("Failed to erase iOS device {udid}"))?;
         Ok(())
     }
-
-    /// Helper method to quit Simulator.app if no devices are running
-    ///
-    /// This method checks if any iOS devices are still running after a shutdown operation.
-    /// If no devices are running, it attempts to quit Simulator.app gracefully using
-    /// AppleScript. If that fails, it falls back to using `killall` to force quit.
-    ///
-    /// This prevents the Simulator.app icon from lingering in the Dock when all
-    /// devices have been stopped, providing a cleaner user experience.
-    ///
-    /// # Implementation Details
-    ///
-    /// 1. **Device Status Check**: Queries all devices to see if any are running
-    /// 2. **Graceful Quit**: Attempts `osascript -e "tell application \"Simulator\" to quit"`
-    /// 3. **Force Quit Fallback**: Uses `killall Simulator` if graceful quit fails
-    /// 4. **Error Handling**: Logs warnings but doesn't fail the operation
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// // Called automatically after device shutdown
-    /// self.quit_simulator_if_no_running_devices().await;
-    /// ```
-    async fn quit_simulator_if_no_running_devices(&self) {
-        // Check if there are any running devices
-        match self.list_devices().await {
-            Ok(devices) => {
-                let has_running_devices = devices.iter().any(|device| device.is_running);
-
-                if !has_running_devices {
-                    log::info!("No iOS devices are running, quitting Simulator.app");
-
-                    // Quit Simulator.app gracefully
-                    if let Err(e) = self
-                        .command_executor
-                        .run(Path::new(OSASCRIPT), &["-e", SIMULATOR_QUIT_COMMAND])
-                        .await
-                    {
-                        log::warn!("Failed to quit Simulator.app gracefully: {e}");
-
-                        // Fallback: Force quit using killall
-                        if let Err(e2) = self
-                            .command_executor
-                            .run(Path::new(KILLALL), &[SIMULATOR_APP_NAME])
-                            .await
-                        {
-                            log::warn!("Failed to force quit Simulator.app: {e2}");
-                        }
-                    }
-                } else {
-                    log::debug!("Other iOS devices are still running, keeping Simulator.app open");
-                }
-            }
-            Err(e) => {
-                log::warn!("Failed to check device status before quitting Simulator.app: {e}");
-            }
-        }
-    }
 }
 
 #[cfg(target_os = "macos")]
@@ -394,224 +324,31 @@ impl DeviceManager for IosManager {
     type Device = IosDevice;
 
     async fn list_devices(&self) -> Result<Vec<Self::Device>> {
-        let output = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "list", "devices", "--json"])
-            .await
-            .context("Failed to list iOS devices")?;
-        let json: Value =
-            serde_json::from_str(&output).context("Failed to parse simctl JSON output")?;
-
-        let mut devices = Vec::new();
-        if let Some(devices_obj) = json.get("devices") {
-            if let Some(devices_map) = devices_obj.as_object() {
-                // Process devices more efficiently with batch parsing
-                let mut raw_devices = Vec::new();
-
-                // First, collect all device data without complex async operations
-                for (runtime, device_list_json) in devices_map {
-                    if let Some(device_array_json) = device_list_json.as_array() {
-                        for device_json_val in device_array_json {
-                            raw_devices.push((device_json_val, runtime));
-                        }
-                    }
-                }
-
-                // Parse devices in batches to improve performance
-                for batch in raw_devices.chunks(IOS_DEVICE_PARSE_BATCH_SIZE) {
-                    for (device_json_val, runtime) in batch {
-                        if let Some(parsed_device) =
-                            self.parse_device_from_json(device_json_val, runtime)?
-                        {
-                            devices.push(parsed_device);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Sort devices by priority after parsing for consistent ordering
-        devices.sort_by(|a, b| {
-            let priority_a = DynamicDeviceConfig::calculate_ios_device_priority(&a.name);
-            let priority_b = DynamicDeviceConfig::calculate_ios_device_priority(&b.name);
-            priority_a.cmp(&priority_b)
-        });
-
-        Ok(devices)
+        self.list_devices_internal().await
     }
 
     async fn start_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to start iOS device: {identifier}");
-
-        // Check if device is already booted
-        let status_output = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "list", "devices", "-j"])
-            .await
-            .context("Failed to get device status")?;
-
-        let json: Value =
-            serde_json::from_str(&status_output).context("Failed to parse device status")?;
-
-        let mut is_already_booted = false;
-        if let Some(devices) = json.get("devices").and_then(|v| v.as_object()) {
-            for (_, device_list) in devices {
-                if let Some(devices_array) = device_list.as_array() {
-                    for device in devices_array {
-                        if let Some(udid) = device.get("udid").and_then(|v| v.as_str()) {
-                            if udid == identifier {
-                                if let Some(state) = device.get("state").and_then(|v| v.as_str()) {
-                                    if state == IOS_DEVICE_STATUS_BOOTED {
-                                        is_already_booted = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if is_already_booted {
-            log::info!("Device {identifier} is already booted");
-        } else {
-            // Boot the device
-            let boot_result = self
-                .command_executor
-                .run(Path::new(XCRUN), &[SIMCTL, "boot", identifier])
-                .await;
-
-            match boot_result {
-                Ok(_) => log::info!("Successfully booted iOS device {identifier}"),
-                Err(e) => {
-                    let error_msg = e.to_string();
-                    if error_msg.contains(IOS_ALREADY_BOOTED_ERROR) {
-                        log::info!("Device {identifier} was already in the process of booting");
-                    } else {
-                        return Err(e).context(format!("Failed to boot iOS device {identifier}"));
-                    }
-                }
-            }
-        }
-
-        // Attempt to open Simulator.app, but don't fail the whole operation if this specific step fails.
-        if let Err(e) = self
-            .command_executor
-            .spawn(
-                Path::new("open"),
-                &[SIMULATOR_OPEN_FLAG, SIMULATOR_APP_NAME],
-            )
-            .await
-        {
-            log::warn!("Failed to open Simulator app: {e}. Device might be booting in headless mode or Simulator app needs to be opened manually.");
-        }
-        Ok(())
+        self.start_device_internal(identifier).await
     }
 
     async fn stop_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to stop iOS device: {identifier}");
-
-        let shutdown_result = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "shutdown", identifier])
-            .await;
-
-        match shutdown_result {
-            Ok(_) => {
-                log::info!("Successfully shut down iOS device {identifier}");
-
-                // Check if all devices are now stopped, and if so, quit Simulator.app
-                // This prevents the Simulator icon from lingering in the Dock
-                self.quit_simulator_if_no_running_devices().await;
-
-                Ok(())
-            }
-            Err(e) => {
-                let error_msg = e.to_string();
-                if error_msg.contains(IOS_ALREADY_SHUTDOWN_ERROR) {
-                    log::info!("Device {identifier} was already shut down");
-
-                    // Even if device was already stopped, check if we should quit Simulator.app
-                    self.quit_simulator_if_no_running_devices().await;
-
-                    Ok(())
-                } else {
-                    Err(e).context(format!("Failed to shutdown iOS device {identifier}"))
-                }
-            }
-        }
+        self.stop_device_internal(identifier).await
     }
 
     async fn create_device(&self, config: &DeviceConfig) -> Result<()> {
-        log::info!(
-            "Attempting to create iOS device: {} of type {} with runtime {}",
-            config.name,
-            config.device_type,
-            config.version
-        );
-        // For iOS, config.version is the runtime identifier (e.g., com.apple.CoreSimulator.SimRuntime.iOS-17-0)
-        // config.device_type is the device type identifier (e.g., com.apple.CoreSimulator.SimDeviceType.iPhone-15)
-        let output = self
-            .command_executor
-            .run(
-                Path::new(XCRUN),
-                &[
-                    SIMCTL,
-                    "create",
-                    &config.name,
-                    &config.device_type,
-                    &config.version,
-                ],
-            )
-            .await
-            .context(format!(
-                "Failed to create iOS device '{}' with type '{}' and runtime '{}'",
-                config.name, config.device_type, config.version
-            ))?;
-        log::info!("Successfully created iOS device. UDID: {}", output.trim());
-        Ok(())
+        self.create_device_internal(config).await
     }
 
     async fn delete_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to delete iOS device: {identifier}");
-
-        // First try to shutdown the device if it's running
-        let _ = self
-            .command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "shutdown", identifier])
-            .await; // Ignore errors as device might already be shut down
-
-        // Now delete the device
-        self.command_executor
-            .run(Path::new(XCRUN), &[SIMCTL, "delete", identifier])
-            .await
-            .context(format!(
-                "Failed to delete iOS device {identifier}. Make sure the device exists and is not in use."
-            ))?;
-
-        log::info!("Successfully deleted iOS device {identifier}");
-        Ok(())
+        self.delete_device_internal(identifier).await
     }
 
     async fn wipe_device(&self, identifier: &str) -> Result<()> {
-        log::info!("Attempting to wipe iOS device: {identifier}");
-        // For iOS, we use the erase command which wipes all content and settings
-        self.erase_device(identifier).await
+        self.wipe_device_internal(identifier).await
     }
 
     async fn is_available(&self) -> bool {
-        // First quick check for xcrun availability
-        if which::which("xcrun").is_err() {
-            return false;
-        }
-
-        // Lazy validation: check simctl on first use (not at startup)
-        // This improves startup performance while maintaining functionality
-        self.command_executor
-            .run(&PathBuf::from("xcrun"), &["simctl", "help"])
-            .await
-            .is_ok()
+        self.is_available_internal().await
     }
 }
 

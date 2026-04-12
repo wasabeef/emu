@@ -30,7 +30,7 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/managers/android/mod.rs` | Android AVD facade and runtime orchestration                                             |
 | `src/managers/android/*.rs`   | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
 | `src/managers/ios/mod.rs`     | iOS simulator facade and orchestration (macOS only)                                      |
-| `src/managers/ios/*.rs`       | iOS helper modules (`discovery` and upcoming splits)                                     |
+| `src/managers/ios/*.rs`       | iOS helper modules (`details/discovery/lifecycle` and upcoming splits)                   |
 | `src/managers/common.rs`      | `DeviceManager` trait                                                                    |
 | `src/ui/render.rs`            | Three-panel layout rendering                                                             |
 | `src/constants/`              | All constants (NO hardcoded values in source)                                            |
