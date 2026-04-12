@@ -18,6 +18,7 @@ pub mod event_processing;
 mod api_levels;
 mod background;
 mod create_device;
+mod create_device_form;
 mod details;
 mod device_actions;
 mod input;
