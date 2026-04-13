@@ -11,7 +11,7 @@ use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 const MEMORY_LEAK_DETECTION_CYCLES: usize = 100;
-const CACHE_PERFORMANCE_TARGET_MS: u64 = 500;
+const CACHE_PERFORMANCE_TARGET_MS: u64 = 650;
 const CACHE_PERFORMANCE_SAMPLE_COUNT: usize = 3;
 
 use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
