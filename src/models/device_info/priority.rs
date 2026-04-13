@@ -1,4 +1,51 @@
 use super::*;
+use lazy_static::lazy_static;
+use regex::Regex;
+
+lazy_static! {
+    static ref DEVICE_VERSION_PATTERNS: Vec<(Regex, usize)> = vec![
+        (
+            Regex::new(r"pixel[_\s]?(\d+)").expect("valid pixel version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"galaxy[_\s]?s(\d+)").expect("valid galaxy version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"galaxy[_\s]?z[_\s]?fold[_\s]?(\d+)")
+                .expect("valid galaxy fold version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"galaxy[_\s]?z[_\s]?flip[_\s]?(\d+)")
+                .expect("valid galaxy flip version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"oneplus[_\s]?(\d+)").expect("valid oneplus version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"nexus[_\s]?(\d+)").expect("valid nexus version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"(\d+)[_\s]?pro").expect("valid pro version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"(\d+)[_\s]?plus").expect("valid plus version regex"),
+            REGEX_GROUP_FIRST
+        ),
+        (
+            Regex::new(r"(\d+)[_\s]?ultra").expect("valid ultra version regex"),
+            REGEX_GROUP_FIRST
+        ),
+    ];
+    static ref NUMBER_REGEX: Regex =
+        Regex::new(r"\b(\d{1,2})\b").expect("valid generic version regex");
+}
 
 impl DynamicDeviceConfig {
     pub fn calculate_android_device_priority(device_id: &str, display_name: &str) -> u32 {
@@ -212,34 +259,19 @@ impl DynamicDeviceConfig {
     fn extract_device_version(device_id: &str, display_name: &str) -> u32 {
         let combined = format!("{device_id} {display_name}").to_lowercase();
 
-        let device_patterns = [
-            (r"pixel[_\s]?(\d+)", REGEX_GROUP_FIRST),
-            (r"galaxy[_\s]?s(\d+)", REGEX_GROUP_FIRST),
-            (r"galaxy[_\s]?z[_\s]?fold[_\s]?(\d+)", REGEX_GROUP_FIRST),
-            (r"galaxy[_\s]?z[_\s]?flip[_\s]?(\d+)", REGEX_GROUP_FIRST),
-            (r"oneplus[_\s]?(\d+)", REGEX_GROUP_FIRST),
-            (r"nexus[_\s]?(\d+)", REGEX_GROUP_FIRST),
-            (r"(\d+)[_\s]?pro", REGEX_GROUP_FIRST),
-            (r"(\d+)[_\s]?plus", REGEX_GROUP_FIRST),
-            (r"(\d+)[_\s]?ultra", REGEX_GROUP_FIRST),
-        ];
-
-        for (pattern, group) in &device_patterns {
-            if let Ok(re) = regex::Regex::new(pattern) {
-                if let Some(caps) = re.captures(&combined) {
-                    if let Some(version_str) = caps.get(*group) {
-                        if let Ok(version) = version_str.as_str().parse::<u32>() {
-                            return VERSION_PRIORITY_BASE - version.min(MAX_VERSION_FOR_PRIORITY);
-                        }
+        for (pattern, group) in DEVICE_VERSION_PATTERNS.iter() {
+            if let Some(caps) = pattern.captures(&combined) {
+                if let Some(version_str) = caps.get(*group) {
+                    if let Ok(version) = version_str.as_str().parse::<u32>() {
+                        return VERSION_PRIORITY_BASE - version.min(MAX_VERSION_FOR_PRIORITY);
                     }
                 }
             }
         }
 
-        let number_regex = regex::Regex::new(r"\b(\d{1,2})\b").unwrap();
         let mut versions = Vec::new();
 
-        for caps in number_regex.captures_iter(&combined) {
+        for caps in NUMBER_REGEX.captures_iter(&combined) {
             if let Ok(num) = caps[1].parse::<u32>() {
                 if num > 0 && num <= MAX_VERSION_NUMBER {
                     versions.push(num);
