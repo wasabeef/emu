@@ -1,6 +1,9 @@
 use crate::{
-    app::{AppState, Mode},
-    constants::{colors::*, ui_text::shortcuts::NORMAL_MODE_SHORTCUTS},
+    app::{AppState, Mode, Panel},
+    constants::{
+        colors::*,
+        ui_text::shortcuts::{ANDROID_NORMAL_MODE_SHORTCUTS, IOS_NORMAL_MODE_SHORTCUTS},
+    },
     ui::{widgets::get_animated_moon, Theme},
 };
 use ratatui::{
@@ -17,7 +20,7 @@ pub(crate) fn render_device_commands(
     _theme: &Theme,
 ) {
     let device_text = match state.mode {
-        Mode::Normal => NORMAL_MODE_SHORTCUTS,
+        Mode::Normal => normal_mode_shortcuts(state.active_panel),
         _ => "",
     };
 
@@ -29,6 +32,13 @@ pub(crate) fn render_device_commands(
         )
         .alignment(Alignment::Center);
     frame.render_widget(device_commands, area);
+}
+
+fn normal_mode_shortcuts(panel: Panel) -> &'static str {
+    match panel {
+        Panel::Android => ANDROID_NORMAL_MODE_SHORTCUTS,
+        Panel::Ios => IOS_NORMAL_MODE_SHORTCUTS,
+    }
 }
 
 pub(crate) fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppState, theme: &Theme) {
@@ -64,4 +74,15 @@ pub(crate) fn render_log_commands(frame: &mut Frame, area: Rect, state: &AppStat
         .style(style)
         .alignment(Alignment::Center);
     frame.render_widget(log_commands, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normal_mode_shortcuts_include_install_for_android_only() {
+        assert!(normal_mode_shortcuts(Panel::Android).contains("[i]nstall"));
+        assert!(!normal_mode_shortcuts(Panel::Ios).contains("[i]nstall"));
+    }
 }
