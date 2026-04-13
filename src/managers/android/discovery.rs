@@ -125,24 +125,6 @@ impl AndroidManager {
 
     pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
         log::debug!("list_available_targets called");
-        if let Some(cached_targets) = ApiLevelCache::load_from_disk() {
-            let targets: Vec<(String, String)> = cached_targets
-                .api_levels
-                .into_iter()
-                .map(|api| {
-                    (
-                        api.api.to_string(),
-                        format!("API {} - {}", api.api, api.version),
-                    )
-                })
-                .collect();
-
-            if !targets.is_empty() {
-                log::debug!("Loaded {} API levels from cache", targets.len());
-                return Ok(targets);
-            }
-        }
-
         let installed_images = self.list_available_system_images().await?;
         let mut targets = std::collections::HashMap::new();
 
@@ -191,7 +173,13 @@ impl AndroidManager {
             timestamp: std::time::SystemTime::now(),
         };
 
-        if let Err(error) = cache.save_to_disk() {
+        if result.is_empty() {
+            if let Err(error) = ApiLevelCache::clear_from_disk() {
+                log::warn!("Failed to clear API level cache: {error}");
+            } else {
+                log::debug!("Cleared API level cache because no installed targets were found");
+            }
+        } else if let Err(error) = cache.save_to_disk() {
             log::warn!("Failed to save API level cache: {error}");
         } else {
             log::debug!("Saved {} API levels to cache", result.len());

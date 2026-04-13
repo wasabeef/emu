@@ -47,4 +47,13 @@ impl ApiLevelCache {
         fs::write(cache_path, cache_json)?;
         Ok(())
     }
+
+    /// Clear the API level cache from disk if it exists.
+    pub fn clear_from_disk() -> Result<(), anyhow::Error> {
+        let cache_path = Self::cache_file_path()?;
+        if cache_path.exists() {
+            fs::remove_file(cache_path)?;
+        }
+        Ok(())
+    }
 }

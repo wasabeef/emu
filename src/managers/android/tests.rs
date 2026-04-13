@@ -2,7 +2,9 @@ use super::*;
 use crate::managers::android::parser::AvdListParser;
 use crate::managers::common::DeviceConfig;
 use crate::models::device_info::DynamicDeviceProvider;
+use crate::models::ApiLevel;
 use crate::utils::command_executor::mock::MockCommandExecutor;
+use crate::utils::ApiLevelCache;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
@@ -446,6 +448,60 @@ async fn test_run_commands_parallel() {
         .contains("Command failed"));
 
     env::remove_var("ANDROID_HOME");
+}
+
+#[tokio::test]
+async fn test_list_available_targets_ignores_stale_disk_cache_when_no_images_are_installed() {
+    let _env_lock = acquire_test_env_lock().await;
+    let sdk_dir = setup_test_android_sdk();
+    let home_dir = tempfile::tempdir().unwrap();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", sdk_dir.path());
+    let _home = EnvVarGuard::set("HOME", home_dir.path());
+
+    let stale_cache = ApiLevelCache {
+        api_levels: vec![
+            ApiLevel {
+                api: 34,
+                version: "API 34".to_string(),
+                display_name: "API 34 - API 34".to_string(),
+                system_image_id: "android-34".to_string(),
+                is_installed: true,
+                variants: vec![],
+            },
+            ApiLevel {
+                api: 33,
+                version: "API 33".to_string(),
+                display_name: "API 33 - API 33".to_string(),
+                system_image_id: "android-33".to_string(),
+                is_installed: true,
+                variants: vec![],
+            },
+        ],
+        timestamp: std::time::SystemTime::now(),
+    };
+    stale_cache.save_to_disk().unwrap();
+    assert!(ApiLevelCache::load_from_disk().is_some());
+
+    let sdkmanager_output = "Installed packages:\n  Path | Version | Description | Location\n\nAvailable Packages:\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a\n";
+
+    let sdkmanager_path = sdk_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "sdkmanager",
+            &["--list", "--verbose", "--include_obsolete"],
+            sdkmanager_output,
+        )
+        .with_success(
+            &sdkmanager_path.to_string_lossy(),
+            &["--list", "--verbose", "--include_obsolete"],
+            sdkmanager_output,
+        );
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+    let targets = manager.list_available_targets().await.unwrap();
+
+    assert!(targets.is_empty());
+    assert!(ApiLevelCache::load_from_disk().is_none());
 }
 
 #[test]
