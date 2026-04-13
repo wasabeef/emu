@@ -20,21 +20,23 @@ use tokio::fs;
 impl AndroidManager {
     /// Optimized parallel version of list_devices
     pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
+        let cached_targets = self
+            .get_cached_available_targets()
+            .await
+            .unwrap_or_default();
         let avd_list_future = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "avd"]);
         let running_avds_future = self.get_running_avd_names();
-        let targets_future = self.list_available_targets();
 
-        let (avd_output_result, running_avds_result, targets_result) =
-            tokio::join!(avd_list_future, running_avds_future, targets_future);
+        let (avd_output_result, running_avds_result) =
+            tokio::join!(avd_list_future, running_avds_future);
 
         let avd_output = avd_output_result.context("Failed to list Android AVDs")?;
         let running_avds = running_avds_result?;
-        let targets = targets_result.unwrap_or_default();
 
         let mut version_map = std::collections::HashMap::new();
-        for (level_str, display) in targets {
+        for (level_str, display) in cached_targets {
             if let Ok(level) = level_str.parse::<u32>() {
                 if let Some(dash_pos) = display.find(" - Android ") {
                     version_map.insert(level, display[dash_pos + 11..].to_string());

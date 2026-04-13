@@ -549,6 +549,56 @@ async fn test_list_available_targets_uses_session_cache() {
 }
 
 #[tokio::test]
+async fn test_list_devices_parallel_avoids_sdkmanager_when_targets_cache_is_empty() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+    let _home = EnvVarGuard::set("HOME", temp_dir.path().as_os_str());
+
+    let avd_dir = temp_dir.path().join(".android/avd/Pixel_7_API_34.avd");
+    std::fs::create_dir_all(&avd_dir).unwrap();
+    std::fs::write(
+        avd_dir.join("config.ini"),
+        "image.sysdir.1=system-images/android-34/google_apis_playstore/arm64-v8a/\n",
+    )
+    .unwrap();
+
+    let avd_list_output = r#"
+Available Android Virtual Devices:
+    Name: Pixel_7_API_34
+    Device: pixel_7 (Google)
+    Path: /Users/test/.android/avd/Pixel_7_API_34.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis_playstore/arm64-v8a
+---------
+"#;
+
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], avd_list_output)
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_error(
+            &sdkmanager_path.to_string_lossy(),
+            &["--list", "--verbose", "--include_obsolete"],
+            "sdkmanager should not be called",
+        );
+
+    let call_history_executor = mock_executor.clone();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+    let devices = manager.list_devices_parallel().await.unwrap();
+
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0].api_level, 34);
+
+    let sdkmanager_calls = call_history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, _)| command.ends_with("sdkmanager"))
+        .count();
+    assert_eq!(sdkmanager_calls, 0);
+}
+
+#[tokio::test]
 async fn test_list_api_levels_uses_session_cache_until_invalidated() {
     let _env_lock = acquire_test_env_lock().await;
     let temp_dir = setup_test_android_sdk();

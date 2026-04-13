@@ -11,26 +11,33 @@ impl App {
 
         tokio::spawn(async move {
             if let Ok(android_manager) = crate::managers::AndroidManager::new() {
-                if let Ok(device_types) = android_manager.list_available_devices().await {
-                    if let Ok(api_levels) = android_manager.list_available_targets().await {
-                        let state = state_clone.lock().await;
-                        let mut cache = state.device_cache.write().await;
-                        cache.android_device_cache = Some(device_types.clone());
-                        cache.update_android_cache(device_types, api_levels);
-                        log::info!("Android device cache updated successfully");
-                    }
+                let (device_types_result, api_levels_result) = tokio::join!(
+                    android_manager.list_available_devices(),
+                    android_manager.list_available_targets()
+                );
+
+                if let (Ok(device_types), Ok(api_levels)) = (device_types_result, api_levels_result)
+                {
+                    let state = state_clone.lock().await;
+                    let mut cache = state.device_cache.write().await;
+                    cache.android_device_cache = Some(device_types.clone());
+                    cache.update_android_cache(device_types, api_levels);
+                    log::info!("Android device cache updated successfully");
                 }
             }
 
             #[cfg(target_os = "macos")]
             if let Ok(ios_manager) = crate::managers::IosManager::new() {
-                if let Ok(device_types) = ios_manager.list_device_types_with_names().await {
-                    if let Ok(runtimes) = ios_manager.list_runtimes().await {
-                        let state = state_clone.lock().await;
-                        let mut cache = state.device_cache.write().await;
-                        cache.update_ios_cache(device_types, runtimes);
-                        log::info!("iOS device cache updated successfully");
-                    }
+                let (device_types_result, runtimes_result) = tokio::join!(
+                    ios_manager.list_device_types_with_names(),
+                    ios_manager.list_runtimes()
+                );
+
+                if let (Ok(device_types), Ok(runtimes)) = (device_types_result, runtimes_result) {
+                    let state = state_clone.lock().await;
+                    let mut cache = state.device_cache.write().await;
+                    cache.update_ios_cache(device_types, runtimes);
+                    log::info!("iOS device cache updated successfully");
                 }
             }
         });
@@ -41,13 +48,6 @@ impl App {
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();
-
-        tokio::spawn({
-            let android_manager = android_manager.clone();
-            async move {
-                let _ = android_manager.list_available_targets().await;
-            }
-        });
 
         tokio::spawn({
             let state_clone = Arc::clone(&state_clone);
