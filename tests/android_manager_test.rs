@@ -29,7 +29,7 @@ fn create_empty_mock_android_manager() -> AndroidManager {
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
             "sdkmanager",
-            &["--list"],
+            &["--list", "--verbose", "--include_obsolete"],
             "Installed packages:\n\nAvailable Packages:\n",
         )
         .with_success("emulator", &["-list-avds"], "");
@@ -110,7 +110,7 @@ fn create_mock_android_manager() -> AndroidManager {
         .with_success("adb", &["-s", "emulator-5556", "emu", "avd", "name"], "")
         .with_success(
             "sdkmanager",
-            &["--list"],
+            &["--list", "--verbose", "--include_obsolete"],
             r#"Installed packages:
   build-tools;34.0.0
   emulator
@@ -601,7 +601,11 @@ async fn test_android_manager_device_status_detection() {
             ],
             "Offline_Device\n",
         )
-        .with_success("sdkmanager", &["--list"], "Installed packages:\n");
+        .with_success(
+            "sdkmanager",
+            &["--list", "--verbose", "--include_obsolete"],
+            "Installed packages:\n",
+        );
 
     let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
 
@@ -652,7 +656,7 @@ async fn test_android_manager_parsing_edge_cases() {
         .with_success("adb", &["devices"], "List of devices attached\n")
         .with_success(
             "sdkmanager",
-            &["--list"],
+            &["--list", "--verbose", "--include_obsolete"],
             "Installed packages:\nAvailable Packages:\n",
         );
 

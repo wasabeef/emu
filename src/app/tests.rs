@@ -396,6 +396,7 @@ async fn test_execute_delete_device_removes_android_device_and_adjusts_selection
         ios_manager: None,
         log_update_handle: None,
         detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
     };
 
     {
@@ -459,6 +460,7 @@ async fn test_execute_wipe_device_removes_android_user_data_and_notifies() {
         ios_manager: None,
         log_update_handle: None,
         detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
     };
 
     let home_dir = std::env::var("HOME").expect("HOME should be set by StartupTestEnv");
@@ -517,6 +519,7 @@ async fn test_reload_device_types_for_category_uses_cached_android_devices() {
         ios_manager: None,
         log_update_handle: None,
         detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
     };
 
     {
@@ -786,6 +789,123 @@ async fn test_refresh_devices_incremental() {
     }
 
     std::env::remove_var("ANDROID_HOME");
+}
+
+#[test]
+async fn test_refresh_devices_smart_uses_status_only_path_between_full_refreshes() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::with_running_android(true);
+
+    let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
+        .with_success(
+            "adb",
+            &["devices"],
+            "List of devices attached\nemulator-5554\tdevice\n",
+        )
+        .with_success(
+            "adb",
+            &[
+                "-s",
+                "emulator-5554",
+                "shell",
+                "getprop",
+                "ro.boot.qemu.avd_name",
+            ],
+            "Pixel_7_API_34\n",
+        );
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager: AndroidManager::with_executor(Arc::new(mock_executor))
+            .expect("Android manager should initialize"),
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    {
+        let mut state = app.state.lock().await;
+        state.android_devices = vec![AndroidDevice {
+            name: "Pixel_7_API_34".to_string(),
+            device_type: "pixel_7".to_string(),
+            api_level: 34,
+            android_version_name: "API 34".to_string(),
+            status: DeviceStatus::Stopped,
+            is_running: false,
+            ram_size: "4096".to_string(),
+            storage_size: "8192M".to_string(),
+        }];
+    }
+
+    app.refresh_devices_smart().await.unwrap();
+
+    let state = app.state.lock().await;
+    assert_eq!(state.android_devices.len(), 1);
+    assert!(state.android_devices[0].is_running);
+    assert_eq!(state.android_devices[0].status, DeviceStatus::Running);
+}
+
+#[test]
+async fn test_open_api_level_management_uses_cached_levels_immediately() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+    let android_home =
+        std::env::var("ANDROID_HOME").expect("ANDROID_HOME should be set by StartupTestEnv");
+    let sdkmanager_path =
+        std::path::PathBuf::from(android_home).join("cmdline-tools/latest/bin/sdkmanager");
+    std::fs::write(
+        &sdkmanager_path,
+        r#"#!/bin/sh
+cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+
+Available Packages:
+  system-images;android-35;google_apis;arm64-v8a | 1 | Android SDK Platform 35 | system-images/android-35/google_apis/arm64-v8a
+EOF
+"#,
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
+        .with_success(
+            &sdkmanager_path.to_string_lossy(),
+            &["--list", "--verbose", "--include_obsolete"],
+            "Installed packages:\n  Path | Version | Description | Location\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a\n\nAvailable Packages:\n  system-images;android-35;google_apis;arm64-v8a | 1 | Android SDK Platform 35 | system-images/android-35/google_apis/arm64-v8a\n",
+        );
+    let android_manager = AndroidManager::with_executor(Arc::new(mock_executor))
+        .expect("Android manager should initialize");
+    let cached_levels = android_manager.list_api_levels().await.unwrap();
+    assert!(!cached_levels.is_empty());
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager,
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    app.open_api_level_management().await;
+
+    let state = app.state.lock().await;
+    let api_state = state
+        .api_level_management
+        .as_ref()
+        .expect("API level management should be open");
+    assert!(!api_state.is_loading);
+    assert_eq!(api_state.api_levels.len(), cached_levels.len());
 }
 
 #[allow(dead_code)]

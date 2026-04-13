@@ -8,13 +8,20 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
     pub(super) async fn open_api_level_management(&mut self) {
+        let cached_api_levels = self.android_manager.get_cached_api_levels().await;
+
         let should_open = {
             let mut state = self.state.lock().await;
             if state.active_panel != Panel::Android {
                 false
             } else {
+                let mut api_state = state::ApiLevelManagementState::new();
+                if let Some(cached_api_levels) = cached_api_levels {
+                    api_state.api_levels = cached_api_levels;
+                    api_state.is_loading = false;
+                }
                 state.mode = Mode::ManageApiLevels;
-                state.api_level_management = Some(state::ApiLevelManagementState::new());
+                state.api_level_management = Some(api_state);
                 true
             }
         };

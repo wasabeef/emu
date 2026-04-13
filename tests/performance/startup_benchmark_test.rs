@@ -218,8 +218,7 @@ EOF
         std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
     }
 
-    let android_manager =
-        AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+    let android_manager = AndroidManager::new().unwrap();
 
     let cold_start = Instant::now();
     let cold_levels = android_manager.list_api_levels().await.unwrap();

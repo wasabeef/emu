@@ -24,21 +24,8 @@ impl AndroidManager {
             return Ok(cached_levels);
         }
 
-        let sdkmanager_path = Self::find_tool(&self.android_home, commands::SDKMANAGER)?;
-        let output = tokio::process::Command::new(&sdkmanager_path)
-            .args([commands::sdkmanager::LIST, "--verbose"])
-            .output()
-            .await?;
-
-        if !output.status.success() {
-            return Err(anyhow::anyhow!(
-                "Failed to list system images: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let api_levels = self.parse_api_levels_from_output(&output_str);
+        let output = self.get_sdkmanager_verbose_output().await?;
+        let api_levels = self.parse_api_levels_from_output(&output);
         self.set_cached_api_levels(api_levels.clone()).await;
 
         Ok(api_levels)

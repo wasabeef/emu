@@ -303,6 +303,7 @@ use tokio::sync::RwLock;
 
 type CachedTargets = Vec<(String, String)>;
 type TimedTargetsCache = Arc<RwLock<Option<TimedCache<CachedTargets>>>>;
+type TimedStringCache = Arc<RwLock<Option<TimedCache<String>>>>;
 type TimedApiLevelsCache = Arc<RwLock<Option<TimedCache<Vec<ApiLevel>>>>>;
 type DeviceMetadataMap = std::collections::HashMap<String, CachedAndroidDeviceMetadata>;
 
@@ -360,6 +361,8 @@ pub struct AndroidManager {
     emulator_path: PathBuf,
     /// Session cache for Android target list derived from installed system images.
     available_targets_cache: TimedTargetsCache,
+    /// Session cache for raw sdkmanager verbose output reused across Android SDK-backed lists.
+    sdkmanager_verbose_output_cache: TimedStringCache,
     /// Session cache for Android API levels used by the system-images dialog.
     api_levels_cache: TimedApiLevelsCache,
     /// Session cache for per-device metadata derived from config parsing.
@@ -404,6 +407,7 @@ impl AndroidManager {
             avdmanager_path,
             emulator_path,
             available_targets_cache: Arc::new(RwLock::new(None)),
+            sdkmanager_verbose_output_cache: Arc::new(RwLock::new(None)),
             api_levels_cache: Arc::new(RwLock::new(None)),
             device_metadata_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
@@ -423,7 +427,43 @@ impl AndroidManager {
         *cache = Some(TimedCache::new(targets));
     }
 
-    async fn get_cached_api_levels(&self) -> Option<Vec<ApiLevel>> {
+    async fn get_cached_sdkmanager_verbose_output(&self) -> Option<String> {
+        let cache = self.sdkmanager_verbose_output_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_sdkmanager_verbose_output(&self, output: String) {
+        let mut cache = self.sdkmanager_verbose_output_cache.write().await;
+        *cache = Some(TimedCache::new(output));
+    }
+
+    pub(crate) async fn get_sdkmanager_verbose_output(&self) -> Result<String> {
+        if let Some(cached_output) = self.get_cached_sdkmanager_verbose_output().await {
+            return Ok(cached_output);
+        }
+
+        let sdkmanager_path = Self::find_tool(&self.android_home, commands::SDKMANAGER)?;
+        let output = self
+            .command_executor
+            .run(
+                &sdkmanager_path,
+                &[
+                    commands::sdkmanager::LIST,
+                    "--verbose",
+                    "--include_obsolete",
+                ],
+            )
+            .await?;
+        self.set_cached_sdkmanager_verbose_output(output.clone())
+            .await;
+        Ok(output)
+    }
+
+    pub(crate) async fn get_cached_api_levels(&self) -> Option<Vec<ApiLevel>> {
         let cache = self.api_levels_cache.read().await;
         cache.as_ref().and_then(|cache| {
             cache
@@ -473,6 +513,10 @@ impl AndroidManager {
         }
         {
             let mut cache = self.api_levels_cache.write().await;
+            *cache = None;
+        }
+        {
+            let mut cache = self.sdkmanager_verbose_output_cache.write().await;
             *cache = None;
         }
     }

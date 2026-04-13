@@ -636,7 +636,7 @@ EOF
         std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
     }
 
-    let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+    let manager = AndroidManager::new().unwrap();
 
     let first_levels = manager.list_api_levels().await.unwrap();
     let second_levels = manager.list_api_levels().await.unwrap();
@@ -649,6 +649,45 @@ EOF
 
     assert_eq!(third_levels.len(), first_levels.len());
     assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "2");
+}
+
+#[tokio::test]
+async fn test_list_api_levels_reuses_sdkmanager_output_warmed_by_targets() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let sdkmanager_output = "Installed packages:\n  Path | Version | Description | Location\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a\n\nAvailable Packages:\n  system-images;android-35;google_apis;arm64-v8a | 1 | Android SDK Platform 35 | system-images/android-35/google_apis/arm64-v8a\n";
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    let mock_executor = MockCommandExecutor::new().with_success(
+        &sdkmanager_path.to_string_lossy(),
+        &["--list", "--verbose", "--include_obsolete"],
+        sdkmanager_output,
+    );
+
+    let call_history_executor = mock_executor.clone();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let targets = manager.list_available_targets().await.unwrap();
+    let api_levels = manager.list_api_levels().await.unwrap();
+
+    assert!(!targets.is_empty());
+    assert!(!api_levels.is_empty());
+
+    let sdkmanager_calls = call_history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, args)| {
+            command.ends_with("sdkmanager")
+                && args
+                    == &[
+                        "--list".to_string(),
+                        "--verbose".to_string(),
+                        "--include_obsolete".to_string(),
+                    ]
+        })
+        .count();
+    assert_eq!(sdkmanager_calls, 1);
 }
 
 #[tokio::test]

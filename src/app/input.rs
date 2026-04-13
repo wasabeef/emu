@@ -48,7 +48,7 @@ impl App {
                 state.dismiss_all_notifications();
             }
             KeyCode::Char('r') => {
-                self.refresh_devices_smart().await?;
+                self.refresh_devices_incremental().await?;
             }
             KeyCode::Tab
             | KeyCode::BackTab
