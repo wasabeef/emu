@@ -49,7 +49,7 @@ These files currently hold multiple responsibilities at once.
 
 ## Progress Snapshot
 
-The plan is now partially executed.
+The plan has now been executed through its required structural phases.
 
 Completed structural checkpoints:
 
@@ -121,6 +121,27 @@ Current review stance:
 - any remaining structural split must justify its review value relative to churn
 - all structural checkpoints must continue to pass targeted tests and `cargo clippy --all-targets --all-features -- -D warnings`
 - any policy change, parsing correction, or fallback adjustment must stay in a separate behavior commit
+
+## Completion Review
+
+Date: 2026-04-13
+
+This refactor has now reached the point where the structural goals are effectively complete.
+
+Completed outcomes:
+
+- `App` is now a thin orchestration shell
+- `app/state/` is split by responsibility
+- Android and iOS managers are readable facade modules with focused helper siblings
+- `ui` rendering is split by dialogs and panels
+- `device_info` is no longer a monolithic file
+- full verification continues to pass after each structural checkpoint
+
+Additional review conclusion:
+
+- further splitting of [src/ui/widgets.rs](/Users/a12622/git/emu/src/ui/widgets.rs), [src/managers/common.rs](/Users/a12622/git/emu/src/managers/common.rs), [src/models/device.rs](/Users/a12622/git/emu/src/models/device.rs), or [src/models/error.rs](/Users/a12622/git/emu/src/models/error.rs) is not currently justified
+- these files are still non-trivial in size, but their responsibilities remain cohesive enough that more structural churn would likely reduce review quality more than it would improve maintainability
+- future work in those areas should be driven by behavior changes or new feature pressure, not by file size alone
 
 ## Dependency Inventory
 
@@ -1100,14 +1121,17 @@ The refactor is done when:
 
 ## Final Recommendation
 
-Start with `PR 1A`.
+The structural refactor should now be considered complete for the current architecture.
 
-Do not start with:
+Recommended follow-up stance:
 
-- top-level package renames
-- UI extraction
-- Android manager decomposition
+- stop broad structural extraction here
+- keep phases 7 and 8 optional unless a concrete future change creates clear pressure
+- treat upcoming work primarily as behavior work, not file-moving work
+- continue using the Behavior Preservation Contract for any future cleanup PRs
 
-Until `DeviceDetails` and the early state boundaries are cleaned up, those moves will create more churn than clarity.
+If a future refactor is proposed, it should clear a higher bar than this one:
 
-If the team wants the strongest possible practical guarantee of no behavior change, every structural PR should be reviewed against the Behavior Preservation Contract above and rejected if it requires expectation rewrites outside of import-path adaptation.
+- it must remove a real dependency problem or ownership ambiguity
+- it must produce clearer reviewable boundaries
+- it must not be justified by file size alone
