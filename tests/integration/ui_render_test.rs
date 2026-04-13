@@ -258,6 +258,33 @@ fn test_device_shortcuts_follow_active_platform_panel() {
     assert!(!ios_text.contains("[i]nstall"));
 }
 
+/// Test device shortcuts wrap to multiple lines on narrower terminals
+#[test]
+fn test_device_shortcuts_wrap_on_narrow_terminals() {
+    let backend = MockBackend::new(90, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let mut app_state = AppState::new();
+    app_state.active_panel = Panel::Android;
+
+    let theme = Theme::dark();
+    terminal
+        .draw(|frame| {
+            draw_app(frame, &mut app_state, &theme);
+        })
+        .unwrap();
+
+    let backend = terminal.backend();
+    let rendered = backend.get_buffer_text();
+    let shortcut_lines = rendered
+        .lines()
+        .filter(|line| line.contains("[r]efresh") || line.contains("[i]nstall"))
+        .count();
+
+    assert!(shortcut_lines >= 2);
+    assert!(rendered.contains("[i]nstall"));
+}
+
 /// Test panel focus and selection highlighting
 #[test]
 fn test_panel_focus_and_selection() {

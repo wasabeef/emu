@@ -76,6 +76,10 @@ pub const NOTIFICATION_HEIGHT: u16 = 4;
 // Header and status bar heights
 pub const HEADER_HEIGHT: u16 = 3;
 pub const STATUS_BAR_HEIGHT: u16 = 1;
+pub const DEVICE_COMMAND_SHORTCUT_DEFAULT_HEIGHT: u16 = 2;
+pub const LOG_COMMAND_SHORTCUT_DEFAULT_HEIGHT: u16 = 1;
+pub const COMMAND_SHORTCUT_MAX_HEIGHT: u16 = 3;
+pub const COMMAND_SHORTCUT_WRAP_PADDING: u16 = 4;
 
 // Form footer heights
 pub const FORM_FOOTER_HEIGHT: u16 = 3;

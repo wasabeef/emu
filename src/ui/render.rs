@@ -5,8 +5,8 @@ use super::dialogs::{
     render_create_device_dialog, render_notifications,
 };
 use super::panels::{
-    render_android_panel, render_device_commands, render_device_details_panel, render_ios_panel,
-    render_log_commands, render_log_panel,
+    device_commands_height, log_commands_height, render_android_panel, render_device_commands,
+    render_device_details_panel, render_ios_panel, render_log_commands, render_log_panel,
 };
 use crate::{
     app::AppState,
@@ -60,14 +60,16 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
         .style(Style::default().fg(theme.primary));
     frame.render_widget(header, chunks[0]);
 
+    let log_shortcut_height = log_commands_height(state, chunks[1].width);
+
     // Split main content based on fullscreen mode
     let main_chunks = if state.fullscreen_logs {
         // In fullscreen mode, give all space to logs
         Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(10),   // Log panel takes all space
-                Constraint::Length(1), // Log commands
+                Constraint::Min(10),                     // Log panel takes all space
+                Constraint::Length(log_shortcut_height), // Log commands
             ])
             .split(chunks[1])
     } else {
@@ -77,19 +79,21 @@ pub fn draw_app(frame: &mut Frame, state: &mut AppState, theme: &Theme) {
             .constraints([
                 Constraint::Percentage(DEVICE_PANELS_PERCENTAGE), // Device panels with device commands
                 Constraint::Min(10),                              // Log panel
-                Constraint::Length(1),                            // Log commands
+                Constraint::Length(log_shortcut_height),          // Log commands
             ])
             .split(chunks[1])
     };
 
     // Only render device panels if not in fullscreen mode
     if !state.fullscreen_logs {
+        let device_shortcut_height = device_commands_height(state, main_chunks[0].width);
+
         // Split device area into panels and device commands
         let device_area_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(8),    // Device panels
-                Constraint::Length(1), // Device commands (reduced from 3 to 1)
+                Constraint::Min(8),                         // Device panels
+                Constraint::Length(device_shortcut_height), // Device commands
             ])
             .split(main_chunks[0]);
 
