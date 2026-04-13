@@ -10,9 +10,10 @@ use crate::{
         limits::STORAGE_MB_TO_GB_DIVISOR,
         timeouts::{DEVICE_START_WAIT_TIME, DEVICE_STATUS_CHECK_DELAY},
     },
-    models::{AndroidDevice, DeviceStatus},
+    models::{device_info::DynamicDeviceConfig, AndroidDevice, DeviceStatus},
 };
 use anyhow::{Context, Result};
+use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
@@ -73,6 +74,7 @@ impl AndroidManager {
             });
         }
 
+        sort_discovered_devices(&mut devices);
         Ok(devices)
     }
 
@@ -276,4 +278,26 @@ impl AndroidManager {
 
         Ok(())
     }
+}
+
+fn sort_discovered_devices(devices: &mut [AndroidDevice]) {
+    devices.sort_by(|left, right| {
+        let left_priority =
+            DynamicDeviceConfig::calculate_android_device_priority(&left.device_type, &left.name);
+        let right_priority =
+            DynamicDeviceConfig::calculate_android_device_priority(&right.device_type, &right.name);
+
+        (
+            Reverse(left.api_level),
+            left_priority,
+            left.name.to_lowercase(),
+            left.device_type.to_lowercase(),
+        )
+            .cmp(&(
+                Reverse(right.api_level),
+                right_priority,
+                right.name.to_lowercase(),
+                right.device_type.to_lowercase(),
+            ))
+    });
 }

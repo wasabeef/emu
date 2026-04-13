@@ -825,6 +825,73 @@ async fn test_detect_api_level_for_device_keeps_ambiguous_version_unknown() {
 }
 
 #[tokio::test]
+async fn test_list_devices_sorts_by_api_and_device_priority() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+
+    let avd_list_output = r#"
+Available Android Virtual Devices:
+    Name: Pixel_6_API_34
+    Device: pixel_6 (Google)
+    Path: /Users/test/.android/avd/Pixel_6_API_34.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_7a_API_34
+    Device: pixel_7a (Google)
+    Path: /Users/test/.android/avd/Pixel_7a_API_34.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_8a_API_35
+    Device: pixel_8a (Google)
+    Path: /Users/test/.android/avd/Pixel_8a_API_35.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 15.0 (API level 35) Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_8_API_35
+    Device: pixel_8 (Google)
+    Path: /Users/test/.android/avd/Pixel_8_API_35.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 15.0 (API level 35) Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_9_Pro_API_36
+    Device: pixel_9_pro (Google)
+    Path: /Users/test/.android/avd/Pixel_9_Pro_API_36.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 16.0 (API level 36) Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_9_API_36
+    Device: pixel_9 (Google)
+    Path: /Users/test/.android/avd/Pixel_9_API_36.avd
+    Target: Google APIs (Google Inc.)
+            Based on: Android 16.0 (API level 36) Tag/ABI: google_apis/arm64-v8a
+---------
+"#;
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], avd_list_output)
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+    let devices = manager.list_devices().await.unwrap();
+    let names: Vec<&str> = devices.iter().map(|device| device.name.as_str()).collect();
+
+    assert_eq!(
+        names,
+        vec![
+            "Pixel_9_API_36",
+            "Pixel_9_Pro_API_36",
+            "Pixel_8_API_35",
+            "Pixel_8a_API_35",
+            "Pixel_7a_API_34",
+            "Pixel_6_API_34",
+        ]
+    );
+}
+
+#[tokio::test]
 async fn test_get_device_priority() {
     let temp_dir = setup_test_android_sdk();
     env::set_var("ANDROID_HOME", temp_dir.path());
