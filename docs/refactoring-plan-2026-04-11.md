@@ -109,6 +109,7 @@ Current file sizes after the latest structural checkpoints:
 - [src/managers/android/tests.rs](/Users/a12622/git/emu/src/managers/android/tests.rs) `943` lines
 - [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `337` lines
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) remains the main rendering shell, with [src/ui/dialogs/mod.rs](/Users/a12622/git/emu/src/ui/dialogs/mod.rs) and [src/ui/panels.rs](/Users/a12622/git/emu/src/ui/panels.rs) already split out
+- [src/models/device_info/mod.rs](/Users/a12622/git/emu/src/models/device_info/mod.rs) is now the `device_info` entrypoint, with [priority.rs](/Users/a12622/git/emu/src/models/device_info/priority.rs), [parsing.rs](/Users/a12622/git/emu/src/models/device_info/parsing.rs), and [tests.rs](/Users/a12622/git/emu/src/models/device_info/tests.rs) split out
 
 Current review stance:
 

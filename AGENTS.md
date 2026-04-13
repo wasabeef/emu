@@ -42,6 +42,8 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/ui/dialogs/mod.rs`         | Modal dialog entrypoint and dialog composition                                           |
 | `src/ui/dialogs/*.rs`           | Dialog-specific renderers (`create/confirm/api-level/notifications`)                     |
 | `src/ui/panels.rs`              | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
+| `src/models/device_info/mod.rs` | Dynamic device info entrypoint, cache access, and public surface                         |
+| `src/models/device_info/*.rs`   | Device info helpers (`priority/parsing/tests`)                                           |
 | `src/constants/`                | All constants (NO hardcoded values in source)                                            |
 | `src/models/`                   | Core data structures                                                                     |
 
