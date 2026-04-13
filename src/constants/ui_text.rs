@@ -56,8 +56,11 @@ pub mod shortcuts {
     /// Install packages shortcut
     pub const INSTALL: &str = "📦 [i]nstall";
 
-    /// Complete shortcut text for normal mode
-    pub const NORMAL_MODE_SHORTCUTS: &str = "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe  📦 [i]nstall";
+    /// Complete shortcut text for Android normal mode
+    pub const ANDROID_NORMAL_MODE_SHORTCUTS: &str = "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe  📦 [i]nstall";
+
+    /// Complete shortcut text for iOS normal mode
+    pub const IOS_NORMAL_MODE_SHORTCUTS: &str = "🔄 [r]efresh  🔀 [Tab]switch panels  🔁 [h/l/←/→]switch  🚀 [Enter]start/stop  🔃 [k/j/↑/↓]move  ➕ [c]reate  ❌ [d]elete  🧹 [w]ipe";
 }
 
 /// Architecture identifiers

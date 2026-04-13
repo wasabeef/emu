@@ -13,6 +13,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture details.
 ```bash
 cargo build                                              # Build
 cargo run                                                # Run (default: emu binary)
+cargo run -- --check                                     # Verify local environment without opening TUI
 cargo run -- --debug                                     # Run with debug logging
 cargo check                                              # Type check (fast)
 cargo clippy --all-targets --all-features -- -D warnings # Lint (CI-level)
@@ -23,16 +24,30 @@ cargo test --features test-utils                         # Run all tests includi
 
 ## Key Files
 
-| File                      | Role                                             |
-| ------------------------- | ------------------------------------------------ |
-| `src/app/mod.rs`          | Main event loop, background task coordination    |
-| `src/app/state.rs`        | `AppState`, `ApiLevelManagementState::is_busy()` |
-| `src/managers/android.rs` | Android AVD management, install progress         |
-| `src/managers/ios.rs`     | iOS simulator management (macOS only)            |
-| `src/managers/common.rs`  | `DeviceManager` trait                            |
-| `src/ui/render.rs`        | Three-panel layout rendering                     |
-| `src/constants/`          | All constants (NO hardcoded values in source)    |
-| `src/models/`             | Core data structures                             |
+| File                            | Role                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/app/mod.rs`                | Main event loop shell and app coordination                                               |
+| `src/app/state/mod.rs`          | `AppState`, `ApiLevelManagementState::is_busy()`                                         |
+| `src/managers/android/mod.rs`   | Android AVD facade and runtime orchestration                                             |
+| `src/managers/android/*.rs`     | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
+| `src/managers/ios/mod.rs`       | iOS simulator facade and orchestration (macOS only)                                      |
+| `src/managers/ios/*.rs`         | iOS helper modules (`details/discovery/lifecycle/tests`)                                 |
+| `src/managers/common.rs`        | `DeviceManager` trait                                                                    |
+| `src/app/api_levels.rs`         | API level management mode handling and install/uninstall orchestration                   |
+| `src/app/tests.rs`              | `App` orchestration characterization tests and startup fixtures                          |
+| `src/app/state/ui.rs`           | UI-facing state enums and confirmation dialog structs                                    |
+| `src/app/state/logs.rs`         | Log entry state and log-related `AppState` methods                                       |
+| `src/managers/android/tests.rs` | `AndroidManager` facade and helper module regression tests                               |
+| `src/managers/ios/tests.rs`     | `IosManager` facade and helper module regression tests                                   |
+| `src/ui/render.rs`              | Three-panel layout rendering and panel composition                                       |
+| `src/ui/dialogs/mod.rs`         | Modal dialog entrypoint and dialog composition                                           |
+| `src/ui/dialogs/*.rs`           | Dialog-specific renderers (`create/confirm/api-level/notifications`)                     |
+| `src/ui/panels/mod.rs`          | Panel rendering entrypoint and panel composition helpers                                 |
+| `src/ui/panels/*.rs`            | Panel-specific renderers (`device_lists/details/logs/commands`)                          |
+| `src/models/device_info/mod.rs` | Dynamic device info entrypoint, cache access, and public surface                         |
+| `src/models/device_info/*.rs`   | Device info helpers (`priority/parsing/tests`)                                           |
+| `src/constants/`                | All constants (NO hardcoded values in source)                                            |
+| `src/models/`                   | Core data structures                                                                     |
 
 ## Code Conventions
 
@@ -106,7 +121,7 @@ See [docs/TESTING.md](docs/TESTING.md) for full testing guide.
 
 - Android state detection: occasional inaccuracy in AVD-to-emulator-serial mapping
 - iOS device details: limited info compared to Android
-- Performance tests: `test_cache_performance` can be flaky on loaded CI runners
+- Performance tests: thresholds are calibrated for CI runners, but environment-sensitive benchmarks should still be treated as signal rather than strict micro-benchmarks
 
 ## Hooks & CI
 

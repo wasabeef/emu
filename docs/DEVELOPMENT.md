@@ -52,6 +52,9 @@ cd emu
 # Install Rust dependencies
 cargo build
 
+# Run a non-interactive local environment check
+cargo run -- --check
+
 # Run tests to verify setup
 cargo test --bins --tests  # Recommended: excludes doctests
 # cargo test              # Optional: includes doctests (may have import issues)

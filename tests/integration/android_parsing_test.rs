@@ -60,22 +60,35 @@ async fn test_avd_list_parsing_comprehensive() {
 
     assert_eq!(devices.len(), 3);
 
-    // Verify 1st device
-    assert_eq!(devices[0].name, "Pixel_7_API_34");
-    assert_eq!(devices[0].device_type, "pixel_7 (Pixel 7)");
-    // API level parsing is implementation dependent (depends on config.ini reading)
-    println!("Device 0 API level: {}", devices[0].api_level);
-    assert_eq!(devices[0].status, DeviceStatus::Stopped);
+    let device_names: Vec<&str> = devices.iter().map(|device| device.name.as_str()).collect();
+    assert!(device_names.contains(&"Pixel_7_API_34"));
+    assert!(device_names.contains(&"Galaxy_S22_API_33"));
+    assert!(device_names.contains(&"Test_Device_Special_Chars"));
 
-    // Verify 2nd device
-    assert_eq!(devices[1].name, "Galaxy_S22_API_33");
-    assert_eq!(devices[1].device_type, "galaxy_s22 (Galaxy S22)");
-    println!("Device 1 API level: {}", devices[1].api_level);
+    let pixel_device = devices
+        .iter()
+        .find(|device| device.name == "Pixel_7_API_34");
+    assert!(pixel_device.is_some());
+    let pixel_device = pixel_device.unwrap();
+    assert_eq!(pixel_device.device_type, "pixel_7 (Pixel 7)");
+    println!("Pixel device API level: {}", pixel_device.api_level);
+    assert_eq!(pixel_device.status, DeviceStatus::Stopped);
 
-    // Verify 3rd device (special characters and different Target format)
-    assert_eq!(devices[2].name, "Test_Device_Special_Chars");
-    assert_eq!(devices[2].device_type, "pixel_tablet (Pixel Tablet)");
-    println!("Device 2 API level: {}", devices[2].api_level);
+    let galaxy_device = devices
+        .iter()
+        .find(|device| device.name == "Galaxy_S22_API_33");
+    assert!(galaxy_device.is_some());
+    let galaxy_device = galaxy_device.unwrap();
+    assert_eq!(galaxy_device.device_type, "galaxy_s22 (Galaxy S22)");
+    println!("Galaxy device API level: {}", galaxy_device.api_level);
+
+    let tablet_device = devices
+        .iter()
+        .find(|device| device.name == "Test_Device_Special_Chars");
+    assert!(tablet_device.is_some());
+    let tablet_device = tablet_device.unwrap();
+    assert_eq!(tablet_device.device_type, "pixel_tablet (Pixel Tablet)");
+    println!("Tablet device API level: {}", tablet_device.api_level);
 }
 
 /// Test multiple strategies for API level detection
@@ -280,9 +293,11 @@ async fn test_parsing_edge_cases() {
     let android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
     let devices = android_manager.list_devices().await.unwrap();
 
-    // Verify parsed devices (incomplete devices may be included depending on implementation)
     assert!(!devices.is_empty());
-    assert_eq!(devices[0].name, "Valid_Device");
+
+    let device_names: Vec<&str> = devices.iter().map(|device| device.name.as_str()).collect();
+    assert!(device_names.contains(&"Valid_Device"));
+    assert!(device_names.contains(&"Incomplete_Device"));
 }
 
 /// Test regex patterns for API level parsing

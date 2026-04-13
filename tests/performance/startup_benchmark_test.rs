@@ -111,7 +111,7 @@ async fn test_device_list_performance() {
 
         assert_eq!(devices.len(), device_count);
 
-        // Performance requirements (scale according to device count)
+        // Performance requirements scale with parsing and stable sorting work.
         let target_ms = PERFORMANCE_TARGET_DEVICE_LIST_MS + (device_count as u64 * 2);
         assert!(
             duration.as_millis() < target_ms as u128,

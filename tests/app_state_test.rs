@@ -10,6 +10,7 @@ use emu::{
     models::{
         api_level::ApiLevel,
         device::{AndroidDevice, DeviceStatus, IosDevice},
+        Platform,
     },
 };
 use std::sync::Arc;
@@ -422,7 +423,7 @@ fn test_cached_device_details() {
 
     // Test cache operations
     let details = DeviceDetails {
-        platform: Panel::Android,
+        platform: Platform::Android,
         name: "Test Device".to_string(),
         identifier: "test_id".to_string(),
         api_level_or_version: "API 34".to_string(),
@@ -453,7 +454,7 @@ fn test_cached_device_details() {
 fn test_smart_clear_cached_device_details_only_on_platform_change() {
     let mut state = AppState::new();
     state.cached_device_details = Some(DeviceDetails {
-        platform: Panel::Android,
+        platform: Platform::Android,
         name: "Pixel_7_API_34".to_string(),
         identifier: "Pixel_7_API_34".to_string(),
         api_level_or_version: "API 34".to_string(),
@@ -492,7 +493,7 @@ fn test_clear_device_operation_status_helper() {
 fn test_update_single_android_device_status_updates_device_and_cache() {
     let mut state = create_state_with_devices();
     state.cached_device_details = Some(DeviceDetails {
-        platform: Panel::Android,
+        platform: Platform::Android,
         name: "Tablet_API_33".to_string(),
         identifier: "Tablet_API_33".to_string(),
         api_level_or_version: "API 33".to_string(),
@@ -527,7 +528,7 @@ fn test_update_single_android_device_status_updates_device_and_cache() {
 fn test_update_single_ios_device_status_updates_device_and_cache() {
     let mut state = create_state_with_devices();
     state.cached_device_details = Some(DeviceDetails {
-        platform: Panel::Ios,
+        platform: Platform::Ios,
         name: "iPad Air".to_string(),
         identifier: "09876-54321-FEDCBA".to_string(),
         api_level_or_version: "iOS 16.4".to_string(),

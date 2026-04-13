@@ -1,5 +1,5 @@
 use emu::app::state::{AppState, Panel};
-use emu::models::{AndroidDevice, DeviceStatus, IosDevice};
+use emu::models::{AndroidDevice, DeviceStatus, IosDevice, Platform};
 
 #[test]
 fn test_device_operation_status_management() {
@@ -45,7 +45,7 @@ fn test_device_cache_management() {
     let mock_details = emu::app::state::DeviceDetails {
         name: "Test Device".to_string(),
         status: "Running".to_string(),
-        platform: Panel::Android,
+        platform: Platform::Android,
         device_type: "Phone".to_string(),
         api_level_or_version: "API 31".to_string(),
         ram_size: Some("2048 MB".to_string()),
@@ -158,7 +158,7 @@ fn test_device_selection_and_details_sync() {
     assert!(details.is_some());
     let details = details.unwrap();
     assert_eq!(details.name, "Device1");
-    assert_eq!(details.platform, Panel::Android);
+    assert_eq!(details.platform, Platform::Android);
     assert_eq!(details.identifier, "Device1");
 
     // Test device selection change
@@ -177,7 +177,7 @@ fn test_device_selection_and_details_sync() {
     assert!(details.is_some());
     let details = details.unwrap();
     assert_eq!(details.name, "iPhone 14");
-    assert_eq!(details.platform, Panel::Ios);
+    assert_eq!(details.platform, Platform::Ios);
     assert_eq!(details.identifier, "udid1");
 
     println!("✅ Device selection and details sync works correctly");

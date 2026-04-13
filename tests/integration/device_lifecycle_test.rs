@@ -11,11 +11,13 @@ use emu::utils::command_executor::mock::MockCommandExecutor;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::common::setup_mock_android_sdk;
+use crate::common::{acquire_test_env_lock, setup_mock_android_sdk};
 
 /// Test complete device lifecycle
 #[tokio::test]
 async fn test_complete_device_lifecycle() {
+    let _env_lock = acquire_test_env_lock().await;
+
     // Save current ANDROID_HOME
     let original_android_home = std::env::var("ANDROID_HOME").ok();
 
@@ -289,6 +291,8 @@ id: 4 or "pixel_4"
 /// Test device management integrated with AppState
 #[tokio::test]
 async fn test_app_state_device_integration() {
+    let _env_lock = acquire_test_env_lock().await;
+
     // Save current ANDROID_HOME
     let original_android_home = std::env::var("ANDROID_HOME").ok();
 
@@ -332,6 +336,8 @@ async fn test_app_state_device_integration() {
 /// Test concurrent management of multiple devices
 #[tokio::test]
 async fn test_concurrent_device_management() {
+    let _env_lock = acquire_test_env_lock().await;
+
     // Save current ANDROID_HOME
     let original_android_home = std::env::var("ANDROID_HOME").ok();
 
@@ -418,6 +424,8 @@ async fn test_concurrent_device_management() {
 /// Test error recovery scenarios
 #[tokio::test]
 async fn test_lifecycle_error_recovery() {
+    let _env_lock = acquire_test_env_lock().await;
+
     // Save current ANDROID_HOME
     let original_android_home = std::env::var("ANDROID_HOME").ok();
 
@@ -516,6 +524,8 @@ id: 4 or "pixel_4"
 /// Test getting device detail information
 #[tokio::test]
 async fn test_device_details_lifecycle() {
+    let _env_lock = acquire_test_env_lock().await;
+
     // Save current ANDROID_HOME
     let original_android_home = std::env::var("ANDROID_HOME").ok();
 

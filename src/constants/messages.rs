@@ -59,6 +59,22 @@ pub mod notifications {
     pub const DELETING_DEVICE: &str = "Deleting device '{}'...";
 }
 
+/// Local environment check messages
+pub mod checks {
+    pub const RUNNING_LOCAL_CHECK: &str = "Running local environment check...";
+    pub const ANDROID_MANAGER_READY: &str =
+        "Android manager ready: {device_count} device(s) discovered";
+    pub const IOS_MANAGER_READY: &str = "iOS manager ready: {device_count} device(s) discovered";
+    pub const IOS_MANAGER_SKIPPED: &str = "iOS manager check skipped: only available on macOS";
+    pub const APP_INITIALIZATION_READY: &str = "App initialization succeeded";
+    pub const READY_TO_LAUNCH_TUI: &str = "Local check passed. Launch the TUI with: cargo run";
+    pub const ANDROID_MANAGER_CONTEXT: &str = "Android manager initialization failed";
+    pub const IOS_MANAGER_CONTEXT: &str = "iOS manager initialization failed";
+    pub const ANDROID_DEVICE_DISCOVERY_CONTEXT: &str = "Android device discovery failed";
+    pub const IOS_DEVICE_DISCOVERY_CONTEXT: &str = "iOS device discovery failed";
+    pub const APP_INITIALIZATION_CONTEXT: &str = "Application initialization failed";
+}
+
 /// UI labels and static text
 pub mod ui {
     // Window titles (Note: These are now dynamically generated in render.rs with version)

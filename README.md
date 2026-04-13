@@ -72,6 +72,9 @@ cargo install --path .
 ```bash
 # Start Emu
 emu
+
+# Verify local setup before launching the TUI
+emu --check
 ```
 
 ### Keyboard Shortcuts

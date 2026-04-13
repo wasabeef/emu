@@ -3,9 +3,11 @@
 
 #[cfg(target_os = "macos")]
 use emu::{
-    app::Panel,
     managers::{common::DeviceManager, ios::IosManager},
-    models::device::{DeviceStatus, IosDevice},
+    models::{
+        device::{DeviceStatus, IosDevice},
+        Platform,
+    },
     utils::command_executor::mock::MockCommandExecutor,
 };
 #[cfg(target_os = "macos")]
@@ -338,7 +340,7 @@ async fn test_ios_manager_get_device_details() {
 
     assert_eq!(details.name, "iPhone 15 Pro");
     assert_eq!(details.identifier, "12345-67890-ABCDEF");
-    assert_eq!(details.platform, Panel::Ios);
+    assert_eq!(details.platform, Platform::Ios);
     assert_eq!(details.device_type, "iPhone 15 Pro");
     assert_eq!(details.api_level_or_version, "iOS 17.0");
     assert_eq!(details.status, "Booted");

@@ -205,6 +205,86 @@ fn test_main_layout_with_ios_devices() {
     assert!(backend.assert_contains_text("iOS") || backend.assert_contains_text("17"));
 }
 
+/// Test device shortcuts change with the active platform panel
+#[test]
+fn test_device_shortcuts_follow_active_platform_panel() {
+    let backend = MockBackend::new(240, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let mut app_state = AppState::new();
+    app_state.android_devices = vec![AndroidDevice {
+        android_version_name: "API 34".to_string(),
+        name: "Pixel_7_API_34".to_string(),
+        device_type: "pixel_7".to_string(),
+        api_level: 34,
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        ram_size: "2048".to_string(),
+        storage_size: "8192M".to_string(),
+    }];
+    app_state.ios_devices = vec![IosDevice {
+        name: "iPhone_15_Pro".to_string(),
+        udid: "12345-IPHONE-15".to_string(),
+        device_type: "iPhone 15 Pro".to_string(),
+        ios_version: "17.0".to_string(),
+        runtime_version: "iOS 17.0".to_string(),
+        status: DeviceStatus::Stopped,
+        is_running: false,
+        is_available: true,
+    }];
+
+    let theme = Theme::dark();
+
+    app_state.active_panel = Panel::Android;
+    terminal
+        .draw(|frame| {
+            draw_app(frame, &mut app_state, &theme);
+        })
+        .unwrap();
+
+    let backend = terminal.backend();
+    let android_text = backend.get_buffer_text();
+    assert!(android_text.contains("[i]nstall"));
+
+    app_state.active_panel = Panel::Ios;
+    terminal
+        .draw(|frame| {
+            draw_app(frame, &mut app_state, &theme);
+        })
+        .unwrap();
+
+    let backend = terminal.backend();
+    let ios_text = backend.get_buffer_text();
+    assert!(!ios_text.contains("[i]nstall"));
+}
+
+/// Test device shortcuts wrap to multiple lines on narrower terminals
+#[test]
+fn test_device_shortcuts_wrap_on_narrow_terminals() {
+    let backend = MockBackend::new(90, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    let mut app_state = AppState::new();
+    app_state.active_panel = Panel::Android;
+
+    let theme = Theme::dark();
+    terminal
+        .draw(|frame| {
+            draw_app(frame, &mut app_state, &theme);
+        })
+        .unwrap();
+
+    let backend = terminal.backend();
+    let rendered = backend.get_buffer_text();
+    let shortcut_lines = rendered
+        .lines()
+        .filter(|line| line.contains("[r]efresh") || line.contains("[i]nstall"))
+        .count();
+
+    assert!(shortcut_lines >= 2);
+    assert!(rendered.contains("[i]nstall"));
+}
+
 /// Test panel focus and selection highlighting
 #[test]
 fn test_panel_focus_and_selection() {
