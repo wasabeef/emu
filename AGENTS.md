@@ -13,6 +13,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture details.
 ```bash
 cargo build                                              # Build
 cargo run                                                # Run (default: emu binary)
+cargo run -- --check                                     # Verify local environment without opening TUI
 cargo run -- --debug                                     # Run with debug logging
 cargo check                                              # Type check (fast)
 cargo clippy --all-targets --all-features -- -D warnings # Lint (CI-level)

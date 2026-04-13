@@ -16,16 +16,19 @@
 //! ```bash
 //! emu                    # Start the TUI in normal mode
 //! emu --debug           # Enable debug logging to console
+//! emu --check           # Run a non-interactive local environment check
 //! emu --log-level trace # Set custom log level (debug mode only)
 //! ```
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use emu::app::App;
 use emu::constants::{
     defaults::{ANDROID_LOGGING_DISABLED_VALUE, DEFAULT_LOG_LEVEL},
     env_vars::{ANDROID_AVD_VERBOSE, ANDROID_EMULATOR_LOG_ENABLE, ANDROID_VERBOSE},
+    messages::checks,
 };
+use emu::managers::{common::DeviceManager, AndroidManager, IosManager};
 
 /// Command line arguments for the Emu application.
 ///
@@ -56,6 +59,17 @@ struct Cli {
     /// - Android emulator output is suppressed
     #[arg(long)]
     debug: bool,
+
+    /// Run a non-interactive local environment check and exit.
+    ///
+    /// This verifies:
+    /// - Platform manager initialization
+    /// - Device discovery commands
+    /// - Application startup path through `App::new()`
+    ///
+    /// Use this before launching the TUI to validate local setup.
+    #[arg(long)]
+    check: bool,
 }
 
 /// Main entry point for the Emu application.
@@ -90,7 +104,49 @@ async fn main() -> Result<()> {
         std::env::set_var(ANDROID_VERBOSE, ANDROID_LOGGING_DISABLED_VALUE);
     }
 
+    if cli.check {
+        return run_local_check().await;
+    }
+
     run_tui().await
+}
+
+/// Runs a non-interactive local environment check.
+///
+/// This verifies that the local machine can initialize the platform managers,
+/// discover devices, and construct the application shell before entering TUI mode.
+async fn run_local_check() -> Result<()> {
+    println!("{}", checks::RUNNING_LOCAL_CHECK);
+
+    let android_manager = AndroidManager::new().context(checks::ANDROID_MANAGER_CONTEXT)?;
+    let android_devices = <AndroidManager as DeviceManager>::list_devices(&android_manager)
+        .await
+        .context(checks::ANDROID_DEVICE_DISCOVERY_CONTEXT)?;
+    println!(
+        "{}",
+        checks::ANDROID_MANAGER_READY.replace("{device_count}", &android_devices.len().to_string())
+    );
+
+    if cfg!(target_os = "macos") {
+        let ios_manager = IosManager::new().context(checks::IOS_MANAGER_CONTEXT)?;
+        let ios_devices = <IosManager as DeviceManager>::list_devices(&ios_manager)
+            .await
+            .context(checks::IOS_DEVICE_DISCOVERY_CONTEXT)?;
+        println!(
+            "{}",
+            checks::IOS_MANAGER_READY.replace("{device_count}", &ios_devices.len().to_string())
+        );
+    } else {
+        println!("{}", checks::IOS_MANAGER_SKIPPED);
+    }
+
+    let _app = App::new()
+        .await
+        .context(checks::APP_INITIALIZATION_CONTEXT)?;
+    println!("{}", checks::APP_INITIALIZATION_READY);
+    println!("{}", checks::READY_TO_LAUNCH_TUI);
+
+    Ok(())
 }
 
 /// Initializes and runs the terminal user interface.
@@ -140,4 +196,28 @@ async fn run_tui() -> Result<()> {
     execute!(io::stdout(), LeaveAlternateScreen)?;
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cli;
+    use clap::Parser;
+
+    #[test]
+    fn test_cli_parses_check_flag() {
+        let cli = Cli::try_parse_from(["emu", "--check"]).unwrap();
+
+        assert!(cli.check);
+        assert!(!cli.debug);
+    }
+
+    #[test]
+    fn test_cli_parses_check_with_debug_flag() {
+        let cli =
+            Cli::try_parse_from(["emu", "--check", "--debug", "--log-level", "trace"]).unwrap();
+
+        assert!(cli.check);
+        assert!(cli.debug);
+        assert_eq!(cli.log_level, "trace");
+    }
 }
