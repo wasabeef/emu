@@ -124,23 +124,22 @@ Current review stance:
 
 ## Dependency Inventory
 
-The current cross-layer dependencies that matter for the refactor are:
+This section now distinguishes between the original dependency problems and the current remaining ones.
 
-### Inversions that should be removed early
+### Historical inversions removed during this refactor
 
 1. [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs)
-   - imports `crate::app::state::DeviceDetails`
-   - imports `crate::app::state::ApiLevelCache`
-   - imports `crate::app::Panel`
+   - no longer imports `crate::app::state::DeviceDetails`
+   - no longer imports `crate::app::state::ApiLevelCache`
 
 2. [src/managers/ios/mod.rs](/Users/a12622/git/emu/src/managers/ios/mod.rs)
-   - imports `crate::app::state::DeviceDetails`
-   - imports `crate::app::state::Panel`
+   - no longer imports `crate::app::state::DeviceDetails`
 
-3. [src/models/device_info.rs](/Users/a12622/git/emu/src/models/device_info.rs)
-   - test code imports `CreateDeviceForm`
+3. [src/models/device_info/mod.rs](/Users/a12622/git/emu/src/models/device_info/mod.rs)
+   - no longer keeps the old monolithic `device_info.rs` layout
+   - device info tests now live in a dedicated module
 
-### Dependencies that are acceptable for now
+### Current dependencies that are acceptable
 
 1. [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
    - rendering from `AppState` is acceptable
@@ -148,7 +147,7 @@ The current cross-layer dependencies that matter for the refactor are:
 2. [src/ui/widgets.rs](/Users/a12622/git/emu/src/ui/widgets.rs)
    - widget behavior depending on `Panel` is acceptable
 
-These are not the first cleanup targets because they are not lower-layer inversions.
+These are not lower-layer inversions and do not currently justify further churn.
 
 ## Behavior Lock Scope
 
@@ -192,8 +191,8 @@ This means:
 
 ### Finding 2: moving `DeviceDetails` alone is not enough
 
-In the current code, managers return `crate::app::state::DeviceDetails`.
-If `DeviceDetails` is moved but still contains `app::state::Panel`, then the dependency inversion remains.
+At the start of the refactor, managers returned `crate::app::state::DeviceDetails`.
+If `DeviceDetails` had been moved while still containing `app::state::Panel`, the dependency inversion would have remained.
 
 Refined decision:
 
@@ -203,11 +202,11 @@ Refined decision:
 
 This is the first meaningful architecture break to make.
 
-There is a second issue in the same area:
+There was a second issue in the same area:
 
-- `AndroidManager` reads and writes `ApiLevelCache` from `app::state`
+- `AndroidManager` read and wrote `ApiLevelCache` from `app::state`
 
-So the real target is not "move one type", but:
+So the real target was not "move one type", but:
 
 - remove all `managers -> app::state` data-type dependencies that are not UI state
 
@@ -409,7 +408,11 @@ src/
   models/
     mod.rs
     device.rs
-    device_info.rs
+    device_info/
+      mod.rs
+      priority.rs
+      parsing.rs
+      tests.rs
     details.rs
     platform.rs
     error.rs
@@ -422,8 +425,10 @@ src/
     layout.rs
     panels/
       mod.rs
-      android.rs
-      ios.rs
+      device_lists.rs
+      details.rs
+      logs.rs
+      commands.rs
       details.rs
       logs.rs
       commands.rs
@@ -633,7 +638,7 @@ Acceptance criteria:
 Files expected to change:
 
 - [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs)
-- [src/models/device_info.rs](/Users/a12622/git/emu/src/models/device_info.rs)
+- [src/models/device_info/mod.rs](/Users/a12622/git/emu/src/models/device_info/mod.rs)
 - new `src/models/device_naming.rs` or equivalent pure helper
 
 Rules:
@@ -643,7 +648,7 @@ Rules:
 
 Acceptance criteria:
 
-- `models/device_info.rs` test no longer imports `CreateDeviceForm`
+- `models/device_info` test no longer imports `CreateDeviceForm`
 - placeholder generation behavior is unchanged
 - no placeholder text expectation changes are required
 
@@ -865,24 +870,35 @@ Files expected to change:
 - `src/ui/screen.rs`
 - `src/ui/layout.rs`
 
+Status:
+
+- not currently required
+- after `dialogs` and `panels` extraction, [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) is already a small rendering shell
+- only revisit this if rendering orchestration grows again
+
 ### PR 6B: extract panels
 
 Files expected to change:
 
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
-- `src/ui/panels/android.rs`
-- `src/ui/panels/ios.rs`
+- `src/ui/panels/mod.rs`
+- `src/ui/panels/device_lists.rs`
 - `src/ui/panels/details.rs`
 - `src/ui/panels/logs.rs`
 - `src/ui/panels/commands.rs`
+
+Status:
+
+- completed
 
 ### PR 6C: extract dialogs
 
 Files expected to change:
 
 - [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs)
-- `src/ui/dialogs.rs`
+- `src/ui/dialogs/mod.rs`
 - optional later split:
+- completed with dedicated dialog modules for create, confirmation, api levels, and notifications
   - `src/ui/dialogs/create_device.rs`
   - `src/ui/dialogs/confirm_delete.rs`
   - `src/ui/dialogs/confirm_wipe.rs`
