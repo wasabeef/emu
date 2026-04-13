@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 const MEMORY_LEAK_DETECTION_CYCLES: usize = 100;
 const CACHE_PERFORMANCE_TARGET_MS: u64 = 500;
+const CACHE_PERFORMANCE_SAMPLE_COUNT: usize = 3;
 
 use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
@@ -177,33 +178,39 @@ async fn test_cache_performance() {
 
     let android_manager = Arc::new(AndroidManager::with_executor(Arc::new(mock_executor)).unwrap());
 
-    // First load (no cache)
-    let first_load_start = Instant::now();
-    let first_devices = android_manager.list_devices().await.unwrap();
-    let first_load_duration = first_load_start.elapsed();
+    // Warm up once to reduce cold-start and scheduler noise on CI runners.
+    let warmup_devices = android_manager.list_devices().await.unwrap();
+    assert_eq!(warmup_devices.len(), 50);
 
-    assert_eq!(first_devices.len(), 50);
+    let mut sample_durations = Vec::with_capacity(CACHE_PERFORMANCE_SAMPLE_COUNT);
+    for _ in 0..CACHE_PERFORMANCE_SAMPLE_COUNT {
+        let sample_start = Instant::now();
+        let sample_devices = android_manager.list_devices().await.unwrap();
+        let sample_duration = sample_start.elapsed();
 
-    // Second load (possibly cached)
-    let second_load_start = Instant::now();
-    let second_devices = android_manager.list_devices().await.unwrap();
-    let second_load_duration = second_load_start.elapsed();
-
-    assert_eq!(second_devices.len(), 50);
-
-    // Cache effect verification (implementation dependent)
-    if second_load_duration < first_load_duration {
-        let improvement =
-            first_load_duration.as_millis() as i64 - second_load_duration.as_millis() as i64;
-        println!("✅ Cache performance: {improvement}ms improvement ({first_load_duration:?} → {second_load_duration:?})");
-    } else {
-        println!("📝 Cache performance: No caching detected ({first_load_duration:?} vs {second_load_duration:?})");
+        assert_eq!(sample_devices.len(), 50);
+        sample_durations.push(sample_duration);
     }
 
-    // Basic performance requirements
+    let mut sample_millis: Vec<u128> = sample_durations
+        .iter()
+        .map(|duration| duration.as_millis())
+        .collect();
+    sample_millis.sort_unstable();
+
+    let median_ms = sample_millis[sample_millis.len() / 2];
+    let best_ms = *sample_millis.first().unwrap_or(&0);
+    let worst_ms = *sample_millis.last().unwrap_or(&0);
+
+    println!(
+        "📝 Repeated device list performance: median={median_ms}ms, best={best_ms}ms, worst={worst_ms}ms, samples={sample_durations:?}"
+    );
+
+    // Basic performance requirement:
+    // repeated loads should remain reasonably fast on CI even if caching is not observable.
     assert!(
-        second_load_duration.as_millis() < CACHE_PERFORMANCE_TARGET_MS as u128,
-        "Second load too slow: {second_load_duration:?} exceeds {CACHE_PERFORMANCE_TARGET_MS}ms"
+        median_ms < CACHE_PERFORMANCE_TARGET_MS as u128,
+        "Repeated load median too slow: {median_ms}ms exceeds {CACHE_PERFORMANCE_TARGET_MS}ms (samples={sample_durations:?})"
     );
 }
 

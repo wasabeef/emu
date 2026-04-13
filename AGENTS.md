@@ -120,7 +120,7 @@ See [docs/TESTING.md](docs/TESTING.md) for full testing guide.
 
 - Android state detection: occasional inaccuracy in AVD-to-emulator-serial mapping
 - iOS device details: limited info compared to Android
-- Performance tests: `test_cache_performance` can be flaky on loaded CI runners
+- Performance tests: thresholds are calibrated for CI runners, but environment-sensitive benchmarks should still be treated as signal rather than strict micro-benchmarks
 
 ## Hooks & CI
 
