@@ -281,23 +281,15 @@ impl AndroidManager {
 }
 
 fn sort_discovered_devices(devices: &mut [AndroidDevice]) {
-    devices.sort_by(|left, right| {
-        let left_priority =
-            DynamicDeviceConfig::calculate_android_device_priority(&left.device_type, &left.name);
-        let right_priority =
-            DynamicDeviceConfig::calculate_android_device_priority(&right.device_type, &right.name);
-
+    devices.sort_by_cached_key(|device| {
         (
-            Reverse(left.api_level),
-            left_priority,
-            left.name.to_lowercase(),
-            left.device_type.to_lowercase(),
+            Reverse(device.api_level),
+            DynamicDeviceConfig::calculate_android_device_priority(
+                &device.device_type,
+                &device.name,
+            ),
+            device.name.to_lowercase(),
+            device.device_type.to_lowercase(),
         )
-            .cmp(&(
-                Reverse(right.api_level),
-                right_priority,
-                right.name.to_lowercase(),
-                right.device_type.to_lowercase(),
-            ))
     });
 }
