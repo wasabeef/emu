@@ -30,7 +30,7 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/managers/android/mod.rs`   | Android AVD facade and runtime orchestration                                             |
 | `src/managers/android/*.rs`     | Android helper modules (`create/details/discovery/install/lifecycle/parser/sdk/version`) |
 | `src/managers/ios/mod.rs`       | iOS simulator facade and orchestration (macOS only)                                      |
-| `src/managers/ios/*.rs`         | iOS helper modules (`details/discovery/lifecycle` and upcoming splits)                   |
+| `src/managers/ios/*.rs`         | iOS helper modules (`details/discovery/lifecycle/tests`)                                 |
 | `src/managers/common.rs`        | `DeviceManager` trait                                                                    |
 | `src/app/api_levels.rs`         | API level management mode handling and install/uninstall orchestration                   |
 | `src/app/tests.rs`              | `App` orchestration characterization tests and startup fixtures                          |
@@ -41,7 +41,8 @@ cargo test --features test-utils                         # Run all tests includi
 | `src/ui/render.rs`              | Three-panel layout rendering and panel composition                                       |
 | `src/ui/dialogs/mod.rs`         | Modal dialog entrypoint and dialog composition                                           |
 | `src/ui/dialogs/*.rs`           | Dialog-specific renderers (`create/confirm/api-level/notifications`)                     |
-| `src/ui/panels.rs`              | Panel rendering helpers (`android/ios/details/logs/commands`)                            |
+| `src/ui/panels/mod.rs`          | Panel rendering entrypoint and panel composition helpers                                 |
+| `src/ui/panels/*.rs`            | Panel-specific renderers (`device_lists/details/logs/commands`)                          |
 | `src/models/device_info/mod.rs` | Dynamic device info entrypoint, cache access, and public surface                         |
 | `src/models/device_info/*.rs`   | Device info helpers (`priority/parsing/tests`)                                           |
 | `src/constants/`                | All constants (NO hardcoded values in source)                                            |

@@ -99,7 +99,11 @@ Completed structural checkpoints:
   - `dialogs/confirmation.rs`
   - `dialogs/api_levels.rs`
   - `dialogs/notifications.rs`
-  - `panels.rs`
+  - `panels/mod.rs`
+  - `panels/device_lists.rs`
+  - `panels/details.rs`
+  - `panels/logs.rs`
+  - `panels/commands.rs`
 
 Current file sizes after the latest structural checkpoints:
 
@@ -108,12 +112,13 @@ Current file sizes after the latest structural checkpoints:
 - [src/managers/android/mod.rs](/Users/a12622/git/emu/src/managers/android/mod.rs) `517` lines
 - [src/managers/android/tests.rs](/Users/a12622/git/emu/src/managers/android/tests.rs) `943` lines
 - [src/app/state/mod.rs](/Users/a12622/git/emu/src/app/state/mod.rs) `337` lines
-- [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) remains the main rendering shell, with [src/ui/dialogs/mod.rs](/Users/a12622/git/emu/src/ui/dialogs/mod.rs) and [src/ui/panels.rs](/Users/a12622/git/emu/src/ui/panels.rs) already split out
+- [src/ui/render.rs](/Users/a12622/git/emu/src/ui/render.rs) is now the main rendering shell, with [src/ui/dialogs/mod.rs](/Users/a12622/git/emu/src/ui/dialogs/mod.rs) and [src/ui/panels/mod.rs](/Users/a12622/git/emu/src/ui/panels/mod.rs) already split out
 - [src/models/device_info/mod.rs](/Users/a12622/git/emu/src/models/device_info/mod.rs) is now the `device_info` entrypoint, with [priority.rs](/Users/a12622/git/emu/src/models/device_info/priority.rs), [parsing.rs](/Users/a12622/git/emu/src/models/device_info/parsing.rs), and [tests.rs](/Users/a12622/git/emu/src/models/device_info/tests.rs) split out
 
 Current review stance:
 
-- these extractions are still required to preserve behavior exactly
+- completed extractions must continue to preserve behavior exactly
+- any remaining structural split must justify its review value relative to churn
 - all structural checkpoints must continue to pass targeted tests and `cargo clippy --all-targets --all-features -- -D warnings`
 - any policy change, parsing correction, or fallback adjustment must stay in a separate behavior commit
 
