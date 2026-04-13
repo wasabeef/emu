@@ -124,6 +124,10 @@ impl AndroidManager {
     }
 
     pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
+        if let Some(cached_targets) = self.get_cached_available_targets().await {
+            return Ok(cached_targets);
+        }
+
         log::debug!("list_available_targets called");
         let installed_images = self.list_available_system_images().await?;
         let mut targets = std::collections::HashMap::new();
@@ -184,6 +188,8 @@ impl AndroidManager {
         } else {
             log::debug!("Saved {} API levels to cache", result.len());
         }
+
+        self.set_cached_available_targets(result.clone()).await;
         log::debug!(
             "list_available_targets completed, returning {} targets",
             result.len()

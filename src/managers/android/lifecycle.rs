@@ -47,30 +47,41 @@ impl AndroidManager {
 
         while let Some((name, _path, target, _abi, device)) = parser.parse_next_device() {
             let is_running = running_avds.contains_key(&name);
-            let api_level = self.detect_api_level_for_device(&name, &target).await;
-            let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
-            let storage_size = format!(
-                "{}M",
-                defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
-            );
-            let android_version_name = version_map
-                .get(&api_level)
-                .cloned()
-                .unwrap_or_else(|| self.get_android_version_name(api_level));
+            let metadata =
+                if let Some(metadata) = self.get_cached_device_metadata(&name, &target).await {
+                    metadata
+                } else {
+                    let api_level = self.detect_api_level_for_device(&name, &target).await;
+                    let android_version_name = version_map
+                        .get(&api_level)
+                        .cloned()
+                        .unwrap_or_else(|| self.get_android_version_name(api_level));
+                    let metadata = super::CachedAndroidDeviceMetadata {
+                        target: target.clone(),
+                        api_level,
+                        android_version_name,
+                    };
+                    self.set_cached_device_metadata(name.clone(), metadata.clone())
+                        .await;
+                    metadata
+                };
 
             devices.push(AndroidDevice {
                 name,
                 device_type: device,
-                api_level,
-                android_version_name,
+                api_level: metadata.api_level,
+                android_version_name: metadata.android_version_name,
                 status: if is_running {
                     DeviceStatus::Running
                 } else {
                     DeviceStatus::Stopped
                 },
                 is_running,
-                ram_size,
-                storage_size,
+                ram_size: defaults::DEFAULT_RAM_MB.to_string(),
+                storage_size: format!(
+                    "{}M",
+                    defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
+                ),
             });
         }
 
@@ -213,6 +224,8 @@ impl AndroidManager {
             .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
             .await
             .context(format!("Failed to delete Android AVD '{identifier}'"))?;
+        self.invalidate_device_metadata_cache(Some(identifier))
+            .await;
         Ok(())
     }
 
@@ -276,6 +289,8 @@ impl AndroidManager {
             return Err(anyhow::anyhow!("HOME environment variable not set"));
         }
 
+        self.invalidate_device_metadata_cache(Some(identifier))
+            .await;
         Ok(())
     }
 }

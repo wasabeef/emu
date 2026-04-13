@@ -504,6 +504,154 @@ async fn test_list_available_targets_ignores_stale_disk_cache_when_no_images_are
     assert!(ApiLevelCache::load_from_disk().is_none());
 }
 
+#[tokio::test]
+async fn test_list_available_targets_uses_session_cache() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let sdkmanager_output = "Installed packages:\n  Path | Version | Description | Location\n  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a\n\nAvailable Packages:\n";
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success(
+            "sdkmanager",
+            &["--list", "--verbose", "--include_obsolete"],
+            sdkmanager_output,
+        )
+        .with_success(
+            &sdkmanager_path.to_string_lossy(),
+            &["--list", "--verbose", "--include_obsolete"],
+            sdkmanager_output,
+        );
+
+    let call_history_executor = mock_executor.clone();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let first_targets = manager.list_available_targets().await.unwrap();
+    let second_targets = manager.list_available_targets().await.unwrap();
+
+    assert_eq!(first_targets, second_targets);
+
+    let sdkmanager_calls = call_history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, args)| {
+            command.ends_with("sdkmanager")
+                && args
+                    == &[
+                        "--list".to_string(),
+                        "--verbose".to_string(),
+                        "--include_obsolete".to_string(),
+                    ]
+        })
+        .count();
+    assert_eq!(sdkmanager_calls, 1);
+}
+
+#[tokio::test]
+async fn test_list_api_levels_uses_session_cache_until_invalidated() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let counter_path = temp_dir.path().join("sdkmanager-count.txt");
+    let sdkmanager_script = format!(
+        r#"#!/bin/sh
+COUNT_FILE="{counter_path}"
+count=0
+if [ -f "$COUNT_FILE" ]; then
+  count=$(cat "$COUNT_FILE")
+fi
+count=$((count + 1))
+echo "$count" > "$COUNT_FILE"
+cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+
+Available Packages:
+  system-images;android-35;google_apis;arm64-v8a | 1 | Android SDK Platform 35 | system-images/android-35/google_apis/arm64-v8a
+EOF
+"#,
+        counter_path = counter_path.display()
+    );
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    std::fs::write(&sdkmanager_path, sdkmanager_script).unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let manager = AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+
+    let first_levels = manager.list_api_levels().await.unwrap();
+    let second_levels = manager.list_api_levels().await.unwrap();
+
+    assert_eq!(first_levels.len(), second_levels.len());
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "1");
+
+    manager.invalidate_sdk_list_caches().await;
+    let third_levels = manager.list_api_levels().await.unwrap();
+
+    assert_eq!(third_levels.len(), first_levels.len());
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "2");
+}
+
+#[tokio::test]
+async fn test_device_metadata_cache_can_be_invalidated() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+    let _home = EnvVarGuard::set("HOME", temp_dir.path().as_os_str());
+
+    let avd_dir = temp_dir.path().join(".android/avd/Pixel_7_API_34.avd");
+    std::fs::create_dir_all(&avd_dir).unwrap();
+    std::fs::write(
+        avd_dir.join("config.ini"),
+        "image.sysdir.1=system-images/android-34/google_apis_playstore/arm64-v8a/\n",
+    )
+    .unwrap();
+
+    let avd_list_output = format!(
+        r#"
+Available Android Virtual Devices:
+    Name: Pixel_7_API_34
+    Device: pixel_7 (Google)
+    Path: {}
+    Target: Google APIs (Google Inc.)
+            Based on: Android 14.0 Tag/ABI: google_apis_playstore/arm64-v8a
+---------
+"#,
+        avd_dir.display()
+    );
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], &avd_list_output)
+        .with_success("adb", &["devices"], "List of devices attached\n");
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let devices = manager.list_devices().await.unwrap();
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0].api_level, 34);
+
+    let cached = manager
+        .get_cached_device_metadata("Pixel_7_API_34", "Google APIs (Google Inc.)")
+        .await;
+    assert!(cached.is_some());
+
+    manager
+        .invalidate_device_metadata_cache(Some("Pixel_7_API_34"))
+        .await;
+    let removed = manager
+        .get_cached_device_metadata("Pixel_7_API_34", "Google APIs (Google Inc.)")
+        .await;
+    assert!(removed.is_none());
+}
+
 #[test]
 fn test_avd_list_parser_new() {
     let output = "Sample AVD list output";

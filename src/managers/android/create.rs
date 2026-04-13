@@ -350,6 +350,8 @@ impl AndroidManager {
                 {
                     eprintln!("Warning: Failed to fine-tune AVD configuration: {error}");
                 }
+                self.invalidate_device_metadata_cache(Some(&safe_name))
+                    .await;
                 Ok(())
             }
             Err(error) => {

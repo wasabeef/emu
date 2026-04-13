@@ -77,3 +77,6 @@ pub const MAX_CONTINUOUS_EVENTS: usize = 10;
 
 /// Input handling optimization delay
 pub const INPUT_BATCH_DELAY: Duration = Duration::from_millis(1);
+
+/// Session cache TTL for Android SDK-backed list data.
+pub const ANDROID_SDK_LIST_CACHE_TTL: Duration = Duration::from_secs(5);

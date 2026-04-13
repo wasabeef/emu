@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 
 const PERFORMANCE_TARGET_STARTUP_MS: u64 = 150;
 const PERFORMANCE_TARGET_DEVICE_LIST_MS: u64 = 100;
+const PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS: u64 = 120;
 const PERFORMANCE_TARGET_UI_RENDER_MS: u64 = 50;
+const PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS: u64 = 100;
 
 use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
@@ -120,6 +122,131 @@ async fn test_device_list_performance() {
 
         println!("✅ Device list {size_name} ({device_count} devices): {duration:?} (target: <{target_ms}ms)");
     }
+}
+
+/// Android device list reopen performance test.
+#[tokio::test]
+async fn test_device_list_reopen_performance() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_mock_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+    let _home = EnvVarGuard::set("HOME", temp_dir.path());
+
+    let device_count = 50;
+    let avd_output = create_complex_device_list_output_with_base(temp_dir.path(), device_count, 34);
+    create_avd_config_files(temp_dir.path(), device_count, 34);
+
+    let avdmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let adb_path = temp_dir.path().join("platform-tools/adb");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], &avd_output)
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "avd"],
+            &avd_output,
+        )
+        .with_success("adb", &["devices"], "List of devices attached\n")
+        .with_success(
+            &adb_path.to_string_lossy(),
+            &["devices"],
+            "List of devices attached\n",
+        );
+
+    let android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let cold_start = Instant::now();
+    let cold_devices = android_manager.list_devices().await.unwrap();
+    let cold_duration = cold_start.elapsed();
+    assert_eq!(cold_devices.len(), device_count);
+
+    let mut warm_runs = Vec::new();
+    for _ in 0..3 {
+        let warm_start = Instant::now();
+        let warm_devices = android_manager.list_devices().await.unwrap();
+        warm_runs.push(warm_start.elapsed());
+        assert_eq!(warm_devices.len(), device_count);
+    }
+    warm_runs.sort();
+    let warm_median = warm_runs[warm_runs.len() / 2];
+
+    assert!(
+        warm_median.as_millis() < PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS as u128,
+        "Device list reopen performance {warm_median:?} exceeds target of {PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS}ms"
+    );
+    assert!(
+        warm_median <= cold_duration,
+        "Expected warm device list load {warm_median:?} to be faster than or equal to cold load {cold_duration:?}"
+    );
+
+    println!(
+        "✅ Device list reopen benchmark: cold={cold_duration:?}, warm median={warm_median:?} (target warm: <{PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS}ms)"
+    );
+}
+
+/// Android system images dialog open / reopen performance test.
+#[tokio::test]
+async fn test_api_level_list_performance() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_mock_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let counter_path = temp_dir.path().join("sdkmanager-count.txt");
+    let sdkmanager_output = create_system_images_output(12, 18);
+    let sdkmanager_script = format!(
+        r#"#!/bin/sh
+COUNT_FILE="{counter_path}"
+count=0
+if [ -f "$COUNT_FILE" ]; then
+  count=$(cat "$COUNT_FILE")
+fi
+count=$((count + 1))
+echo "$count" > "$COUNT_FILE"
+cat <<'EOF'
+{sdkmanager_output}
+EOF
+"#,
+        counter_path = counter_path.display(),
+    );
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    std::fs::write(&sdkmanager_path, sdkmanager_script).unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let android_manager =
+        AndroidManager::with_executor(Arc::new(MockCommandExecutor::new())).unwrap();
+
+    let cold_start = Instant::now();
+    let cold_levels = android_manager.list_api_levels().await.unwrap();
+    let cold_duration = cold_start.elapsed();
+
+    let warm_start = Instant::now();
+    let warm_levels = android_manager.list_api_levels().await.unwrap();
+    let warm_duration = warm_start.elapsed();
+
+    assert_eq!(cold_levels.len(), warm_levels.len());
+    assert!(
+        !cold_levels.is_empty(),
+        "API level benchmark returned no levels"
+    );
+    assert!(
+        warm_duration.as_millis() < PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS as u128,
+        "API level reopen performance {warm_duration:?} exceeds target of {PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS}ms"
+    );
+    assert!(
+        warm_duration <= cold_duration,
+        "Expected warm API level load {warm_duration:?} to be faster than or equal to cold load {cold_duration:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "1");
+
+    println!(
+        "✅ API level list benchmark: cold={cold_duration:?}, warm={warm_duration:?} (target warm: <{PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS}ms)"
+    );
 }
 
 /// UI rendering performance benchmark
@@ -480,6 +607,67 @@ fn create_complex_device_list_output(device_count: usize) -> String {
     for i in 1..=device_count {
         output.push_str(&format!(
             "    Name: Performance_Device_{i}\n    Device: pixel_7 (Pixel 7)\n    Path: /Users/user/.android/avd/Performance_Device_{i}.avd\n    Target: Google APIs (Google Inc.)\n            Based on: Android 14.0 (API level 34) Tag/ABI: google_apis_playstore/arm64-v8a\n---------\n"
+        ));
+    }
+
+    output
+}
+
+fn create_complex_device_list_output_with_base(
+    base_path: &std::path::Path,
+    device_count: usize,
+    api_level: u32,
+) -> String {
+    let mut output = String::from("Available Android Virtual Devices:\n");
+
+    for i in 1..=device_count {
+        let avd_path = base_path
+            .join(".android/avd")
+            .join(format!("Performance_Device_{i}.avd"));
+        output.push_str(&format!(
+            "    Name: Performance_Device_{i}\n    Device: pixel_7 (Pixel 7)\n    Path: {}\n    Target: Google APIs (Google Inc.)\n            Based on: Android {}.0 Tag/ABI: google_apis_playstore/arm64-v8a\n---------\n",
+            avd_path.display(),
+            api_level.saturating_sub(20),
+        ));
+    }
+
+    output
+}
+
+fn create_avd_config_files(base_path: &std::path::Path, device_count: usize, api_level: u32) {
+    let filler = "hw.lcd.density=440\n".repeat(32);
+    for i in 1..=device_count {
+        let avd_dir = base_path
+            .join(".android/avd")
+            .join(format!("Performance_Device_{i}.avd"));
+        std::fs::create_dir_all(&avd_dir).unwrap();
+        std::fs::write(
+            avd_dir.join("config.ini"),
+            format!(
+                "avd.ini.encoding=UTF-8\nhw.device.name=pixel_7\nimage.sysdir.1=system-images/android-{api_level}/google_apis_playstore/arm64-v8a/\n{filler}"
+            ),
+        )
+        .unwrap();
+    }
+}
+
+fn create_system_images_output(installed_count: usize, available_count: usize) -> String {
+    let mut output =
+        String::from("Installed packages:\n  Path | Version | Description | Location\n");
+
+    for api in (35 - installed_count as u32 + 1)..=35 {
+        output.push_str(&format!(
+            "  system-images;android-{api};google_apis_playstore;arm64-v8a | 1 | Android SDK Platform {api} | system-images/android-{api}/google_apis_playstore/arm64-v8a\n"
+        ));
+    }
+
+    output.push_str("\nAvailable Packages:\n");
+
+    let start_available_api = 36;
+    for offset in 0..available_count {
+        let api = start_available_api + offset as u32;
+        output.push_str(&format!(
+            "  system-images;android-{api};google_apis;arm64-v8a | 1 | Android SDK Platform {api} | system-images/android-{api}/google_apis/arm64-v8a\n"
         ));
     }
 
