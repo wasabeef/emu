@@ -39,17 +39,55 @@ impl App {
         tokio::spawn(async move {
             match active_panel {
                 Panel::Android => {
-                    if let Ok(targets) = android_manager.list_available_targets().await {
-                        if let Ok(devices) =
-                            android_manager.list_devices_by_category(Some("all")).await
+                    if let Ok((targets, devices)) = tokio::try_join!(
+                        android_manager.list_available_targets(),
+                        android_manager.list_devices_by_category(Some("all"))
+                    ) {
+                        let mut state = state_clone.lock().await;
+                        state.create_device_form.available_versions = targets.clone();
+                        state.create_device_form.available_device_types = devices.clone();
+
                         {
+                            let mut cache = state.device_cache.write().await;
+                            cache.update_android_cache(devices, targets);
+                        }
+
+                        if let Some((id, display)) = state
+                            .create_device_form
+                            .available_device_types
+                            .first()
+                            .cloned()
+                        {
+                            state.create_device_form.device_type_id = id;
+                            state.create_device_form.device_type = display;
+                            state.create_device_form.selected_device_type_index = 0;
+                        }
+
+                        if let Some((value, display)) =
+                            state.create_device_form.available_versions.first().cloned()
+                        {
+                            state.create_device_form.version = value;
+                            state.create_device_form.version_display = display;
+                            state.create_device_form.selected_api_level_index = 0;
+                        }
+
+                        state.create_device_form.generate_placeholder_name();
+                        state.create_device_form.is_loading_cache = false;
+                    }
+                }
+                Panel::Ios => {
+                    if let Some(ref ios_manager) = ios_manager {
+                        if let Ok((device_types, runtimes)) = tokio::try_join!(
+                            ios_manager.list_device_types_with_names(),
+                            ios_manager.list_runtimes()
+                        ) {
                             let mut state = state_clone.lock().await;
-                            state.create_device_form.available_versions = targets.clone();
-                            state.create_device_form.available_device_types = devices.clone();
+                            state.create_device_form.available_device_types = device_types.clone();
+                            state.create_device_form.available_versions = runtimes.clone();
 
                             {
                                 let mut cache = state.device_cache.write().await;
-                                cache.update_android_cache(devices, targets);
+                                cache.update_ios_cache(device_types, runtimes);
                             }
 
                             if let Some((id, display)) = state
@@ -76,45 +114,6 @@ impl App {
                         }
                     }
                 }
-                Panel::Ios => {
-                    if let Some(ref ios_manager) = ios_manager {
-                        if let Ok(device_types) = ios_manager.list_device_types_with_names().await {
-                            if let Ok(runtimes) = ios_manager.list_runtimes().await {
-                                let mut state = state_clone.lock().await;
-                                state.create_device_form.available_device_types =
-                                    device_types.clone();
-                                state.create_device_form.available_versions = runtimes.clone();
-
-                                {
-                                    let mut cache = state.device_cache.write().await;
-                                    cache.update_ios_cache(device_types, runtimes);
-                                }
-
-                                if let Some((id, display)) = state
-                                    .create_device_form
-                                    .available_device_types
-                                    .first()
-                                    .cloned()
-                                {
-                                    state.create_device_form.device_type_id = id;
-                                    state.create_device_form.device_type = display;
-                                    state.create_device_form.selected_device_type_index = 0;
-                                }
-
-                                if let Some((value, display)) =
-                                    state.create_device_form.available_versions.first().cloned()
-                                {
-                                    state.create_device_form.version = value;
-                                    state.create_device_form.version_display = display;
-                                    state.create_device_form.selected_api_level_index = 0;
-                                }
-
-                                state.create_device_form.generate_placeholder_name();
-                                state.create_device_form.is_loading_cache = false;
-                            }
-                        }
-                    }
-                }
             }
         });
     }
@@ -127,19 +126,19 @@ impl App {
             Panel::Android => {
                 drop(state);
 
-                let available_devices = {
+                let category_filter = {
                     let state = self.state.lock().await;
-                    let category_filter =
-                        if state.create_device_form.device_category_filter == "all" {
-                            None
-                        } else {
-                            Some(state.create_device_form.device_category_filter.clone())
-                        };
-                    drop(state);
-                    self.android_manager
-                        .list_devices_by_category(category_filter.as_deref())
-                        .await?
+                    if state.create_device_form.device_category_filter == "all" {
+                        None
+                    } else {
+                        Some(state.create_device_form.device_category_filter.clone())
+                    }
                 };
+                let (available_devices, available_targets) = tokio::try_join!(
+                    self.android_manager
+                        .list_devices_by_category(category_filter.as_deref()),
+                    self.android_manager.list_available_targets()
+                )?;
                 if available_devices.is_empty() {
                     let mut state = self.state.lock().await;
                     state.create_device_form.error_message = Some(
@@ -148,8 +147,6 @@ impl App {
                     );
                     return Ok(());
                 }
-
-                let available_targets = self.android_manager.list_available_targets().await?;
                 if available_targets.is_empty() {
                     let mut state = self.state.lock().await;
                     state.create_device_form.error_message = Some("No Android targets found. Use Android Studio SDK Manager to install system images.".to_string());
@@ -180,7 +177,10 @@ impl App {
                 if let Some(ref ios_manager) = self.ios_manager {
                     drop(state);
 
-                    let available_device_types = ios_manager.list_device_types_with_names().await?;
+                    let (available_device_types, available_runtimes) = tokio::try_join!(
+                        ios_manager.list_device_types_with_names(),
+                        ios_manager.list_runtimes()
+                    )?;
                     if available_device_types.is_empty() {
                         let mut state = self.state.lock().await;
                         state.create_device_form.error_message =
@@ -188,7 +188,6 @@ impl App {
                         return Ok(());
                     }
 
-                    let available_runtimes = ios_manager.list_runtimes().await?;
                     if available_runtimes.is_empty() {
                         let mut state = self.state.lock().await;
                         state.create_device_form.error_message = Some(

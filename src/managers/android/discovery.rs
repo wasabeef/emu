@@ -199,6 +199,10 @@ impl AndroidManager {
     }
 
     pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
+        if let Some(cached_devices) = self.get_cached_available_devices().await {
+            return Ok(cached_devices);
+        }
+
         let output = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "device"])
@@ -251,6 +255,8 @@ impl AndroidManager {
             let priority_b = DynamicDeviceConfig::calculate_android_device_priority(&b.0, &b.1);
             priority_a.cmp(&priority_b)
         });
+
+        self.set_cached_available_devices(devices.clone()).await;
 
         Ok(devices)
     }

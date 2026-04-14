@@ -549,6 +549,51 @@ async fn test_list_available_targets_uses_session_cache() {
 }
 
 #[tokio::test]
+async fn test_list_available_devices_uses_session_cache() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+
+    let device_list_output = r#"
+Available Android Virtual Devices:
+    id: 0 or "pixel_9"
+    Name: Pixel 9
+    OEM : Google
+---------
+    id: 1 or "pixel_tablet"
+    Name: Pixel Tablet
+    OEM : Google
+---------
+"#;
+
+    let avdmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "device"], device_list_output)
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "device"],
+            device_list_output,
+        );
+
+    let call_history_executor = mock_executor.clone();
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let first_devices = manager.list_available_devices().await.unwrap();
+    let second_devices = manager.list_available_devices().await.unwrap();
+
+    assert_eq!(first_devices, second_devices);
+
+    let avdmanager_calls = call_history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, args)| {
+            command.ends_with("avdmanager") && args == &["list".to_string(), "device".to_string()]
+        })
+        .count();
+    assert_eq!(avdmanager_calls, 1);
+}
+
+#[tokio::test]
 async fn test_list_devices_parallel_avoids_sdkmanager_when_targets_cache_is_empty() {
     let _env_lock = acquire_test_env_lock().await;
     let temp_dir = setup_test_android_sdk();

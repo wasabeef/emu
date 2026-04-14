@@ -302,7 +302,9 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 
 type CachedTargets = Vec<(String, String)>;
+type CachedAvailableDevices = Vec<(String, String)>;
 type TimedTargetsCache = Arc<RwLock<Option<TimedCache<CachedTargets>>>>;
+type TimedAvailableDevicesCache = Arc<RwLock<Option<TimedCache<CachedAvailableDevices>>>>;
 type TimedStringCache = Arc<RwLock<Option<TimedCache<String>>>>;
 type TimedApiLevelsCache = Arc<RwLock<Option<TimedCache<Vec<ApiLevel>>>>>;
 type DeviceMetadataMap = std::collections::HashMap<String, CachedAndroidDeviceMetadata>;
@@ -361,6 +363,8 @@ pub struct AndroidManager {
     emulator_path: PathBuf,
     /// Session cache for Android target list derived from installed system images.
     available_targets_cache: TimedTargetsCache,
+    /// Session cache for Android device definitions used by the create-device dialog.
+    available_devices_cache: TimedAvailableDevicesCache,
     /// Session cache for raw sdkmanager verbose output reused across Android SDK-backed lists.
     sdkmanager_verbose_output_cache: TimedStringCache,
     /// Session cache for Android API levels used by the system-images dialog.
@@ -407,6 +411,7 @@ impl AndroidManager {
             avdmanager_path,
             emulator_path,
             available_targets_cache: Arc::new(RwLock::new(None)),
+            available_devices_cache: Arc::new(RwLock::new(None)),
             sdkmanager_verbose_output_cache: Arc::new(RwLock::new(None)),
             api_levels_cache: Arc::new(RwLock::new(None)),
             device_metadata_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -425,6 +430,20 @@ impl AndroidManager {
     async fn set_cached_available_targets(&self, targets: Vec<(String, String)>) {
         let mut cache = self.available_targets_cache.write().await;
         *cache = Some(TimedCache::new(targets));
+    }
+
+    async fn get_cached_available_devices(&self) -> Option<Vec<(String, String)>> {
+        let cache = self.available_devices_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_available_devices(&self, devices: Vec<(String, String)>) {
+        let mut cache = self.available_devices_cache.write().await;
+        *cache = Some(TimedCache::new(devices));
     }
 
     async fn get_cached_sdkmanager_verbose_output(&self) -> Option<String> {
@@ -509,6 +528,10 @@ impl AndroidManager {
     pub(crate) async fn invalidate_sdk_list_caches(&self) {
         {
             let mut cache = self.available_targets_cache.write().await;
+            *cache = None;
+        }
+        {
+            let mut cache = self.available_devices_cache.write().await;
             *cache = None;
         }
         {

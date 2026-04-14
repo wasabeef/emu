@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 const PERFORMANCE_TARGET_STARTUP_MS: u64 = 150;
 const PERFORMANCE_TARGET_DEVICE_LIST_MS: u64 = 100;
 const PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS: u64 = 120;
+const PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS: u64 = 60;
 const PERFORMANCE_TARGET_UI_RENDER_MS: u64 = 50;
 const PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS: u64 = 100;
 
@@ -245,6 +246,51 @@ EOF
 
     println!(
         "✅ API level list benchmark: cold={cold_duration:?}, warm={warm_duration:?} (target warm: <{PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS}ms)"
+    );
+}
+
+/// Android device definitions dialog reopen performance test.
+#[tokio::test]
+async fn test_available_device_list_reopen_performance() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_mock_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let device_count = 40;
+    let device_output = create_available_device_list_output(device_count);
+    let avdmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/avdmanager");
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "device"], &device_output)
+        .with_success(
+            &avdmanager_path.to_string_lossy(),
+            &["list", "device"],
+            &device_output,
+        );
+
+    let android_manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+
+    let cold_start = Instant::now();
+    let cold_devices = android_manager.list_available_devices().await.unwrap();
+    let cold_duration = cold_start.elapsed();
+
+    let warm_start = Instant::now();
+    let warm_devices = android_manager.list_available_devices().await.unwrap();
+    let warm_duration = warm_start.elapsed();
+
+    assert_eq!(cold_devices.len(), device_count);
+    assert_eq!(warm_devices.len(), device_count);
+    assert!(
+        warm_duration.as_millis() < PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS as u128,
+        "Available device reopen performance {warm_duration:?} exceeds target of {PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS}ms"
+    );
+    assert!(
+        warm_duration <= cold_duration,
+        "Expected warm available device load {warm_duration:?} to be faster than or equal to cold load {cold_duration:?}"
+    );
+
+    println!(
+        "✅ Available device list reopen benchmark: cold={cold_duration:?}, warm={warm_duration:?} (target warm: <{PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS}ms)"
     );
 }
 
@@ -667,6 +713,20 @@ fn create_system_images_output(installed_count: usize, available_count: usize) -
         let api = start_available_api + offset as u32;
         output.push_str(&format!(
             "  system-images;android-{api};google_apis;arm64-v8a | 1 | Android SDK Platform {api} | system-images/android-{api}/google_apis/arm64-v8a\n"
+        ));
+    }
+
+    output
+}
+
+fn create_available_device_list_output(device_count: usize) -> String {
+    let mut output = String::from("Available Android Virtual Devices:\n========\n");
+
+    for i in 0..device_count {
+        output.push_str(&format!(
+            "    id: {i} or \"pixel_{}\"\n    Name: Pixel {}\n    OEM : Google\n---------\n",
+            i + 1,
+            i + 1
         ));
     }
 

@@ -89,3 +89,6 @@ pub const STATUS_ONLY_REFRESH_TARGET: Duration = Duration::from_millis(50);
 
 /// Target duration for opening the API level dialog when manager cache is warm.
 pub const API_LEVEL_DIALOG_OPEN_TARGET: Duration = Duration::from_millis(20);
+
+/// Target duration for opening the create-device dialog when caches are warm.
+pub const CREATE_DEVICE_DIALOG_OPEN_TARGET: Duration = Duration::from_millis(20);
