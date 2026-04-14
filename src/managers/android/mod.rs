@@ -321,7 +321,8 @@ lazy_static! {
     static ref TARGET_REGEX: Regex = Regex::new(r"Target:\s*(.+)").unwrap();
     static ref ABI_REGEX: Regex = Regex::new(r"Tag/ABI:\s*(.+)").unwrap();
     static ref DEVICE_REGEX: Regex = Regex::new(r"Device:\s*(.+)").unwrap();
-    static ref BASED_ON_REGEX: Regex = Regex::new(r"Based on:\s*Android\s*([\d.]+)").unwrap();
+    static ref BASED_ON_REGEX: Regex =
+        Regex::new(r"Based on:\s*Android(?:\s*API)?\s*([\d.]+)").unwrap();
 
     // Config parsing regexes
     static ref IMAGE_SYSDIR_REGEX: Regex = Regex::new(r"image\.sysdir\.1=system-images/android-(\d+)/?").unwrap();

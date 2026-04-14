@@ -1307,6 +1307,7 @@ async fn test_list_devices_sorts_loaded_and_broken_avds_consistently() {
     let _env_lock = acquire_test_env_lock().await;
     let temp_dir = setup_test_android_sdk();
     let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+    let _home = EnvVarGuard::set("HOME", temp_dir.path().as_os_str());
 
     let avd_root = temp_dir.path().join(".android/avd");
     std::fs::create_dir_all(&avd_root).unwrap();
