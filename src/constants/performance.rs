@@ -83,3 +83,9 @@ pub const ANDROID_SDK_LIST_CACHE_TTL: Duration = Duration::from_secs(5);
 
 /// Minimum interval between full device metadata refreshes during auto-refresh.
 pub const FULL_DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(15);
+
+/// Target duration for status-only auto refresh paths in tests.
+pub const STATUS_ONLY_REFRESH_TARGET: Duration = Duration::from_millis(50);
+
+/// Target duration for opening the API level dialog when manager cache is warm.
+pub const API_LEVEL_DIALOG_OPEN_TARGET: Duration = Duration::from_millis(20);

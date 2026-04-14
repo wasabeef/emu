@@ -149,6 +149,9 @@ Available Packages:
   system-images;android-35;google_apis;arm64-v8a | 1 | Google APIs ARM 64 v8a System Image
 EOF
     exit 0
+fi
+
+exit 0
 "#;
 
         let emulator_script = "#!/bin/sh\nexit 0\n";
@@ -613,42 +616,26 @@ async fn test_app_new() {
 #[test]
 async fn test_start_background_cache_loading() {
     let _env_lock = acquire_test_env_lock().await;
-    let temp_dir = tempfile::tempdir().unwrap();
-    let sdk_path = temp_dir.path();
-    std::env::set_var("ANDROID_HOME", sdk_path);
+    let _env = StartupTestEnv::new();
 
-    tokio::fs::create_dir_all(sdk_path.join("cmdline-tools/latest/bin"))
-        .await
-        .ok();
+    if let Ok(app) = App::new().await {
+        for _ in 0..120 {
+            let has_android_cache = {
+                let state = app.state.lock().await;
+                let cache = state.device_cache.read().await;
+                !cache.android_device_types.is_empty() && !cache.android_api_levels.is_empty()
+            };
+            let has_api_level_cache = app.android_manager.get_cached_api_levels().await.is_some();
 
-    let avdmanager_path = sdk_path.join("cmdline-tools/latest/bin/avdmanager");
-    tokio::fs::write(
-        &avdmanager_path,
-        "#!/bin/bash\necho 'Available Android Virtual Devices:'\n",
-    )
-    .await
-    .ok();
+            if has_android_cache && has_api_level_cache {
+                return;
+            }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = tokio::fs::metadata(&avdmanager_path)
-            .await
-            .unwrap()
-            .permissions();
-        perms.set_mode(0o755);
-        tokio::fs::set_permissions(&avdmanager_path, perms)
-            .await
-            .ok();
+            sleep(Duration::from_millis(25)).await;
+        }
+
+        panic!("background cache loading did not warm Android caches in time");
     }
-
-    if let Ok(mut app) = App::new().await {
-        app.start_background_cache_loading();
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        let _state = app.state.lock().await;
-    }
-
-    std::env::remove_var("ANDROID_HOME");
 }
 
 #[test]
@@ -838,12 +825,58 @@ async fn test_refresh_devices_smart_uses_status_only_path_between_full_refreshes
         }];
     }
 
+    let start = std::time::Instant::now();
     app.refresh_devices_smart().await.unwrap();
+    let elapsed = start.elapsed();
 
     let state = app.state.lock().await;
     assert_eq!(state.android_devices.len(), 1);
     assert!(state.android_devices[0].is_running);
     assert_eq!(state.android_devices[0].status, DeviceStatus::Running);
+    assert!(
+        elapsed <= crate::constants::performance::STATUS_ONLY_REFRESH_TARGET,
+        "status-only refresh should stay fast, took {elapsed:?}"
+    );
+}
+
+#[test]
+async fn test_should_use_full_device_refresh_without_any_devices() {
+    assert!(App::should_use_full_device_refresh(
+        false,
+        false,
+        false,
+        Duration::from_secs(1),
+    ));
+}
+
+#[test]
+async fn test_should_use_full_device_refresh_for_pending_device() {
+    assert!(App::should_use_full_device_refresh(
+        true,
+        false,
+        true,
+        Duration::from_secs(1),
+    ));
+}
+
+#[test]
+async fn test_should_use_status_only_refresh_when_ios_devices_exist_and_refresh_is_fresh() {
+    assert!(!App::should_use_full_device_refresh(
+        false,
+        true,
+        false,
+        Duration::from_secs(1),
+    ));
+}
+
+#[test]
+async fn test_should_use_full_device_refresh_when_interval_expires() {
+    assert!(App::should_use_full_device_refresh(
+        true,
+        true,
+        false,
+        crate::constants::performance::FULL_DEVICE_REFRESH_INTERVAL,
+    ));
 }
 
 #[test]
@@ -897,7 +930,9 @@ EOF
         last_full_device_refresh: std::time::Instant::now(),
     };
 
+    let start = std::time::Instant::now();
     app.open_api_level_management().await;
+    let elapsed = start.elapsed();
 
     let state = app.state.lock().await;
     let api_state = state
@@ -906,6 +941,10 @@ EOF
         .expect("API level management should be open");
     assert!(!api_state.is_loading);
     assert_eq!(api_state.api_levels.len(), cached_levels.len());
+    assert!(
+        elapsed <= crate::constants::performance::API_LEVEL_DIALOG_OPEN_TARGET,
+        "opening API level dialog from warm cache should be immediate, took {elapsed:?}"
+    );
 }
 
 #[allow(dead_code)]

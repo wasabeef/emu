@@ -7,18 +7,21 @@ use std::collections::HashMap;
 impl App {
     /// Refresh devices using incremental update for optimal performance
     pub(super) async fn refresh_devices_smart(&mut self) -> Result<()> {
-        let (has_android_devices, pending_device) = {
+        let (has_android_devices, has_ios_devices, pending_device) = {
             let state = self.state.lock().await;
             (
                 !state.android_devices.is_empty(),
+                !state.ios_devices.is_empty(),
                 state.get_pending_device_start().cloned(),
             )
         };
 
-        let should_full_refresh = pending_device.is_some()
-            || !has_android_devices
-            || self.last_full_device_refresh.elapsed()
-                >= crate::constants::performance::FULL_DEVICE_REFRESH_INTERVAL;
+        let should_full_refresh = Self::should_use_full_device_refresh(
+            has_android_devices,
+            has_ios_devices,
+            pending_device.is_some(),
+            self.last_full_device_refresh.elapsed(),
+        );
 
         if should_full_refresh {
             self.refresh_devices_incremental().await
@@ -132,10 +135,19 @@ impl App {
             )
         };
 
-        let running_avds = self.android_manager.get_running_avd_names().await?;
+        let running_avds = if existing_android.is_empty() {
+            HashMap::new()
+        } else {
+            self.android_manager.get_running_avd_names().await?
+        };
         let updated_android = self.process_android_status_updates(existing_android, &running_avds);
-        let new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
-            ios_manager.list_devices().await?
+        let should_refresh_ios = !existing_ios.is_empty();
+        let new_ios_devices = if should_refresh_ios {
+            if let Some(ref ios_manager) = self.ios_manager {
+                ios_manager.list_devices().await?
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         };
@@ -156,6 +168,18 @@ impl App {
         state.mark_refreshed();
 
         Ok(())
+    }
+
+    pub(super) fn should_use_full_device_refresh(
+        has_android_devices: bool,
+        has_ios_devices: bool,
+        has_pending_device: bool,
+        elapsed_since_last_full_refresh: std::time::Duration,
+    ) -> bool {
+        has_pending_device
+            || (!has_android_devices && !has_ios_devices)
+            || elapsed_since_last_full_refresh
+                >= crate::constants::performance::FULL_DEVICE_REFRESH_INTERVAL
     }
 
     /// Process Android device updates in background (no state lock)
