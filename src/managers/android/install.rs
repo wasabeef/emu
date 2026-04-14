@@ -31,6 +31,14 @@ impl AndroidManager {
         Ok(api_levels)
     }
 
+    pub(crate) async fn list_api_levels_fresh(&self) -> Result<Vec<ApiLevel>> {
+        let output = self.refresh_sdkmanager_verbose_output().await?;
+        let api_levels = self.parse_api_levels_from_output(&output);
+        self.set_cached_api_levels(api_levels.clone()).await;
+
+        Ok(api_levels)
+    }
+
     fn parse_api_levels_from_output(&self, output_str: &str) -> Vec<ApiLevel> {
         let mut api_levels_map: std::collections::HashMap<u32, ApiLevel> =
             std::collections::HashMap::new();

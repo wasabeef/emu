@@ -1,5 +1,7 @@
 use super::*;
 use crate::models::DeviceStatus;
+use crate::models::{ApiLevel, SystemImageVariant};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::ffi::OsString;
 use std::sync::OnceLock;
 use tokio::test;
@@ -971,6 +973,260 @@ EOF
         elapsed <= crate::constants::performance::API_LEVEL_DIALOG_OPEN_TARGET,
         "opening API level dialog from warm cache should be immediate, took {elapsed:?}"
     );
+}
+
+#[test]
+async fn test_handle_api_level_mode_key_ignores_install_while_busy() {
+    let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
+        .with_success(
+            "sdkmanager",
+            &["system-images;android-34;google_apis_playstore;arm64-v8a"],
+            "",
+        );
+    let history_executor = mock_executor.clone();
+
+    let mut api_level = ApiLevel::new(
+        34,
+        "Android 14".to_string(),
+        "system-images;android-34;google_apis_playstore;arm64-v8a".to_string(),
+    );
+    api_level.variants.push(SystemImageVariant::new(
+        "google_apis_playstore".to_string(),
+        "arm64-v8a".to_string(),
+        "system-images;android-34;google_apis_playstore;arm64-v8a".to_string(),
+    ));
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager: AndroidManager::with_executor(Arc::new(mock_executor))
+            .expect("Android manager should initialize"),
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    {
+        let mut state = app.state.lock().await;
+        state.mode = Mode::ManageApiLevels;
+        state.api_level_management = Some(state::ApiLevelManagementState {
+            api_levels: vec![api_level],
+            installing_package: Some("system-images;android-33;google_apis;arm64-v8a".to_string()),
+            ..Default::default()
+        });
+    }
+
+    app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+        .await;
+
+    let sdkmanager_calls = history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, _)| command.ends_with("sdkmanager"))
+        .count();
+    assert_eq!(sdkmanager_calls, 0);
+
+    let state = app.state.lock().await;
+    let api_state = state
+        .api_level_management
+        .as_ref()
+        .expect("API level management should remain open");
+    assert_eq!(
+        api_state.error_message.as_deref(),
+        Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+    );
+}
+
+#[test]
+async fn test_handle_api_level_mode_key_ignores_uninstall_while_busy() {
+    let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
+        .with_success(
+            "sdkmanager",
+            &[
+                "--uninstall",
+                "system-images;android-34;google_apis_playstore;arm64-v8a",
+            ],
+            "",
+        );
+    let history_executor = mock_executor.clone();
+
+    let mut api_level = ApiLevel::new(
+        34,
+        "Android 14".to_string(),
+        "system-images;android-34;google_apis_playstore;arm64-v8a".to_string(),
+    );
+    let mut installed_variant = SystemImageVariant::new(
+        "google_apis_playstore".to_string(),
+        "arm64-v8a".to_string(),
+        "system-images;android-34;google_apis_playstore;arm64-v8a".to_string(),
+    );
+    installed_variant.is_installed = true;
+    api_level.is_installed = true;
+    api_level.variants.push(installed_variant);
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager: AndroidManager::with_executor(Arc::new(mock_executor))
+            .expect("Android manager should initialize"),
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    {
+        let mut state = app.state.lock().await;
+        state.mode = Mode::ManageApiLevels;
+        state.api_level_management = Some(state::ApiLevelManagementState {
+            api_levels: vec![api_level],
+            installing_package: Some("system-images;android-33;google_apis;arm64-v8a".to_string()),
+            ..Default::default()
+        });
+    }
+
+    app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE))
+        .await;
+
+    let uninstall_calls = history_executor
+        .call_history()
+        .into_iter()
+        .filter(|(command, args)| {
+            command.ends_with("sdkmanager")
+                && args
+                    == &[
+                        "--uninstall".to_string(),
+                        "system-images;android-34;google_apis_playstore;arm64-v8a".to_string(),
+                    ]
+        })
+        .count();
+    assert_eq!(uninstall_calls, 0);
+
+    let state = app.state.lock().await;
+    let api_state = state
+        .api_level_management
+        .as_ref()
+        .expect("API level management should remain open");
+    assert_eq!(
+        api_state.error_message.as_deref(),
+        Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+    );
+}
+
+#[test]
+async fn test_install_selected_api_level_marks_installed_when_refresh_fails() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+    let android_home =
+        std::env::var("ANDROID_HOME").expect("ANDROID_HOME should be set by StartupTestEnv");
+    let sdkmanager_path =
+        std::path::PathBuf::from(&android_home).join("cmdline-tools/latest/bin/sdkmanager");
+    let refresh_fail_marker = std::path::PathBuf::from(&android_home).join("refresh-fail");
+
+    std::fs::write(
+        &sdkmanager_path,
+        format!(
+            r#"#!/bin/sh
+MARKER="{marker}"
+if [ "$1" = "--list" ]; then
+    if [ -f "$MARKER" ]; then
+        echo "simulated refresh failure" >&2
+        exit 1
+    fi
+
+    cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+
+Available Packages:
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+EOF
+    exit 0
+fi
+
+touch "$MARKER"
+exit 0
+"#,
+            marker = refresh_fail_marker.display()
+        ),
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager: AndroidManager::new().expect("Android manager should initialize"),
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    app.open_api_level_management().await;
+
+    for _ in 0..40 {
+        let is_ready = {
+            let state = app.state.lock().await;
+            state
+                .api_level_management
+                .as_ref()
+                .map(|api_mgmt| !api_mgmt.is_loading && !api_mgmt.api_levels.is_empty())
+                .unwrap_or(false)
+        };
+
+        if is_ready {
+            break;
+        }
+
+        sleep(Duration::from_millis(25)).await;
+    }
+
+    app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+        .await;
+
+    for _ in 0..80 {
+        let is_complete = {
+            let state = app.state.lock().await;
+            state
+                .api_level_management
+                .as_ref()
+                .map(|api_mgmt| {
+                    api_mgmt.installing_package.is_none()
+                        && api_mgmt.install_progress.is_none()
+                        && !api_mgmt.is_loading
+                })
+                .unwrap_or(false)
+        };
+
+        if is_complete {
+            break;
+        }
+
+        sleep(Duration::from_millis(25)).await;
+    }
+
+    let state = app.state.lock().await;
+    let api_state = state
+        .api_level_management
+        .as_ref()
+        .expect("API level management should stay open");
+    let selected_api = api_state
+        .get_selected_api_level()
+        .expect("selected API level should exist");
+    let selected_variant = selected_api
+        .get_recommended_variant()
+        .expect("recommended variant should exist");
+
+    assert!(selected_api.is_installed);
+    assert!(selected_variant.is_installed);
+    assert!(!api_state.is_loading);
+    assert!(api_state.error_message.is_none());
 }
 
 #[test]

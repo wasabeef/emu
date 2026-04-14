@@ -30,6 +30,8 @@ pub mod errors {
     pub const FILE_ACCESS_ERROR: &str = "File access error occurred";
     pub const DATA_PARSING_FAILED: &str = "Data parsing failed";
     pub const PATTERN_MATCHING_ERROR: &str = "Pattern matching error occurred";
+    pub const SYSTEM_IMAGE_OPERATION_IN_PROGRESS: &str =
+        "Another system image operation is already in progress. Please wait for it to finish.";
 
     // Platform-specific
     pub const IOS_NOT_AVAILABLE: &str = "iOS manager not available (only available on macOS)";

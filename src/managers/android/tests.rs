@@ -736,6 +736,79 @@ async fn test_list_api_levels_reuses_sdkmanager_output_warmed_by_targets() {
 }
 
 #[tokio::test]
+async fn test_list_api_levels_fresh_bypasses_stale_session_cache() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let counter_path = temp_dir.path().join("sdkmanager-count.txt");
+    let state_path = temp_dir.path().join("sdkmanager-state.txt");
+    let sdkmanager_script = format!(
+        r#"#!/bin/sh
+COUNT_FILE="{counter_path}"
+STATE_FILE="{state_path}"
+count=0
+if [ -f "$COUNT_FILE" ]; then
+  count=$(cat "$COUNT_FILE")
+fi
+count=$((count + 1))
+echo "$count" > "$COUNT_FILE"
+
+state="stale"
+if [ -f "$STATE_FILE" ]; then
+  state=$(cat "$STATE_FILE")
+fi
+
+if [ "$state" = "fresh" ]; then
+cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+
+Available Packages:
+EOF
+else
+cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+
+Available Packages:
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+EOF
+fi
+"#,
+        counter_path = counter_path.display(),
+        state_path = state_path.display()
+    );
+    let sdkmanager_path = temp_dir.path().join("cmdline-tools/latest/bin/sdkmanager");
+    std::fs::write(&sdkmanager_path, sdkmanager_script).unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let manager = AndroidManager::new().unwrap();
+
+    let stale_levels = manager.list_api_levels().await.unwrap();
+    assert!(!stale_levels[0].is_installed);
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "1");
+
+    std::fs::write(&state_path, "fresh").unwrap();
+
+    let fresh_levels = manager.list_api_levels_fresh().await.unwrap();
+    assert!(fresh_levels[0].is_installed);
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "2");
+
+    let cached_levels = manager.list_api_levels().await.unwrap();
+    assert!(cached_levels[0].is_installed);
+    assert_eq!(std::fs::read_to_string(&counter_path).unwrap().trim(), "2");
+}
+
+#[tokio::test]
 async fn test_device_metadata_cache_can_be_invalidated() {
     let _env_lock = acquire_test_env_lock().await;
     let temp_dir = setup_test_android_sdk();

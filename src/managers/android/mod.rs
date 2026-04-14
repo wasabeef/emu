@@ -460,11 +460,7 @@ impl AndroidManager {
         *cache = Some(TimedCache::new(output));
     }
 
-    pub(crate) async fn get_sdkmanager_verbose_output(&self) -> Result<String> {
-        if let Some(cached_output) = self.get_cached_sdkmanager_verbose_output().await {
-            return Ok(cached_output);
-        }
-
+    async fn load_sdkmanager_verbose_output(&self) -> Result<String> {
         let sdkmanager_path = Self::find_tool(&self.android_home, commands::SDKMANAGER)?;
         let output = self
             .command_executor
@@ -477,6 +473,22 @@ impl AndroidManager {
                 ],
             )
             .await?;
+        Ok(output)
+    }
+
+    pub(crate) async fn get_sdkmanager_verbose_output(&self) -> Result<String> {
+        if let Some(cached_output) = self.get_cached_sdkmanager_verbose_output().await {
+            return Ok(cached_output);
+        }
+
+        let output = self.load_sdkmanager_verbose_output().await?;
+        self.set_cached_sdkmanager_verbose_output(output.clone())
+            .await;
+        Ok(output)
+    }
+
+    pub(crate) async fn refresh_sdkmanager_verbose_output(&self) -> Result<String> {
+        let output = self.load_sdkmanager_verbose_output().await?;
         self.set_cached_sdkmanager_verbose_output(output.clone())
             .await;
         Ok(output)

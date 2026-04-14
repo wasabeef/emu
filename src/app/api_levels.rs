@@ -1,11 +1,40 @@
 use super::{state, App, Mode, Panel};
 use crate::constants::{
-    messages::notifications::INSTALL_PROGRESS_COMPLETE,
-    performance::API_INSTALLATION_COMPLETION_DELAY, progress::PROGRESS_PHASE_100_PERCENT,
+    messages::{
+        errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS,
+        notifications::{
+            INSTALL_PROGRESS_COMPLETE, SYSTEM_IMAGE_INSTALLED, SYSTEM_IMAGE_UNINSTALLED,
+        },
+    },
+    performance::API_INSTALLATION_COMPLETION_DELAY,
+    progress::PROGRESS_PHASE_100_PERCENT,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
+    fn update_api_level_installation_state(
+        api_mgmt: &mut state::ApiLevelManagementState,
+        package_ids: &[String],
+        is_installed: bool,
+    ) {
+        for api_level in &mut api_mgmt.api_levels {
+            for variant in &mut api_level.variants {
+                if package_ids.contains(&variant.package_id) {
+                    variant.is_installed = is_installed;
+                }
+            }
+
+            api_level.is_installed = api_level
+                .variants
+                .iter()
+                .any(|variant| variant.is_installed);
+        }
+    }
+
+    fn set_api_level_busy_error(api_mgmt: &mut state::ApiLevelManagementState) {
+        api_mgmt.error_message = Some(SYSTEM_IMAGE_OPERATION_IN_PROGRESS.to_string());
+    }
+
     pub(super) async fn open_api_level_management(&mut self) {
         let cached_api_levels = self.android_manager.get_cached_api_levels().await;
         let has_warm_cache = cached_api_levels.is_some();
@@ -37,11 +66,16 @@ impl App {
         let android_manager = self.android_manager.clone();
         let state_clone = self.state.clone();
         tokio::spawn(async move {
-            if let Ok(api_levels) = android_manager.list_api_levels().await {
-                let mut state = state_clone.lock().await;
-                if let Some(ref mut api_state) = state.api_level_management {
-                    api_state.api_levels = api_levels;
-                    api_state.is_loading = false;
+            let result = android_manager.list_api_levels().await;
+            let mut state = state_clone.lock().await;
+            if let Some(ref mut api_state) = state.api_level_management {
+                api_state.is_loading = false;
+                match result {
+                    Ok(api_levels) => api_state.api_levels = api_levels,
+                    Err(error) => {
+                        api_state.error_message =
+                            Some(format!("Failed to load API levels: {error}"));
+                    }
                 }
             }
         });
@@ -71,10 +105,40 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                self.install_selected_api_level().await;
+                let mut state = self.state.lock().await;
+                let can_install = if let Some(api_mgmt) = state.api_level_management.as_mut() {
+                    if api_mgmt.is_busy() {
+                        Self::set_api_level_busy_error(api_mgmt);
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                };
+                drop(state);
+
+                if can_install {
+                    self.install_selected_api_level().await;
+                }
             }
             KeyCode::Char('d') => {
-                self.uninstall_selected_api_level().await;
+                let mut state = self.state.lock().await;
+                let can_uninstall = if let Some(api_mgmt) = state.api_level_management.as_mut() {
+                    if api_mgmt.is_busy() {
+                        Self::set_api_level_busy_error(api_mgmt);
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                };
+                drop(state);
+
+                if can_uninstall {
+                    self.uninstall_selected_api_level().await;
+                }
             }
             _ => {}
         }
@@ -141,35 +205,45 @@ impl App {
 
             tokio::time::sleep(API_INSTALLATION_COMPLETION_DELAY).await;
 
-            let mut state = state_clone.lock().await;
-            if let Some(ref mut api_mgmt) = state.api_level_management {
-                api_mgmt.installing_package = None;
-                api_mgmt.install_progress = None;
-            }
-
             if let Err(error) = result {
+                let mut state = state_clone.lock().await;
                 if let Some(ref mut api_mgmt) = state.api_level_management {
+                    api_mgmt.installing_package = None;
+                    api_mgmt.install_progress = None;
                     api_mgmt.error_message = Some(format!("Failed to install: {error}"));
                 }
             } else {
-                state.add_success_notification("System image installed successfully".to_string());
+                let mut state = state_clone.lock().await;
+                if let Some(ref mut api_mgmt) = state.api_level_management {
+                    Self::update_api_level_installation_state(
+                        api_mgmt,
+                        std::slice::from_ref(&package_id),
+                        true,
+                    );
+                    api_mgmt.is_loading = true;
+                }
+
+                state.add_success_notification(SYSTEM_IMAGE_INSTALLED.to_string());
                 {
                     let mut cache = state.device_cache.write().await;
                     cache.invalidate_android_cache();
                 }
-
-                if let Some(ref mut api_mgmt) = state.api_level_management {
-                    api_mgmt.is_loading = true;
-                }
+                drop(state);
 
                 let android_manager_refresh = android_manager.clone();
                 let state_refresh = state_clone.clone();
                 tokio::spawn(async move {
-                    if let Ok(new_levels) = android_manager_refresh.list_api_levels().await {
-                        let mut state = state_refresh.lock().await;
-                        if let Some(ref mut api_mgmt) = state.api_level_management {
-                            api_mgmt.api_levels = new_levels;
-                            api_mgmt.is_loading = false;
+                    let refresh_result = android_manager_refresh.list_api_levels_fresh().await;
+                    let mut state = state_refresh.lock().await;
+                    if let Some(ref mut api_mgmt) = state.api_level_management {
+                        api_mgmt.installing_package = None;
+                        api_mgmt.install_progress = None;
+                        api_mgmt.is_loading = false;
+                        match refresh_result {
+                            Ok(new_levels) => api_mgmt.api_levels = new_levels,
+                            Err(error) => {
+                                log::warn!("Failed to refresh API levels after install: {error}");
+                            }
                         }
                     }
                 });
@@ -221,25 +295,14 @@ impl App {
             let mut state = state_clone.lock().await;
             if success {
                 if let Some(ref mut api_mgmt) = state.api_level_management {
-                    for api_level in &mut api_mgmt.api_levels {
-                        for variant in &mut api_level.variants {
-                            if installed_variants.contains(&variant.package_id) {
-                                variant.is_installed = false;
-                            }
-                        }
-                        api_level.is_installed = api_level
-                            .variants
-                            .iter()
-                            .any(|variant| variant.is_installed);
-                    }
-                    api_mgmt.installing_package = None;
+                    Self::update_api_level_installation_state(api_mgmt, &installed_variants, false);
+                    api_mgmt.is_loading = true;
                 }
 
-                state.add_success_notification(
-                    "System image(s) uninstalled successfully".to_string(),
-                );
+                state.add_success_notification(SYSTEM_IMAGE_UNINSTALLED.to_string());
             } else if let Some(ref mut api_mgmt) = state.api_level_management {
                 api_mgmt.installing_package = None;
+                api_mgmt.install_progress = None;
                 api_mgmt.error_message = Some(format!(
                     "Failed to uninstall: {}",
                     last_error.unwrap_or_else(|| anyhow::anyhow!("Unknown error"))
@@ -254,11 +317,17 @@ impl App {
             let android_manager_refresh = android_manager.clone();
             let state_refresh = state_clone.clone();
             tokio::spawn(async move {
-                if let Ok(new_levels) = android_manager_refresh.list_api_levels().await {
-                    let mut state = state_refresh.lock().await;
-                    if let Some(ref mut api_mgmt) = state.api_level_management {
-                        api_mgmt.api_levels = new_levels;
-                        api_mgmt.is_loading = false;
+                let refresh_result = android_manager_refresh.list_api_levels_fresh().await;
+                let mut state = state_refresh.lock().await;
+                if let Some(ref mut api_mgmt) = state.api_level_management {
+                    api_mgmt.installing_package = None;
+                    api_mgmt.install_progress = None;
+                    api_mgmt.is_loading = false;
+                    match refresh_result {
+                        Ok(new_levels) => api_mgmt.api_levels = new_levels,
+                        Err(error) => {
+                            log::warn!("Failed to refresh API levels after uninstall: {error}");
+                        }
                     }
                 }
             });
