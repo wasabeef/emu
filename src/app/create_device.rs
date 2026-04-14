@@ -57,18 +57,6 @@ impl App {
             active_panel
         };
 
-        let cache_available = {
-            let state = self.state.lock().await;
-            state.is_cache_available(active_panel).await
-        };
-
-        if cache_available {
-            let mut state = self.state.lock().await;
-            state.populate_form_from_cache(active_panel).await;
-            state.create_device_form.is_loading_cache = false;
-            return;
-        }
-
         if matches!(active_panel, Panel::Android) {
             let (cached_devices, cached_targets) = tokio::join!(
                 self.android_manager.get_cached_available_devices(),
@@ -92,6 +80,18 @@ impl App {
                 );
                 return;
             }
+        }
+
+        let cache_available = {
+            let state = self.state.lock().await;
+            state.is_cache_available(active_panel).await
+        };
+
+        if cache_available {
+            let mut state = self.state.lock().await;
+            state.populate_form_from_cache(active_panel).await;
+            state.create_device_form.is_loading_cache = false;
+            return;
         }
 
         let state_clone = Arc::clone(&self.state);

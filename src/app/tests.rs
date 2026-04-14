@@ -1447,6 +1447,42 @@ async fn test_enter_create_device_mode_uses_manager_cache_when_state_cache_is_em
 }
 
 #[test]
+async fn test_enter_create_device_mode_prefers_manager_cache_over_stale_state_cache_for_android() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+
+    let mut app = App::new()
+        .await
+        .expect("App should initialize with startup test environment");
+
+    let (devices, targets) = tokio::join!(
+        app.android_manager.list_available_devices(),
+        app.android_manager.list_available_targets()
+    );
+    let devices = devices.expect("device definitions should load");
+    let targets = targets.expect("installed targets should load");
+    assert_eq!(targets.len(), 1);
+    assert_eq!(targets[0].0, "34");
+
+    {
+        let state = app.state.lock().await;
+        let mut cache = state.device_cache.write().await;
+        cache.update_android_cache(
+            devices.clone(),
+            vec![("33".to_string(), "API 33 - Android 13".to_string())],
+        );
+    }
+
+    app.enter_create_device_mode().await;
+
+    let state = app.state.lock().await;
+    assert_eq!(state.mode, Mode::CreateDevice);
+    assert!(!state.create_device_form.is_loading_cache);
+    assert_eq!(state.create_device_form.available_versions.len(), 1);
+    assert_eq!(state.create_device_form.available_versions[0].0, "34");
+}
+
+#[test]
 async fn test_enter_create_device_mode_uses_manager_cache_empty_state_messages() {
     let _env_lock = acquire_test_env_lock().await;
     let _env = StartupTestEnv::new();

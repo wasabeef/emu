@@ -346,9 +346,15 @@ impl AppState {
         let cache = self.device_cache.read().await;
         match platform {
             Panel::Android => {
-                !cache.android_device_types.is_empty() && !cache.android_api_levels.is_empty()
+                !cache.is_stale()
+                    && !cache.android_device_types.is_empty()
+                    && !cache.android_api_levels.is_empty()
             }
-            Panel::Ios => !cache.ios_device_types.is_empty() && !cache.ios_runtimes.is_empty(),
+            Panel::Ios => {
+                !cache.is_stale()
+                    && !cache.ios_device_types.is_empty()
+                    && !cache.ios_runtimes.is_empty()
+            }
         }
     }
 }
