@@ -316,6 +316,7 @@ impl App {
                 let mut cache = state.device_cache.write().await;
                 cache.invalidate_android_cache();
             }
+            drop(state);
 
             let android_manager_refresh = android_manager.clone();
             let state_refresh = state_clone.clone();

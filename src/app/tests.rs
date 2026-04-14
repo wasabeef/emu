@@ -977,6 +977,9 @@ EOF
 
 #[test]
 async fn test_handle_api_level_mode_key_ignores_install_while_busy() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+
     let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
         .with_success(
             "sdkmanager",
@@ -1043,6 +1046,9 @@ async fn test_handle_api_level_mode_key_ignores_install_while_busy() {
 
 #[test]
 async fn test_handle_api_level_mode_key_ignores_uninstall_while_busy() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+
     let mock_executor = crate::utils::command_executor::mock::MockCommandExecutor::new()
         .with_success(
             "sdkmanager",
