@@ -1,6 +1,6 @@
 use super::{App, Panel};
 use crate::managers::common::DeviceManager;
-use crate::models::{AndroidDevice, IosDevice};
+use crate::models::{device_info::sort_android_devices_for_display, AndroidDevice, IosDevice};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -64,7 +64,9 @@ impl App {
             new_ios_devices = Vec::new();
         }
 
-        let updated_android = self.process_android_updates(existing_android, new_android_devices);
+        let mut updated_android =
+            self.process_android_updates(existing_android, new_android_devices);
+        sort_android_devices_for_display(&mut updated_android);
         let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
 
         {
@@ -175,7 +177,9 @@ impl App {
             new_ios_devices = Vec::new();
         }
 
-        let updated_android = self.process_android_status_updates(existing_android, &running_avds);
+        let mut updated_android =
+            self.process_android_status_updates(existing_android, &running_avds);
+        sort_android_devices_for_display(&mut updated_android);
         let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
 
         let mut state = self.state.lock().await;

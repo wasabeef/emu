@@ -1,7 +1,7 @@
 use super::{App, Panel};
 use crate::managers::common::DeviceManager;
 use crate::managers::AndroidManager;
-use crate::models::{DeviceDetails, Platform};
+use crate::models::{device_info::sort_android_devices_for_display, DeviceDetails, Platform};
 use std::sync::Arc;
 
 impl App {
@@ -64,7 +64,8 @@ impl App {
             let android_manager = android_manager.clone();
             async move {
                 match android_manager.list_devices_parallel().await {
-                    Ok(android_devices) => {
+                    Ok(mut android_devices) => {
+                        sort_android_devices_for_display(&mut android_devices);
                         let mut state = state_clone.lock().await;
                         state.android_devices = android_devices;
                         state.is_loading = false;

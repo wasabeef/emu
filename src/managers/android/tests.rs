@@ -1303,6 +1303,145 @@ Available Android Virtual Devices:
 }
 
 #[tokio::test]
+async fn test_list_devices_sorts_loaded_and_broken_avds_consistently() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_test_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path().as_os_str());
+
+    let avd_root = temp_dir.path().join(".android/avd");
+    std::fs::create_dir_all(&avd_root).unwrap();
+
+    for (name, sysdir) in [
+        (
+            "Pixel_4_API_27",
+            "system-images/android-27/google_apis/arm64-v8a/",
+        ),
+        (
+            "Pixel_5_API_30",
+            "system-images/android-30/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_5_API_36",
+            "system-images/android-36/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_9_API_36",
+            "system-images/android-36/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_9_Pro_API_36",
+            "system-images/android-36/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_8_API_35",
+            "system-images/android-35/google_apis/x86_64/",
+        ),
+        (
+            "Pixel_9_API_32",
+            "system-images/android-32/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_7a_API_34",
+            "system-images/android-34/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_6_API_34",
+            "system-images/android-34/google_apis_playstore/arm64-v8a/",
+        ),
+        (
+            "Pixel_8a_API_35",
+            "system-images/android-35/google_apis/x86_64/",
+        ),
+    ] {
+        let avd_dir = avd_root.join(format!("{name}.avd"));
+        std::fs::create_dir_all(&avd_dir).unwrap();
+        std::fs::write(
+            avd_dir.join("config.ini"),
+            format!("image.sysdir.1={sysdir}\n"),
+        )
+        .unwrap();
+    }
+
+    let avd_list_output = r#"
+Available Android Virtual Devices:
+    Name: Pixel_4_API_27
+  Device: pixel_4 (Google)
+    Path: /Users/test/.android/avd/Pixel_4_API_27.avd
+  Target: Google APIs (Google Inc.)
+          Based on: Android 8.1 ("Oreo") Tag/ABI: google_apis/arm64-v8a
+---------
+    Name: Pixel_5_API_30
+  Device: pixel_5 (Google)
+    Path: /Users/test/.android/avd/Pixel_5_API_30.avd
+  Target: Google Play (Google Inc.)
+          Based on: Android 11.0 ("R") Tag/ABI: google_apis_playstore/arm64-v8a
+---------
+    Name: Pixel_5_API_36
+  Device: pixel_5 (Google)
+    Path: /Users/test/.android/avd/Pixel_5_API_36.avd
+  Target: Google Play (Google Inc.)
+          Based on: Android API 36 Tag/ABI: google_apis_playstore/arm64-v8a
+---------
+    Name: Pixel_9_API_36
+  Device: pixel_9 (Google)
+    Path: /Users/test/.android/avd/Pixel_9_API_36.avd
+  Target: Google Play (Google Inc.)
+          Based on: Android API 36 Tag/ABI: google_apis_playstore/arm64-v8a
+---------
+    Name: Pixel_9_Pro_API_36
+  Device: pixel_9_pro (Google)
+    Path: /Users/test/.android/avd/Pixel_9_Pro_API_36.avd
+  Target: Google Play (Google Inc.)
+          Based on: Android API 36 Tag/ABI: google_apis_playstore/arm64-v8a
+
+The following Android Virtual Devices could not be loaded:
+    Name: Pixel_8_API_35
+    Path: /Users/test/.android/avd/Pixel_8_API_35.avd
+   Error: Missing system image for Google APIs x86_64 Pixel 8 API 35.
+---------
+    Name: Pixel_9_API_32
+    Path: /Users/test/.android/avd/Pixel_9_API_32.avd
+   Error: Missing system image for Google Play arm64-v8a Pixel 9 API 32.
+---------
+    Name: Pixel_7a_API_34
+    Path: /Users/test/.android/avd/Pixel_7a_API_34.avd
+   Error: Missing system image for Google Play arm64-v8a Pixel 7a API 34.
+---------
+    Name: Pixel_6_API_34
+    Path: /Users/test/.android/avd/Pixel_6_API_34.avd
+   Error: Missing system image for Google Play arm64-v8a Pixel 6 API 34.
+---------
+    Name: Pixel_8a_API_35
+    Path: /Users/test/.android/avd/Pixel_8a_API_35.avd
+   Error: Missing system image for Google APIs x86_64 Pixel 8a API 35.
+"#;
+
+    let mock_executor = MockCommandExecutor::new()
+        .with_success("avdmanager", &["list", "avd"], avd_list_output)
+        .with_success("adb", &["devices"], "List of devices attached\n");
+
+    let manager = AndroidManager::with_executor(Arc::new(mock_executor)).unwrap();
+    let devices = manager.list_devices().await.unwrap();
+    let names: Vec<&str> = devices.iter().map(|device| device.name.as_str()).collect();
+
+    assert_eq!(
+        names,
+        vec![
+            "Pixel_9_API_36",
+            "Pixel_9_Pro_API_36",
+            "Pixel_5_API_36",
+            "Pixel_8_API_35",
+            "Pixel_8a_API_35",
+            "Pixel_7a_API_34",
+            "Pixel_6_API_34",
+            "Pixel_9_API_32",
+            "Pixel_5_API_30",
+            "Pixel_4_API_27",
+        ]
+    );
+}
+
+#[tokio::test]
 async fn test_get_device_priority() {
     let temp_dir = setup_test_android_sdk();
     env::set_var("ANDROID_HOME", temp_dir.path());

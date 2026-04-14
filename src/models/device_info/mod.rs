@@ -35,6 +35,7 @@ use std::collections::HashMap;
 
 mod parsing;
 mod priority;
+pub use self::priority::sort_android_devices_for_display;
 
 /// Dynamic device information structures
 ///

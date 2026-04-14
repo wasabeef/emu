@@ -908,6 +908,64 @@ async fn test_should_use_full_device_refresh_when_interval_expires() {
 }
 
 #[test]
+async fn test_refresh_device_statuses_only_resorts_unsorted_android_devices() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+    let mut app = App::new().await.expect("App should initialize");
+
+    {
+        let mut state = app.state.lock().await;
+        state.android_devices = vec![
+            AndroidDevice {
+                name: "Pixel_4_API_27".to_string(),
+                device_type: "pixel_4 (Google)".to_string(),
+                api_level: 27,
+                android_version_name: "Android 8.1".to_string(),
+                status: DeviceStatus::Stopped,
+                is_running: false,
+                ram_size: "2048".to_string(),
+                storage_size: "8192M".to_string(),
+            },
+            AndroidDevice {
+                name: "Pixel_9_API_36".to_string(),
+                device_type: "pixel_9 (Google)".to_string(),
+                api_level: 36,
+                android_version_name: "Android API 36".to_string(),
+                status: DeviceStatus::Stopped,
+                is_running: false,
+                ram_size: "2048".to_string(),
+                storage_size: "8192M".to_string(),
+            },
+            AndroidDevice {
+                name: "Pixel_7a_API_34".to_string(),
+                device_type: "pixel_7a (Google)".to_string(),
+                api_level: 34,
+                android_version_name: "Android 14".to_string(),
+                status: DeviceStatus::Stopped,
+                is_running: false,
+                ram_size: "2048".to_string(),
+                storage_size: "8192M".to_string(),
+            },
+        ];
+    }
+
+    app.refresh_device_statuses_only()
+        .await
+        .expect("status-only refresh should succeed");
+
+    let state = app.state.lock().await;
+    let names: Vec<&str> = state
+        .android_devices
+        .iter()
+        .map(|device| device.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        vec!["Pixel_9_API_36", "Pixel_7a_API_34", "Pixel_4_API_27"]
+    );
+}
+
+#[test]
 async fn test_open_api_level_management_uses_cached_levels_immediately() {
     let _env_lock = acquire_test_env_lock().await;
     let _env = StartupTestEnv::new();

@@ -1,6 +1,7 @@
 use super::{state, App, Mode, Panel};
 use crate::constants::performance::DETAIL_UPDATE_DEBOUNCE;
 use crate::managers::common::{DeviceConfig, DeviceManager};
+use crate::models::device_info::sort_android_devices_for_display;
 use crate::models::error::format_user_error;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -338,7 +339,8 @@ impl App {
 
                     match active_panel {
                         Panel::Android => {
-                            if let Ok(devices) = android_manager.list_devices().await {
+                            if let Ok(mut devices) = android_manager.list_devices().await {
+                                sort_android_devices_for_display(&mut devices);
                                 let mut state = state_clone.lock().await;
                                 state.android_devices = devices;
                                 state.mode = Mode::Normal;
