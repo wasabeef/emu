@@ -4,25 +4,23 @@ use crate::{
         commands, env_vars,
         limits::{ANDROID_COMMAND_PARTS_MINIMUM, SYSTEM_IMAGE_PARTS_REQUIRED},
     },
-    models::{
-        device_info::{
-            ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
-        },
-        ApiLevel,
+    models::device_info::{
+        ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
     },
-    utils::ApiLevelCache,
+    utils::command_executor::CommandExecutor,
 };
 use anyhow::{Context, Result};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
+    sync::Arc,
 };
 use tokio::fs;
+use tokio::task::JoinSet;
 
 impl AndroidManager {
     pub async fn get_running_avd_names(&self) -> Result<HashMap<String, String>> {
         let mut avd_map = HashMap::new();
-        let mut normalized_map = HashMap::new();
 
         let adb_output = self
             .command_executor
@@ -30,100 +28,108 @@ impl AndroidManager {
             .await
             .unwrap_or_default();
 
-        for line in adb_output.lines() {
-            if line.contains("emulator-") && line.contains("device") {
-                if let Some(emulator_id) = line.split_whitespace().next() {
-                    if let Ok(boot_prop_output) = self
-                        .command_executor
-                        .run(
-                            Path::new(commands::ADB),
-                            &[
-                                "-s",
-                                emulator_id,
-                                "shell",
-                                "getprop",
-                                "ro.boot.qemu.avd_name",
-                            ],
-                        )
-                        .await
-                    {
-                        let avd_name = boot_prop_output.trim().to_string();
-                        if !avd_name.is_empty() {
-                            avd_map.insert(avd_name.clone(), emulator_id.to_string());
-                            let normalized = avd_name.replace(' ', "_");
-                            if normalized != avd_name {
-                                normalized_map.insert(normalized, emulator_id.to_string());
-                            }
-                            continue;
-                        }
-                    }
+        let emulator_ids: Vec<String> = adb_output
+            .lines()
+            .filter(|line| line.contains("emulator-") && line.contains("device"))
+            .filter_map(|line| line.split_whitespace().next().map(ToString::to_string))
+            .collect();
 
-                    if let Ok(avd_name_output) = self
-                        .command_executor
-                        .run(
-                            Path::new(commands::ADB),
-                            &["-s", emulator_id, "emu", "avd", "name"],
-                        )
-                        .await
-                    {
-                        let avd_name = avd_name_output
-                            .lines()
-                            .next()
-                            .unwrap_or("")
-                            .trim()
-                            .to_string();
-
-                        if !avd_name.is_empty()
-                            && !avd_name.contains("error")
-                            && !avd_name.contains("KO")
-                            && !avd_name.contains("unknown command")
-                            && avd_name != "OK"
-                        {
-                            avd_map.insert(avd_name.clone(), emulator_id.to_string());
-                            let normalized = avd_name.replace(' ', "_");
-                            if normalized != avd_name {
-                                normalized_map.insert(normalized, emulator_id.to_string());
-                            }
-                            continue;
-                        }
-                    }
-
-                    if let Ok(prop_output) = self
-                        .command_executor
-                        .run(
-                            Path::new(commands::ADB),
-                            &[
-                                "-s",
-                                emulator_id,
-                                "shell",
-                                "getprop",
-                                "ro.kernel.qemu.avd_name",
-                            ],
-                        )
-                        .await
-                    {
-                        let avd_name = prop_output.trim().to_string();
-                        if !avd_name.is_empty() {
-                            avd_map.insert(avd_name.clone(), emulator_id.to_string());
-                            let normalized = avd_name.replace(' ', "_");
-                            if normalized != avd_name {
-                                normalized_map.insert(normalized, emulator_id.to_string());
-                            }
-                            continue;
-                        }
-                    }
-                }
-            }
+        let mut join_set = JoinSet::new();
+        for emulator_id in emulator_ids {
+            let command_executor = self.command_executor.clone();
+            join_set.spawn(async move {
+                Self::resolve_running_avd_name(command_executor, emulator_id).await
+            });
         }
 
-        for (normalized_name, serial) in normalized_map {
-            avd_map.entry(normalized_name).or_insert(serial);
+        while let Some(result) = join_set.join_next().await {
+            if let Ok(Some((avd_name, emulator_id))) = result {
+                avd_map.insert(avd_name.clone(), emulator_id.clone());
+
+                let normalized = avd_name.replace(' ', "_");
+                if normalized != avd_name {
+                    avd_map.entry(normalized).or_insert(emulator_id);
+                }
+            }
         }
 
         Ok(avd_map)
     }
 
+    async fn resolve_running_avd_name(
+        command_executor: Arc<dyn CommandExecutor>,
+        emulator_id: String,
+    ) -> Option<(String, String)> {
+        if let Ok(boot_prop_output) = command_executor
+            .run(
+                Path::new(commands::ADB),
+                &[
+                    "-s",
+                    &emulator_id,
+                    "shell",
+                    "getprop",
+                    "ro.boot.qemu.avd_name",
+                ],
+            )
+            .await
+        {
+            let avd_name = boot_prop_output.trim().to_string();
+            if !avd_name.is_empty() {
+                return Some((avd_name, emulator_id));
+            }
+        }
+
+        if let Ok(avd_name_output) = command_executor
+            .run(
+                Path::new(commands::ADB),
+                &["-s", &emulator_id, "emu", "avd", "name"],
+            )
+            .await
+        {
+            let avd_name = avd_name_output
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            if !avd_name.is_empty()
+                && !avd_name.contains("error")
+                && !avd_name.contains("KO")
+                && !avd_name.contains("unknown command")
+                && avd_name != "OK"
+            {
+                return Some((avd_name, emulator_id));
+            }
+        }
+
+        if let Ok(prop_output) = command_executor
+            .run(
+                Path::new(commands::ADB),
+                &[
+                    "-s",
+                    &emulator_id,
+                    "shell",
+                    "getprop",
+                    "ro.kernel.qemu.avd_name",
+                ],
+            )
+            .await
+        {
+            let avd_name = prop_output.trim().to_string();
+            if !avd_name.is_empty() {
+                return Some((avd_name, emulator_id));
+            }
+        }
+
+        None
+    }
+
     pub async fn list_available_targets(&self) -> Result<Vec<(String, String)>> {
+        if let Some(cached_targets) = self.get_cached_available_targets().await {
+            return Ok(cached_targets);
+        }
+
         log::debug!("list_available_targets called");
         let installed_images = self.list_available_system_images().await?;
         let mut targets = std::collections::HashMap::new();
@@ -148,42 +154,7 @@ impl AndroidManager {
             api_b.cmp(&api_a)
         });
 
-        let api_levels: Vec<ApiLevel> = result
-            .iter()
-            .map(|(level_str, display)| {
-                let api: u32 = level_str.parse().unwrap_or(0);
-                let version = if let Some(dash_pos) = display.find(" - ") {
-                    display[dash_pos + 3..].to_string()
-                } else {
-                    format!("API {api}")
-                };
-                ApiLevel {
-                    api,
-                    version,
-                    display_name: display.clone(),
-                    system_image_id: format!("android-{api}"),
-                    is_installed: true,
-                    variants: vec![],
-                }
-            })
-            .collect();
-
-        let cache = ApiLevelCache {
-            api_levels,
-            timestamp: std::time::SystemTime::now(),
-        };
-
-        if result.is_empty() {
-            if let Err(error) = ApiLevelCache::clear_from_disk() {
-                log::warn!("Failed to clear API level cache: {error}");
-            } else {
-                log::debug!("Cleared API level cache because no installed targets were found");
-            }
-        } else if let Err(error) = cache.save_to_disk() {
-            log::warn!("Failed to save API level cache: {error}");
-        } else {
-            log::debug!("Saved {} API levels to cache", result.len());
-        }
+        self.set_cached_available_targets(result.clone()).await;
         log::debug!(
             "list_available_targets completed, returning {} targets",
             result.len()
@@ -193,6 +164,10 @@ impl AndroidManager {
     }
 
     pub async fn list_available_devices(&self) -> Result<Vec<(String, String)>> {
+        if let Some(cached_devices) = self.get_cached_available_devices().await {
+            return Ok(cached_devices);
+        }
+
         let output = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "device"])
@@ -245,6 +220,8 @@ impl AndroidManager {
             let priority_b = DynamicDeviceConfig::calculate_android_device_priority(&b.0, &b.1);
             priority_a.cmp(&priority_b)
         });
+
+        self.set_cached_available_devices(devices.clone()).await;
 
         Ok(devices)
     }

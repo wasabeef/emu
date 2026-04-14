@@ -45,7 +45,7 @@ pub(crate) fn render_notifications(frame: &mut Frame, state: &AppState, _theme: 
                 (STATUS_COLOR_ERROR, UI_COLOR_TEXT_BRIGHT, ERROR)
             }
             crate::app::state::NotificationType::Warning => {
-                (STATUS_COLOR_WARNING, UI_COLOR_BACKGROUND, WARNING)
+                (STATUS_COLOR_WARNING, UI_COLOR_TEXT_BRIGHT, WARNING)
             }
             crate::app::state::NotificationType::Info => {
                 (STATUS_COLOR_INFO, UI_COLOR_TEXT_BRIGHT, INFO)

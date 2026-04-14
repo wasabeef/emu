@@ -1,13 +1,34 @@
 use super::{App, Panel};
 use crate::managers::common::DeviceManager;
-use crate::models::{AndroidDevice, IosDevice};
+use crate::models::{device_info::sort_android_devices_for_display, AndroidDevice, IosDevice};
 use anyhow::Result;
 use std::collections::HashMap;
 
 impl App {
     /// Refresh devices using incremental update for optimal performance
     pub(super) async fn refresh_devices_smart(&mut self) -> Result<()> {
-        self.refresh_devices_incremental().await
+        let (has_android_devices, has_ios_devices, pending_device) = {
+            let state = self.state.lock().await;
+            (
+                !state.android_devices.is_empty(),
+                !state.ios_devices.is_empty(),
+                state.get_pending_device_start().cloned(),
+            )
+        };
+
+        let should_full_refresh = Self::should_use_full_device_refresh(
+            has_android_devices,
+            has_ios_devices,
+            self.ios_manager.is_some(),
+            pending_device.is_some(),
+            self.last_full_device_refresh.elapsed(),
+        );
+
+        if should_full_refresh {
+            self.refresh_devices_incremental().await
+        } else {
+            self.refresh_device_statuses_only().await
+        }
     }
 
     /// Incrementally refresh device lists by only updating changed devices
@@ -29,14 +50,23 @@ impl App {
             (existing_android, existing_ios, pending_device)
         };
 
-        let new_android_devices = self.android_manager.list_devices().await?;
-        let new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
-            ios_manager.list_devices().await?
+        let new_android_devices;
+        let new_ios_devices;
+        if let Some(ios_manager) = self.ios_manager.clone() {
+            let (android_devices, ios_devices) = tokio::try_join!(
+                self.android_manager.list_devices(),
+                ios_manager.list_devices()
+            )?;
+            new_android_devices = android_devices;
+            new_ios_devices = ios_devices;
         } else {
-            Vec::new()
-        };
+            new_android_devices = self.android_manager.list_devices().await?;
+            new_ios_devices = Vec::new();
+        }
 
-        let updated_android = self.process_android_updates(existing_android, new_android_devices);
+        let mut updated_android =
+            self.process_android_updates(existing_android, new_android_devices);
+        sort_android_devices_for_display(&mut updated_android);
         let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
 
         {
@@ -96,7 +126,91 @@ impl App {
             }
         }
 
+        self.last_full_device_refresh = std::time::Instant::now();
+
         Ok(())
+    }
+
+    /// Refresh only running status for existing devices and avoid rebuilding Android metadata.
+    pub(super) async fn refresh_device_statuses_only(&mut self) -> Result<()> {
+        let (existing_android, existing_ios) = {
+            let state = self.state.lock().await;
+            (
+                state.android_devices.clone(),
+                state
+                    .ios_devices
+                    .iter()
+                    .map(|d| (d.name.clone(), d.clone()))
+                    .collect::<HashMap<String, IosDevice>>(),
+            )
+        };
+
+        let should_refresh_android = !existing_android.is_empty();
+        let should_refresh_ios = !existing_ios.is_empty();
+
+        let running_avds;
+        let new_ios_devices;
+        if should_refresh_android && should_refresh_ios {
+            if let Some(ios_manager) = self.ios_manager.clone() {
+                let (android_running_avds, ios_devices) = tokio::try_join!(
+                    self.android_manager.get_running_avd_names(),
+                    ios_manager.list_devices()
+                )?;
+                running_avds = android_running_avds;
+                new_ios_devices = ios_devices;
+            } else {
+                running_avds = self.android_manager.get_running_avd_names().await?;
+                new_ios_devices = Vec::new();
+            }
+        } else if should_refresh_android {
+            running_avds = self.android_manager.get_running_avd_names().await?;
+            new_ios_devices = Vec::new();
+        } else if should_refresh_ios {
+            running_avds = HashMap::new();
+            new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
+                ios_manager.list_devices().await?
+            } else {
+                Vec::new()
+            };
+        } else {
+            running_avds = HashMap::new();
+            new_ios_devices = Vec::new();
+        }
+
+        let mut updated_android =
+            self.process_android_status_updates(existing_android, &running_avds);
+        sort_android_devices_for_display(&mut updated_android);
+        let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
+
+        let mut state = self.state.lock().await;
+        state.android_devices = updated_android;
+        state.ios_devices = updated_ios;
+
+        if state.selected_android >= state.android_devices.len() {
+            state.selected_android = state.android_devices.len().saturating_sub(1);
+        }
+        if state.selected_ios >= state.ios_devices.len() {
+            state.selected_ios = state.ios_devices.len().saturating_sub(1);
+        }
+
+        state.is_loading = false;
+        state.mark_refreshed();
+
+        Ok(())
+    }
+
+    pub(super) fn should_use_full_device_refresh(
+        has_android_devices: bool,
+        has_ios_devices: bool,
+        has_ios_manager: bool,
+        has_pending_device: bool,
+        elapsed_since_last_full_refresh: std::time::Duration,
+    ) -> bool {
+        has_pending_device
+            || !has_android_devices
+            || (has_ios_manager && !has_ios_devices)
+            || elapsed_since_last_full_refresh
+                >= crate::constants::performance::FULL_DEVICE_REFRESH_INTERVAL
     }
 
     /// Process Android device updates in background (no state lock)
@@ -123,6 +237,27 @@ impl App {
             }
         }
         updated_android
+    }
+
+    pub(super) fn process_android_status_updates(
+        &self,
+        existing_android: Vec<AndroidDevice>,
+        running_avds: &HashMap<String, String>,
+    ) -> Vec<AndroidDevice> {
+        existing_android
+            .into_iter()
+            .map(|mut device| {
+                let is_running = running_avds.contains_key(&device.name)
+                    || running_avds.contains_key(&device.name.replace(' ', "_"));
+                device.is_running = is_running;
+                device.status = if is_running {
+                    crate::models::DeviceStatus::Running
+                } else {
+                    crate::models::DeviceStatus::Stopped
+                };
+                device
+            })
+            .collect()
     }
 
     /// Process iOS device updates in background (no state lock)

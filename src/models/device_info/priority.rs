@@ -1,6 +1,9 @@
 use super::*;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::cmp::Reverse;
+
+use crate::models::device::AndroidDevice;
 
 lazy_static! {
     static ref DEVICE_VERSION_PATTERNS: Vec<(Regex, usize)> = vec![
@@ -360,4 +363,18 @@ impl DynamicDeviceConfig {
 
         None
     }
+}
+
+pub fn sort_android_devices_for_display(devices: &mut [AndroidDevice]) {
+    devices.sort_by_cached_key(|device| {
+        (
+            Reverse(device.api_level),
+            DynamicDeviceConfig::calculate_android_device_priority(
+                &device.device_type,
+                &device.name,
+            ),
+            device.name.to_lowercase(),
+            device.device_type.to_lowercase(),
+        )
+    });
 }

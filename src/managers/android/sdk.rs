@@ -1,5 +1,5 @@
 use super::AndroidManager;
-use crate::constants::{commands, env_vars, files, limits::SYSTEM_IMAGE_PARTS_REQUIRED};
+use crate::constants::{env_vars, files, limits::SYSTEM_IMAGE_PARTS_REQUIRED};
 use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 
@@ -49,45 +49,31 @@ impl AndroidManager {
 
     pub async fn list_available_system_images(&self) -> Result<Vec<String>> {
         let mut images = Vec::new();
+        let output = self.get_sdkmanager_verbose_output().await?;
+        let mut in_installed_section = false;
 
-        if let Ok(sdkmanager_path) = Self::find_tool(&self.android_home, commands::SDKMANAGER) {
-            let output = self
-                .command_executor
-                .run(
-                    &sdkmanager_path,
-                    &[
-                        commands::sdkmanager::LIST,
-                        "--verbose",
-                        "--include_obsolete",
-                    ],
-                )
-                .await?;
+        for line in output.lines() {
+            let trimmed = line.trim();
 
-            let mut in_installed_section = false;
+            if trimmed.starts_with("Installed packages:") {
+                in_installed_section = true;
+                continue;
+            }
 
-            for line in output.lines() {
-                let trimmed = line.trim();
+            if in_installed_section
+                && (trimmed.starts_with("Available Packages:")
+                    || trimmed.starts_with("Available Updates:"))
+            {
+                in_installed_section = false;
+                continue;
+            }
 
-                if trimmed.starts_with("Installed packages:") {
-                    in_installed_section = true;
-                    continue;
-                }
-
-                if in_installed_section
-                    && (trimmed.starts_with("Available Packages:")
-                        || trimmed.starts_with("Available Updates:"))
-                {
-                    in_installed_section = false;
-                    continue;
-                }
-
-                if in_installed_section && trimmed.starts_with("system-images;") {
-                    if let Some(space_pos) = trimmed.find(' ') {
-                        let package_path = &trimmed[..space_pos];
-                        images.push(package_path.to_string());
-                    } else {
-                        images.push(trimmed.to_string());
-                    }
+            if in_installed_section && trimmed.starts_with("system-images;") {
+                if let Some(space_pos) = trimmed.find(' ') {
+                    let package_path = &trimmed[..space_pos];
+                    images.push(package_path.to_string());
+                } else {
+                    images.push(trimmed.to_string());
                 }
             }
         }

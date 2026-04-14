@@ -287,9 +287,9 @@ mod sdk;
 mod version;
 
 use crate::{
-    constants::commands,
+    constants::{commands, performance::ANDROID_SDK_LIST_CACHE_TTL},
     managers::common::{DeviceConfig, DeviceManager},
-    models::AndroidDevice,
+    models::{AndroidDevice, ApiLevel},
     utils::command::CommandRunner,
     utils::command_executor::CommandExecutor,
 };
@@ -298,6 +298,16 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
+
+type CachedTargets = Vec<(String, String)>;
+type CachedAvailableDevices = Vec<(String, String)>;
+type TimedTargetsCache = Arc<RwLock<Option<TimedCache<CachedTargets>>>>;
+type TimedAvailableDevicesCache = Arc<RwLock<Option<TimedCache<CachedAvailableDevices>>>>;
+type TimedStringCache = Arc<RwLock<Option<TimedCache<String>>>>;
+type TimedApiLevelsCache = Arc<RwLock<Option<TimedCache<Vec<ApiLevel>>>>>;
+type DeviceMetadataMap = std::collections::HashMap<String, CachedAndroidDeviceMetadata>;
 
 lazy_static! {
     // Device listing regexes
@@ -311,7 +321,8 @@ lazy_static! {
     static ref TARGET_REGEX: Regex = Regex::new(r"Target:\s*(.+)").unwrap();
     static ref ABI_REGEX: Regex = Regex::new(r"Tag/ABI:\s*(.+)").unwrap();
     static ref DEVICE_REGEX: Regex = Regex::new(r"Device:\s*(.+)").unwrap();
-    static ref BASED_ON_REGEX: Regex = Regex::new(r"Based on:\s*Android\s*([\d.]+)").unwrap();
+    static ref BASED_ON_REGEX: Regex =
+        Regex::new(r"Based on:\s*Android(?:\s*API)?\s*([\d.]+)").unwrap();
 
     // Config parsing regexes
     static ref IMAGE_SYSDIR_REGEX: Regex = Regex::new(r"image\.sysdir\.1=system-images/android-(\d+)/?").unwrap();
@@ -351,6 +362,16 @@ pub struct AndroidManager {
     avdmanager_path: PathBuf,
     /// Path to emulator executable
     emulator_path: PathBuf,
+    /// Session cache for Android target list derived from installed system images.
+    available_targets_cache: TimedTargetsCache,
+    /// Session cache for Android device definitions used by the create-device dialog.
+    available_devices_cache: TimedAvailableDevicesCache,
+    /// Session cache for raw sdkmanager verbose output reused across Android SDK-backed lists.
+    sdkmanager_verbose_output_cache: TimedStringCache,
+    /// Session cache for Android API levels used by the system-images dialog.
+    api_levels_cache: TimedApiLevelsCache,
+    /// Session cache for per-device metadata derived from config parsing.
+    device_metadata_cache: Arc<RwLock<DeviceMetadataMap>>,
 }
 
 impl AndroidManager {
@@ -390,7 +411,150 @@ impl AndroidManager {
             android_home,
             avdmanager_path,
             emulator_path,
+            available_targets_cache: Arc::new(RwLock::new(None)),
+            available_devices_cache: Arc::new(RwLock::new(None)),
+            sdkmanager_verbose_output_cache: Arc::new(RwLock::new(None)),
+            api_levels_cache: Arc::new(RwLock::new(None)),
+            device_metadata_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
+    }
+
+    pub(crate) async fn get_cached_available_targets(&self) -> Option<Vec<(String, String)>> {
+        let cache = self.available_targets_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_available_targets(&self, targets: Vec<(String, String)>) {
+        let mut cache = self.available_targets_cache.write().await;
+        *cache = Some(TimedCache::new(targets));
+    }
+
+    pub(crate) async fn get_cached_available_devices(&self) -> Option<Vec<(String, String)>> {
+        let cache = self.available_devices_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_available_devices(&self, devices: Vec<(String, String)>) {
+        let mut cache = self.available_devices_cache.write().await;
+        *cache = Some(TimedCache::new(devices));
+    }
+
+    async fn get_cached_sdkmanager_verbose_output(&self) -> Option<String> {
+        let cache = self.sdkmanager_verbose_output_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_sdkmanager_verbose_output(&self, output: String) {
+        let mut cache = self.sdkmanager_verbose_output_cache.write().await;
+        *cache = Some(TimedCache::new(output));
+    }
+
+    async fn load_sdkmanager_verbose_output(&self) -> Result<String> {
+        let sdkmanager_path = Self::find_tool(&self.android_home, commands::SDKMANAGER)?;
+        let output = self
+            .command_executor
+            .run(
+                &sdkmanager_path,
+                &[
+                    commands::sdkmanager::LIST,
+                    "--verbose",
+                    "--include_obsolete",
+                ],
+            )
+            .await?;
+        Ok(output)
+    }
+
+    pub(crate) async fn get_sdkmanager_verbose_output(&self) -> Result<String> {
+        if let Some(cached_output) = self.get_cached_sdkmanager_verbose_output().await {
+            return Ok(cached_output);
+        }
+
+        let output = self.load_sdkmanager_verbose_output().await?;
+        self.set_cached_sdkmanager_verbose_output(output.clone())
+            .await;
+        Ok(output)
+    }
+
+    pub(crate) async fn refresh_sdkmanager_verbose_output(&self) -> Result<String> {
+        let output = self.load_sdkmanager_verbose_output().await?;
+        self.set_cached_sdkmanager_verbose_output(output.clone())
+            .await;
+        Ok(output)
+    }
+
+    pub(crate) async fn get_cached_api_levels(&self) -> Option<Vec<ApiLevel>> {
+        let cache = self.api_levels_cache.read().await;
+        cache.as_ref().and_then(|cache| {
+            cache
+                .is_fresh(ANDROID_SDK_LIST_CACHE_TTL)
+                .then(|| cache.value.clone())
+        })
+    }
+
+    async fn set_cached_api_levels(&self, api_levels: Vec<ApiLevel>) {
+        let mut cache = self.api_levels_cache.write().await;
+        *cache = Some(TimedCache::new(api_levels));
+    }
+
+    async fn get_cached_device_metadata(
+        &self,
+        name: &str,
+        target: &str,
+    ) -> Option<CachedAndroidDeviceMetadata> {
+        let cache = self.device_metadata_cache.read().await;
+        cache
+            .get(name)
+            .and_then(|metadata| (metadata.target == target).then(|| metadata.clone()))
+    }
+
+    async fn set_cached_device_metadata(
+        &self,
+        name: String,
+        metadata: CachedAndroidDeviceMetadata,
+    ) {
+        let mut cache = self.device_metadata_cache.write().await;
+        cache.insert(name, metadata);
+    }
+
+    pub(crate) async fn invalidate_device_metadata_cache(&self, name: Option<&str>) {
+        let mut cache = self.device_metadata_cache.write().await;
+        if let Some(name) = name {
+            cache.remove(name);
+        } else {
+            cache.clear();
+        }
+    }
+
+    pub(crate) async fn invalidate_sdk_list_caches(&self) {
+        {
+            let mut cache = self.available_targets_cache.write().await;
+            *cache = None;
+        }
+        {
+            let mut cache = self.available_devices_cache.write().await;
+            *cache = None;
+        }
+        {
+            let mut cache = self.api_levels_cache.write().await;
+            *cache = None;
+        }
+        {
+            let mut cache = self.sdkmanager_verbose_output_cache.write().await;
+            *cache = None;
+        }
     }
 
     /// Maps running emulator instances to their AVD names.
@@ -442,6 +606,32 @@ impl AndroidManager {
         }
         results
     }
+}
+
+#[derive(Clone)]
+struct TimedCache<T> {
+    value: T,
+    cached_at: Instant,
+}
+
+impl<T> TimedCache<T> {
+    fn new(value: T) -> Self {
+        Self {
+            value,
+            cached_at: Instant::now(),
+        }
+    }
+
+    fn is_fresh(&self, ttl: std::time::Duration) -> bool {
+        self.cached_at.elapsed() < ttl
+    }
+}
+
+#[derive(Clone)]
+struct CachedAndroidDeviceMetadata {
+    target: String,
+    api_level: u32,
+    android_version_name: String,
 }
 
 impl DeviceManager for AndroidManager {

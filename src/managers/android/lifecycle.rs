@@ -10,31 +10,36 @@ use crate::{
         limits::STORAGE_MB_TO_GB_DIVISOR,
         timeouts::{DEVICE_START_WAIT_TIME, DEVICE_STATUS_CHECK_DELAY},
     },
-    models::{device_info::DynamicDeviceConfig, AndroidDevice, DeviceStatus},
+    models::{device_info::sort_android_devices_for_display, AndroidDevice, DeviceStatus},
 };
 use anyhow::{Context, Result};
-use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
 impl AndroidManager {
     /// Optimized parallel version of list_devices
     pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
+        let mut cached_targets = self
+            .get_cached_available_targets()
+            .await
+            .unwrap_or_default();
+        if cached_targets.is_empty() && self.get_cached_sdkmanager_verbose_output().await.is_some()
+        {
+            cached_targets = self.list_available_targets().await.unwrap_or_default();
+        }
         let avd_list_future = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "avd"]);
         let running_avds_future = self.get_running_avd_names();
-        let targets_future = self.list_available_targets();
 
-        let (avd_output_result, running_avds_result, targets_result) =
-            tokio::join!(avd_list_future, running_avds_future, targets_future);
+        let (avd_output_result, running_avds_result) =
+            tokio::join!(avd_list_future, running_avds_future);
 
         let avd_output = avd_output_result.context("Failed to list Android AVDs")?;
         let running_avds = running_avds_result?;
-        let targets = targets_result.unwrap_or_default();
 
         let mut version_map = std::collections::HashMap::new();
-        for (level_str, display) in targets {
+        for (level_str, display) in cached_targets {
             if let Ok(level) = level_str.parse::<u32>() {
                 if let Some(dash_pos) = display.find(" - Android ") {
                     version_map.insert(level, display[dash_pos + 11..].to_string());
@@ -47,34 +52,45 @@ impl AndroidManager {
 
         while let Some((name, _path, target, _abi, device)) = parser.parse_next_device() {
             let is_running = running_avds.contains_key(&name);
-            let api_level = self.detect_api_level_for_device(&name, &target).await;
-            let ram_size = format!("{}", defaults::DEFAULT_RAM_MB);
-            let storage_size = format!(
-                "{}M",
-                defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
-            );
-            let android_version_name = version_map
-                .get(&api_level)
-                .cloned()
-                .unwrap_or_else(|| self.get_android_version_name(api_level));
+            let metadata =
+                if let Some(metadata) = self.get_cached_device_metadata(&name, &target).await {
+                    metadata
+                } else {
+                    let api_level = self.detect_api_level_for_device(&name, &target).await;
+                    let android_version_name = version_map
+                        .get(&api_level)
+                        .cloned()
+                        .unwrap_or_else(|| self.get_android_version_name(api_level));
+                    let metadata = super::CachedAndroidDeviceMetadata {
+                        target: target.clone(),
+                        api_level,
+                        android_version_name,
+                    };
+                    self.set_cached_device_metadata(name.clone(), metadata.clone())
+                        .await;
+                    metadata
+                };
 
             devices.push(AndroidDevice {
                 name,
                 device_type: device,
-                api_level,
-                android_version_name,
+                api_level: metadata.api_level,
+                android_version_name: metadata.android_version_name,
                 status: if is_running {
                     DeviceStatus::Running
                 } else {
                     DeviceStatus::Stopped
                 },
                 is_running,
-                ram_size,
-                storage_size,
+                ram_size: defaults::DEFAULT_RAM_MB.to_string(),
+                storage_size: format!(
+                    "{}M",
+                    defaults::DEFAULT_STORAGE_MB / STORAGE_MB_TO_GB_DIVISOR
+                ),
             });
         }
 
-        sort_discovered_devices(&mut devices);
+        sort_android_devices_for_display(&mut devices);
         Ok(devices)
     }
 
@@ -213,6 +229,8 @@ impl AndroidManager {
             .run(&self.avdmanager_path, &["delete", "avd", "-n", identifier])
             .await
             .context(format!("Failed to delete Android AVD '{identifier}'"))?;
+        self.invalidate_device_metadata_cache(Some(identifier))
+            .await;
         Ok(())
     }
 
@@ -276,20 +294,8 @@ impl AndroidManager {
             return Err(anyhow::anyhow!("HOME environment variable not set"));
         }
 
+        self.invalidate_device_metadata_cache(Some(identifier))
+            .await;
         Ok(())
     }
-}
-
-fn sort_discovered_devices(devices: &mut [AndroidDevice]) {
-    devices.sort_by_cached_key(|device| {
-        (
-            Reverse(device.api_level),
-            DynamicDeviceConfig::calculate_android_device_priority(
-                &device.device_type,
-                &device.name,
-            ),
-            device.name.to_lowercase(),
-            device.device_type.to_lowercase(),
-        )
-    });
 }

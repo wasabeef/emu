@@ -361,11 +361,12 @@ async fn test_interaction_consistency() {
     let median = timing_measurements[timing_measurements.len() / 2];
     let p95 = timing_measurements[(timing_measurements.len() * 95) / 100];
     let max = timing_measurements[timing_measurements.len() - 1];
+    let effective_median = median.max(1);
 
-    // Consistency requirement: 95th percentile within 3x of median
+    // Sub-microsecond medians can quantize to 0μs on CI, so clamp the baseline.
     assert!(
-        p95 <= median * 3,
-        "Interaction inconsistency: P95 {p95}μs exceeds 3x median {median}μs"
+        p95 <= effective_median * 3,
+        "Interaction inconsistency: P95 {p95}μs exceeds 3x median {median}μs (effective baseline: {effective_median}μs)"
     );
 
     println!("✅ Interaction consistency: median {median}μs, P95 {p95}μs, max {max}μs");

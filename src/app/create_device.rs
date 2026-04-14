@@ -1,12 +1,50 @@
 use super::{state, App, Mode, Panel};
 use crate::constants::performance::DETAIL_UPDATE_DEBOUNCE;
 use crate::managers::common::{DeviceConfig, DeviceManager};
+use crate::models::device_info::sort_android_devices_for_display;
 use crate::models::error::format_user_error;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::sync::Arc;
 
 impl App {
+    fn initialize_create_device_form(
+        form: &mut state::CreateDeviceForm,
+        device_types: Vec<(String, String)>,
+        versions: Vec<(String, String)>,
+        empty_device_message: &str,
+        empty_version_message: &str,
+    ) {
+        form.error_message = None;
+        form.available_device_types = device_types;
+        form.available_versions = versions;
+
+        if form.available_device_types.is_empty() {
+            form.error_message = Some(empty_device_message.to_string());
+            form.is_loading_cache = false;
+            return;
+        }
+
+        if form.available_versions.is_empty() {
+            form.error_message = Some(empty_version_message.to_string());
+            form.is_loading_cache = false;
+            return;
+        }
+
+        let (device_type_id, device_type) = form.available_device_types[0].clone();
+        form.device_type_id = device_type_id;
+        form.device_type = device_type;
+        form.selected_device_type_index = 0;
+
+        let (version, version_display) = form.available_versions[0].clone();
+        form.version = version;
+        form.version_display = version_display;
+        form.selected_api_level_index = 0;
+
+        form.generate_placeholder_name();
+        form.is_loading_cache = false;
+    }
+
     pub(super) async fn enter_create_device_mode(&mut self) {
         let active_panel = {
             let mut state = self.state.lock().await;
@@ -19,6 +57,31 @@ impl App {
             state.create_device_form.is_loading_cache = true;
             active_panel
         };
+
+        if matches!(active_panel, Panel::Android) {
+            let (cached_devices, cached_targets) = tokio::join!(
+                self.android_manager.get_cached_available_devices(),
+                self.android_manager.get_cached_available_targets()
+            );
+
+            if let (Some(devices), Some(targets)) = (cached_devices, cached_targets) {
+                let mut state = self.state.lock().await;
+                {
+                    let mut cache = state.device_cache.write().await;
+                    cache.android_device_cache = Some(devices.clone());
+                    cache.update_android_cache(devices.clone(), targets.clone());
+                }
+
+                Self::initialize_create_device_form(
+                    &mut state.create_device_form,
+                    devices,
+                    targets,
+                    "No Android device definitions found. Check your Android SDK installation.",
+                    "No Android targets found. Use Android Studio SDK Manager to install system images.",
+                );
+                return;
+            }
+        }
 
         let cache_available = {
             let state = self.state.lock().await;
@@ -39,79 +102,44 @@ impl App {
         tokio::spawn(async move {
             match active_panel {
                 Panel::Android => {
-                    if let Ok(targets) = android_manager.list_available_targets().await {
-                        if let Ok(devices) =
-                            android_manager.list_devices_by_category(Some("all")).await
+                    if let Ok((targets, devices)) = tokio::try_join!(
+                        android_manager.list_available_targets(),
+                        android_manager.list_devices_by_category(Some("all"))
+                    ) {
+                        let mut state = state_clone.lock().await;
                         {
-                            let mut state = state_clone.lock().await;
-                            state.create_device_form.available_versions = targets.clone();
-                            state.create_device_form.available_device_types = devices.clone();
-
-                            {
-                                let mut cache = state.device_cache.write().await;
-                                cache.update_android_cache(devices, targets);
-                            }
-
-                            if let Some((id, display)) = state
-                                .create_device_form
-                                .available_device_types
-                                .first()
-                                .cloned()
-                            {
-                                state.create_device_form.device_type_id = id;
-                                state.create_device_form.device_type = display;
-                                state.create_device_form.selected_device_type_index = 0;
-                            }
-
-                            if let Some((value, display)) =
-                                state.create_device_form.available_versions.first().cloned()
-                            {
-                                state.create_device_form.version = value;
-                                state.create_device_form.version_display = display;
-                                state.create_device_form.selected_api_level_index = 0;
-                            }
-
-                            state.create_device_form.generate_placeholder_name();
-                            state.create_device_form.is_loading_cache = false;
+                            let mut cache = state.device_cache.write().await;
+                            cache.update_android_cache(devices.clone(), targets.clone());
                         }
+
+                        Self::initialize_create_device_form(
+                            &mut state.create_device_form,
+                            devices,
+                            targets,
+                            "No Android device definitions found. Check your Android SDK installation.",
+                            "No Android targets found. Use Android Studio SDK Manager to install system images.",
+                        );
                     }
                 }
                 Panel::Ios => {
                     if let Some(ref ios_manager) = ios_manager {
-                        if let Ok(device_types) = ios_manager.list_device_types_with_names().await {
-                            if let Ok(runtimes) = ios_manager.list_runtimes().await {
-                                let mut state = state_clone.lock().await;
-                                state.create_device_form.available_device_types =
-                                    device_types.clone();
-                                state.create_device_form.available_versions = runtimes.clone();
-
-                                {
-                                    let mut cache = state.device_cache.write().await;
-                                    cache.update_ios_cache(device_types, runtimes);
-                                }
-
-                                if let Some((id, display)) = state
-                                    .create_device_form
-                                    .available_device_types
-                                    .first()
-                                    .cloned()
-                                {
-                                    state.create_device_form.device_type_id = id;
-                                    state.create_device_form.device_type = display;
-                                    state.create_device_form.selected_device_type_index = 0;
-                                }
-
-                                if let Some((value, display)) =
-                                    state.create_device_form.available_versions.first().cloned()
-                                {
-                                    state.create_device_form.version = value;
-                                    state.create_device_form.version_display = display;
-                                    state.create_device_form.selected_api_level_index = 0;
-                                }
-
-                                state.create_device_form.generate_placeholder_name();
-                                state.create_device_form.is_loading_cache = false;
+                        if let Ok((device_types, runtimes)) = tokio::try_join!(
+                            ios_manager.list_device_types_with_names(),
+                            ios_manager.list_runtimes()
+                        ) {
+                            let mut state = state_clone.lock().await;
+                            {
+                                let mut cache = state.device_cache.write().await;
+                                cache.update_ios_cache(device_types.clone(), runtimes.clone());
                             }
+
+                            Self::initialize_create_device_form(
+                                &mut state.create_device_form,
+                                device_types,
+                                runtimes,
+                                "No iOS device types available.",
+                                "No iOS runtimes available. Install iOS runtimes using Xcode.",
+                            );
                         }
                     }
                 }
@@ -127,98 +155,46 @@ impl App {
             Panel::Android => {
                 drop(state);
 
-                let available_devices = {
+                let category_filter = {
                     let state = self.state.lock().await;
-                    let category_filter =
-                        if state.create_device_form.device_category_filter == "all" {
-                            None
-                        } else {
-                            Some(state.create_device_form.device_category_filter.clone())
-                        };
-                    drop(state);
-                    self.android_manager
-                        .list_devices_by_category(category_filter.as_deref())
-                        .await?
+                    if state.create_device_form.device_category_filter == "all" {
+                        None
+                    } else {
+                        Some(state.create_device_form.device_category_filter.clone())
+                    }
                 };
-                if available_devices.is_empty() {
-                    let mut state = self.state.lock().await;
-                    state.create_device_form.error_message = Some(
-                        "No Android device definitions found. Check your Android SDK installation."
-                            .to_string(),
-                    );
-                    return Ok(());
-                }
-
-                let available_targets = self.android_manager.list_available_targets().await?;
-                if available_targets.is_empty() {
-                    let mut state = self.state.lock().await;
-                    state.create_device_form.error_message = Some("No Android targets found. Use Android Studio SDK Manager to install system images.".to_string());
-                    return Ok(());
-                }
+                let (available_devices, available_targets) = tokio::try_join!(
+                    self.android_manager
+                        .list_devices_by_category(category_filter.as_deref()),
+                    self.android_manager.list_available_targets()
+                )?;
 
                 let mut state = self.state.lock().await;
-                state.create_device_form.available_device_types = available_devices;
-                state.create_device_form.available_versions = available_targets;
-
-                if !state.create_device_form.available_device_types.is_empty() {
-                    let (id, display) = state.create_device_form.available_device_types[0].clone();
-                    state.create_device_form.device_type_id = id;
-                    state.create_device_form.device_type = display;
-                    state.create_device_form.selected_device_type_index = 0;
-                }
-
-                if !state.create_device_form.available_versions.is_empty() {
-                    let (value, display) = state.create_device_form.available_versions[0].clone();
-                    state.create_device_form.version = value;
-                    state.create_device_form.version_display = display;
-                    state.create_device_form.selected_api_level_index = 0;
-                }
-
-                state.create_device_form.generate_placeholder_name();
+                Self::initialize_create_device_form(
+                    &mut state.create_device_form,
+                    available_devices,
+                    available_targets,
+                    "No Android device definitions found. Check your Android SDK installation.",
+                    "No Android targets found. Use Android Studio SDK Manager to install system images.",
+                );
             }
             Panel::Ios => {
                 if let Some(ref ios_manager) = self.ios_manager {
                     drop(state);
 
-                    let available_device_types = ios_manager.list_device_types_with_names().await?;
-                    if available_device_types.is_empty() {
-                        let mut state = self.state.lock().await;
-                        state.create_device_form.error_message =
-                            Some("No iOS device types available.".to_string());
-                        return Ok(());
-                    }
-
-                    let available_runtimes = ios_manager.list_runtimes().await?;
-                    if available_runtimes.is_empty() {
-                        let mut state = self.state.lock().await;
-                        state.create_device_form.error_message = Some(
-                            "No iOS runtimes available. Install iOS runtimes using Xcode."
-                                .to_string(),
-                        );
-                        return Ok(());
-                    }
+                    let (available_device_types, available_runtimes) = tokio::try_join!(
+                        ios_manager.list_device_types_with_names(),
+                        ios_manager.list_runtimes()
+                    )?;
 
                     let mut state = self.state.lock().await;
-                    state.create_device_form.available_device_types = available_device_types;
-                    state.create_device_form.available_versions = available_runtimes;
-
-                    if !state.create_device_form.available_device_types.is_empty() {
-                        let (id, display) =
-                            state.create_device_form.available_device_types[0].clone();
-                        state.create_device_form.device_type_id = id;
-                        state.create_device_form.device_type = display;
-                        state.create_device_form.selected_device_type_index = 0;
-                    }
-
-                    if !state.create_device_form.available_versions.is_empty() {
-                        let (value, display) =
-                            state.create_device_form.available_versions[0].clone();
-                        state.create_device_form.version = value;
-                        state.create_device_form.version_display = display;
-                        state.create_device_form.selected_api_level_index = 0;
-                    }
-
-                    state.create_device_form.generate_placeholder_name();
+                    Self::initialize_create_device_form(
+                        &mut state.create_device_form,
+                        available_device_types,
+                        available_runtimes,
+                        "No iOS device types available.",
+                        "No iOS runtimes available. Install iOS runtimes using Xcode.",
+                    );
                 } else {
                     let mut state = self.state.lock().await;
                     state.create_device_form.error_message =
@@ -363,7 +339,8 @@ impl App {
 
                     match active_panel {
                         Panel::Android => {
-                            if let Ok(devices) = android_manager.list_devices().await {
+                            if let Ok(mut devices) = android_manager.list_devices().await {
+                                sort_android_devices_for_display(&mut devices);
                                 let mut state = state_clone.lock().await;
                                 state.android_devices = devices;
                                 state.mode = Mode::Normal;

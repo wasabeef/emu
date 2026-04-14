@@ -20,20 +20,26 @@ use anyhow::Result;
 impl AndroidManager {
     /// Lists available API levels with their installation status and Android version names.
     pub async fn list_api_levels(&self) -> Result<Vec<ApiLevel>> {
-        let sdkmanager_path = Self::find_tool(&self.android_home, commands::SDKMANAGER)?;
-        let output = tokio::process::Command::new(&sdkmanager_path)
-            .args([commands::sdkmanager::LIST, "--verbose"])
-            .output()
-            .await?;
-
-        if !output.status.success() {
-            return Err(anyhow::anyhow!(
-                "Failed to list system images: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
+        if let Some(cached_levels) = self.get_cached_api_levels().await {
+            return Ok(cached_levels);
         }
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
+        let output = self.get_sdkmanager_verbose_output().await?;
+        let api_levels = self.parse_api_levels_from_output(&output);
+        self.set_cached_api_levels(api_levels.clone()).await;
+
+        Ok(api_levels)
+    }
+
+    pub(crate) async fn list_api_levels_fresh(&self) -> Result<Vec<ApiLevel>> {
+        let output = self.refresh_sdkmanager_verbose_output().await?;
+        let api_levels = self.parse_api_levels_from_output(&output);
+        self.set_cached_api_levels(api_levels.clone()).await;
+
+        Ok(api_levels)
+    }
+
+    fn parse_api_levels_from_output(&self, output_str: &str) -> Vec<ApiLevel> {
         let mut api_levels_map: std::collections::HashMap<u32, ApiLevel> =
             std::collections::HashMap::new();
         let mut in_installed_section = false;
@@ -107,8 +113,7 @@ impl AndroidManager {
 
         let mut api_levels: Vec<ApiLevel> = api_levels_map.into_values().collect();
         api_levels.sort_by(|a, b| b.api.cmp(&a.api));
-
-        Ok(api_levels)
+        api_levels
     }
 
     /// Installs a system image with progress callback.
@@ -281,6 +286,7 @@ impl AndroidManager {
         stop_timer.store(true, std::sync::atomic::Ordering::Relaxed);
 
         if output.status.success() {
+            self.invalidate_sdk_list_caches().await;
             Ok(())
         } else {
             Err(anyhow::anyhow!(
@@ -299,6 +305,7 @@ impl AndroidManager {
             .await?;
 
         if output.status.success() {
+            self.invalidate_sdk_list_caches().await;
             Ok(())
         } else {
             Err(anyhow::anyhow!(

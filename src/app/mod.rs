@@ -27,7 +27,7 @@ mod refresh;
 
 use crate::{
     constants::{
-        performance::{INPUT_BATCH_DELAY, MAX_CONTINUOUS_EVENTS},
+        performance::{FULL_DEVICE_REFRESH_INTERVAL, INPUT_BATCH_DELAY, MAX_CONTINUOUS_EVENTS},
         timeouts::{AUTO_REFRESH_CHECK_INTERVAL, EVENT_POLL_TIMEOUT, NOTIFICATION_CHECK_INTERVAL},
     },
     managers::{AndroidManager, IosManager},
@@ -80,6 +80,10 @@ pub struct App {
     /// Join handle for background device detail fetching.
     /// Used to debounce detail updates during rapid navigation.
     detail_update_handle: Option<tokio::task::JoinHandle<()>>,
+
+    /// Timestamp of the last full device metadata refresh.
+    /// Auto-refresh can use lighter status-only checks between these refreshes.
+    last_full_device_refresh: std::time::Instant,
 }
 
 impl App {
@@ -119,6 +123,7 @@ impl App {
             ios_manager,
             log_update_handle: None,
             detail_update_handle: None,
+            last_full_device_refresh: std::time::Instant::now() - FULL_DEVICE_REFRESH_INTERVAL,
         };
 
         // Start background operations for optimal startup performance

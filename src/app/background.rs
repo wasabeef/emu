@@ -1,39 +1,56 @@
 use super::{App, Panel};
 use crate::managers::common::DeviceManager;
 use crate::managers::AndroidManager;
-use crate::models::{DeviceDetails, Platform};
+use crate::models::{device_info::sort_android_devices_for_display, DeviceDetails, Platform};
 use std::sync::Arc;
 
 impl App {
     /// Start background device info cache loading
     pub(super) fn start_background_cache_loading(&mut self) {
         let state_clone = Arc::clone(&self.state);
+        let android_manager = self.android_manager.clone();
 
-        tokio::spawn(async move {
-            if let Ok(android_manager) = crate::managers::AndroidManager::new() {
-                if let Ok(device_types) = android_manager.list_available_devices().await {
-                    if let Ok(api_levels) = android_manager.list_available_targets().await {
-                        let state = state_clone.lock().await;
-                        let mut cache = state.device_cache.write().await;
-                        cache.android_device_cache = Some(device_types.clone());
-                        cache.update_android_cache(device_types, api_levels);
-                        log::info!("Android device cache updated successfully");
-                    }
-                }
-            }
+        tokio::spawn({
+            let state_clone = Arc::clone(&state_clone);
+            let android_manager = android_manager.clone();
+            async move {
+                let (device_types_result, api_levels_result) = tokio::join!(
+                    android_manager.list_available_devices(),
+                    android_manager.list_available_targets()
+                );
 
-            #[cfg(target_os = "macos")]
-            if let Ok(ios_manager) = crate::managers::IosManager::new() {
-                if let Ok(device_types) = ios_manager.list_device_types_with_names().await {
-                    if let Ok(runtimes) = ios_manager.list_runtimes().await {
-                        let state = state_clone.lock().await;
-                        let mut cache = state.device_cache.write().await;
-                        cache.update_ios_cache(device_types, runtimes);
-                        log::info!("iOS device cache updated successfully");
-                    }
+                if let (Ok(device_types), Ok(api_levels)) = (device_types_result, api_levels_result)
+                {
+                    let state = state_clone.lock().await;
+                    let mut cache = state.device_cache.write().await;
+                    cache.android_device_cache = Some(device_types.clone());
+                    cache.update_android_cache(device_types, api_levels);
+                    log::info!("Android device cache updated successfully");
                 }
+
+                let _ = android_manager.list_api_levels().await;
             }
         });
+
+        #[cfg(target_os = "macos")]
+        let ios_manager = self.ios_manager.clone();
+
+        #[cfg(target_os = "macos")]
+        if let Some(ios_manager) = ios_manager {
+            tokio::spawn(async move {
+                let (device_types_result, runtimes_result) = tokio::join!(
+                    ios_manager.list_device_types_with_names(),
+                    ios_manager.list_runtimes()
+                );
+
+                if let (Ok(device_types), Ok(runtimes)) = (device_types_result, runtimes_result) {
+                    let state = state_clone.lock().await;
+                    let mut cache = state.device_cache.write().await;
+                    cache.update_ios_cache(device_types, runtimes);
+                    log::info!("iOS device cache updated successfully");
+                }
+            });
+        }
     }
 
     /// Load device list in background (improve startup speed)
@@ -43,18 +60,12 @@ impl App {
         let ios_manager = self.ios_manager.clone();
 
         tokio::spawn({
-            let android_manager = android_manager.clone();
-            async move {
-                let _ = android_manager.list_available_targets().await;
-            }
-        });
-
-        tokio::spawn({
             let state_clone = Arc::clone(&state_clone);
             let android_manager = android_manager.clone();
             async move {
                 match android_manager.list_devices_parallel().await {
-                    Ok(android_devices) => {
+                    Ok(mut android_devices) => {
+                        sort_android_devices_for_display(&mut android_devices);
                         let mut state = state_clone.lock().await;
                         state.android_devices = android_devices;
                         state.is_loading = false;
