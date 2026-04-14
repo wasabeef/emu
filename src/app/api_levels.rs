@@ -220,6 +220,7 @@ impl App {
                         std::slice::from_ref(&package_id),
                         true,
                     );
+                    api_mgmt.error_message = None;
                     api_mgmt.is_loading = true;
                 }
 
@@ -240,7 +241,10 @@ impl App {
                         api_mgmt.install_progress = None;
                         api_mgmt.is_loading = false;
                         match refresh_result {
-                            Ok(new_levels) => api_mgmt.api_levels = new_levels,
+                            Ok(new_levels) => {
+                                api_mgmt.api_levels = new_levels;
+                                api_mgmt.error_message = None;
+                            }
                             Err(error) => {
                                 log::warn!("Failed to refresh API levels after install: {error}");
                             }
@@ -296,6 +300,7 @@ impl App {
             if success {
                 if let Some(ref mut api_mgmt) = state.api_level_management {
                     Self::update_api_level_installation_state(api_mgmt, &installed_variants, false);
+                    api_mgmt.error_message = None;
                     api_mgmt.is_loading = true;
                 }
 
@@ -324,7 +329,10 @@ impl App {
                     api_mgmt.install_progress = None;
                     api_mgmt.is_loading = false;
                     match refresh_result {
-                        Ok(new_levels) => api_mgmt.api_levels = new_levels,
+                        Ok(new_levels) => {
+                            api_mgmt.api_levels = new_levels;
+                            api_mgmt.error_message = None;
+                        }
                         Err(error) => {
                             log::warn!("Failed to refresh API levels after uninstall: {error}");
                         }

@@ -1230,6 +1230,135 @@ exit 0
 }
 
 #[test]
+async fn test_busy_error_is_cleared_after_install_refresh_completes() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+    let android_home =
+        std::env::var("ANDROID_HOME").expect("ANDROID_HOME should be set by StartupTestEnv");
+    let sdkmanager_path =
+        std::path::PathBuf::from(&android_home).join("cmdline-tools/latest/bin/sdkmanager");
+    let install_marker = std::path::PathBuf::from(&android_home).join("install-finished");
+
+    std::fs::write(
+        &sdkmanager_path,
+        format!(
+            r#"#!/bin/sh
+MARKER="{marker}"
+if [ "$1" = "--list" ]; then
+    if [ -f "$MARKER" ]; then
+        cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+
+Available Packages:
+EOF
+    else
+        cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+
+Available Packages:
+  system-images;android-34;google_apis_playstore;arm64-v8a | 1 | Android SDK Platform 34 | system-images/android-34/google_apis_playstore/arm64-v8a
+EOF
+    fi
+    exit 0
+fi
+
+touch "$MARKER"
+exit 0
+"#,
+            marker = install_marker.display()
+        ),
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let mut app = App {
+        state: Arc::new(Mutex::new(AppState::new())),
+        android_manager: AndroidManager::new().expect("Android manager should initialize"),
+        ios_manager: None,
+        log_update_handle: None,
+        detail_update_handle: None,
+        last_full_device_refresh: std::time::Instant::now(),
+    };
+
+    app.open_api_level_management().await;
+
+    for _ in 0..40 {
+        let is_ready = {
+            let state = app.state.lock().await;
+            state
+                .api_level_management
+                .as_ref()
+                .map(|api_mgmt| !api_mgmt.is_loading && !api_mgmt.api_levels.is_empty())
+                .unwrap_or(false)
+        };
+
+        if is_ready {
+            break;
+        }
+
+        sleep(Duration::from_millis(25)).await;
+    }
+
+    app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+        .await;
+    app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
+        .await;
+
+    let busy_error_seen = {
+        let state = app.state.lock().await;
+        state
+            .api_level_management
+            .as_ref()
+            .and_then(|api_mgmt| api_mgmt.error_message.as_deref())
+            == Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+    };
+    assert!(busy_error_seen);
+
+    for _ in 0..80 {
+        let is_complete = {
+            let state = app.state.lock().await;
+            state
+                .api_level_management
+                .as_ref()
+                .map(|api_mgmt| {
+                    api_mgmt.installing_package.is_none()
+                        && api_mgmt.install_progress.is_none()
+                        && !api_mgmt.is_loading
+                })
+                .unwrap_or(false)
+        };
+
+        if is_complete {
+            break;
+        }
+
+        sleep(Duration::from_millis(25)).await;
+    }
+
+    let state = app.state.lock().await;
+    let api_state = state
+        .api_level_management
+        .as_ref()
+        .expect("API level management should stay open");
+    let selected_api = api_state
+        .get_selected_api_level()
+        .expect("selected API level should exist");
+
+    assert!(selected_api.is_installed);
+    assert!(api_state.error_message.is_none());
+}
+
+#[test]
 async fn test_enter_create_device_mode_uses_cached_android_form_immediately() {
     let _env_lock = acquire_test_env_lock().await;
     let _env = StartupTestEnv::new();
