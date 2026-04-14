@@ -3,12 +3,16 @@
 //! Measures application startup time, response performance, and memory usage
 //! to detect performance regressions.
 
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use emu::app::state::AppState;
 use emu::managers::android::AndroidManager;
 use emu::managers::common::DeviceManager;
 #[cfg(feature = "test-utils")]
 use emu::models::{AndroidDevice, DeviceStatus};
-use emu::utils::command_executor::mock::MockCommandExecutor;
+use emu::utils::command_executor::{mock::MockCommandExecutor, CommandExecutor};
+use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -18,6 +22,7 @@ const PERFORMANCE_TARGET_DEVICE_LIST_REOPEN_MS: u64 = 120;
 const PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS: u64 = 60;
 const PERFORMANCE_TARGET_UI_RENDER_MS: u64 = 50;
 const PERFORMANCE_TARGET_API_LEVEL_REOPEN_MS: u64 = 100;
+const PERFORMANCE_TARGET_RUNNING_AVD_DETECTION_MS: u64 = 80;
 
 use crate::common::{acquire_test_env_lock, setup_mock_android_sdk, EnvVarGuard};
 
@@ -291,6 +296,32 @@ async fn test_available_device_list_reopen_performance() {
 
     println!(
         "✅ Available device list reopen benchmark: cold={cold_duration:?}, warm={warm_duration:?} (target warm: <{PERFORMANCE_TARGET_AVAILABLE_DEVICE_REOPEN_MS}ms)"
+    );
+}
+
+/// Running Android emulator name detection performance test.
+#[tokio::test]
+async fn test_running_avd_detection_performance() {
+    let _env_lock = acquire_test_env_lock().await;
+    let temp_dir = setup_mock_android_sdk();
+    let _android_home = EnvVarGuard::set("ANDROID_HOME", temp_dir.path());
+
+    let emulator_count = 6;
+    let command_executor = DelayedAdbExecutor::new(emulator_count, Duration::from_millis(15));
+    let android_manager = AndroidManager::with_executor(Arc::new(command_executor)).unwrap();
+
+    let start = Instant::now();
+    let running_avds = android_manager.get_running_avd_names().await.unwrap();
+    let duration = start.elapsed();
+
+    assert_eq!(running_avds.len(), emulator_count);
+    assert!(
+        duration.as_millis() < PERFORMANCE_TARGET_RUNNING_AVD_DETECTION_MS as u128,
+        "Running AVD detection {duration:?} exceeds target of {PERFORMANCE_TARGET_RUNNING_AVD_DETECTION_MS}ms"
+    );
+
+    println!(
+        "✅ Running AVD detection benchmark: {duration:?} (target: <{PERFORMANCE_TARGET_RUNNING_AVD_DETECTION_MS}ms)"
     );
 }
 
@@ -731,6 +762,88 @@ fn create_available_device_list_output(device_count: usize) -> String {
     }
 
     output
+}
+
+#[derive(Clone)]
+struct DelayedAdbExecutor {
+    adb_devices_output: String,
+    boot_prop_by_emulator: HashMap<String, String>,
+    per_lookup_delay: Duration,
+}
+
+impl DelayedAdbExecutor {
+    fn new(device_count: usize, per_lookup_delay: Duration) -> Self {
+        let mut adb_devices_output = String::from("List of devices attached\n");
+        let mut boot_prop_by_emulator = HashMap::new();
+
+        for i in 0..device_count {
+            let emulator_id = format!("emulator-{}", 5554 + (i * 2));
+            let avd_name = format!("Performance_Device_{}", i + 1);
+            adb_devices_output.push_str(&format!("{emulator_id}\tdevice\n"));
+            boot_prop_by_emulator.insert(emulator_id, avd_name);
+        }
+
+        Self {
+            adb_devices_output,
+            boot_prop_by_emulator,
+            per_lookup_delay,
+        }
+    }
+}
+
+#[async_trait]
+impl CommandExecutor for DelayedAdbExecutor {
+    async fn run(&self, command: &Path, args: &[&str]) -> Result<String> {
+        let command_name = command
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+
+        if command_name != "adb" {
+            return Err(anyhow!("Unexpected command: {command_name}"));
+        }
+
+        if args == ["devices"] {
+            return Ok(self.adb_devices_output.clone());
+        }
+
+        if args.len() == 5
+            && args[0] == "-s"
+            && args[2] == "shell"
+            && args[3] == "getprop"
+            && args[4] == "ro.boot.qemu.avd_name"
+        {
+            tokio::time::sleep(self.per_lookup_delay).await;
+            return Ok(self
+                .boot_prop_by_emulator
+                .get(args[1])
+                .cloned()
+                .unwrap_or_default());
+        }
+
+        Err(anyhow!("Unexpected adb args: {}", args.join(" ")))
+    }
+
+    async fn spawn(&self, command: &Path, args: &[&str]) -> Result<u32> {
+        Err(anyhow!(
+            "DelayedAdbExecutor does not support spawn: {} {}",
+            command.display(),
+            args.join(" ")
+        ))
+    }
+
+    async fn run_with_retry(&self, command: &Path, args: &[&str], _retries: u32) -> Result<String> {
+        self.run(command, args).await
+    }
+
+    async fn run_ignoring_errors(
+        &self,
+        command: &Path,
+        args: &[&str],
+        _ignore_patterns: &[&str],
+    ) -> Result<String> {
+        self.run(command, args).await
+    }
 }
 
 #[cfg(feature = "test-utils")]

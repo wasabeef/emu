@@ -49,12 +49,19 @@ impl App {
             (existing_android, existing_ios, pending_device)
         };
 
-        let new_android_devices = self.android_manager.list_devices().await?;
-        let new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
-            ios_manager.list_devices().await?
+        let new_android_devices;
+        let new_ios_devices;
+        if let Some(ios_manager) = self.ios_manager.clone() {
+            let (android_devices, ios_devices) = tokio::try_join!(
+                self.android_manager.list_devices(),
+                ios_manager.list_devices()
+            )?;
+            new_android_devices = android_devices;
+            new_ios_devices = ios_devices;
         } else {
-            Vec::new()
-        };
+            new_android_devices = self.android_manager.list_devices().await?;
+            new_ios_devices = Vec::new();
+        }
 
         let updated_android = self.process_android_updates(existing_android, new_android_devices);
         let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
@@ -135,22 +142,39 @@ impl App {
             )
         };
 
-        let running_avds = if existing_android.is_empty() {
-            HashMap::new()
-        } else {
-            self.android_manager.get_running_avd_names().await?
-        };
-        let updated_android = self.process_android_status_updates(existing_android, &running_avds);
+        let should_refresh_android = !existing_android.is_empty();
         let should_refresh_ios = !existing_ios.is_empty();
-        let new_ios_devices = if should_refresh_ios {
-            if let Some(ref ios_manager) = self.ios_manager {
+
+        let running_avds;
+        let new_ios_devices;
+        if should_refresh_android && should_refresh_ios {
+            if let Some(ios_manager) = self.ios_manager.clone() {
+                let (android_running_avds, ios_devices) = tokio::try_join!(
+                    self.android_manager.get_running_avd_names(),
+                    ios_manager.list_devices()
+                )?;
+                running_avds = android_running_avds;
+                new_ios_devices = ios_devices;
+            } else {
+                running_avds = self.android_manager.get_running_avd_names().await?;
+                new_ios_devices = Vec::new();
+            }
+        } else if should_refresh_android {
+            running_avds = self.android_manager.get_running_avd_names().await?;
+            new_ios_devices = Vec::new();
+        } else if should_refresh_ios {
+            running_avds = HashMap::new();
+            new_ios_devices = if let Some(ref ios_manager) = self.ios_manager {
                 ios_manager.list_devices().await?
             } else {
                 Vec::new()
-            }
+            };
         } else {
-            Vec::new()
-        };
+            running_avds = HashMap::new();
+            new_ios_devices = Vec::new();
+        }
+
+        let updated_android = self.process_android_status_updates(existing_android, &running_avds);
         let updated_ios = self.process_ios_updates(existing_ios, new_ios_devices);
 
         let mut state = self.state.lock().await;
