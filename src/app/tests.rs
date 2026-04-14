@@ -1283,6 +1283,30 @@ exit 0
         sleep(Duration::from_millis(25)).await;
     }
 
+    for _ in 0..40 {
+        let is_installed = {
+            let state = app.state.lock().await;
+            state
+                .api_level_management
+                .as_ref()
+                .and_then(|api_state| api_state.get_selected_api_level())
+                .map(|selected_api| {
+                    selected_api.is_installed
+                        && selected_api
+                            .get_recommended_variant()
+                            .map(|variant| variant.is_installed)
+                            .unwrap_or(false)
+                })
+                .unwrap_or(false)
+        };
+
+        if is_installed {
+            break;
+        }
+
+        sleep(Duration::from_millis(25)).await;
+    }
+
     let state = app.state.lock().await;
     let api_state = state
         .api_level_management
