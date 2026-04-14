@@ -9,7 +9,6 @@ impl App {
     pub(super) fn start_background_cache_loading(&mut self) {
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
-        let ios_manager = self.ios_manager.clone();
 
         tokio::spawn({
             let state_clone = Arc::clone(&state_clone);
@@ -32,6 +31,9 @@ impl App {
                 let _ = android_manager.list_api_levels().await;
             }
         });
+
+        #[cfg(target_os = "macos")]
+        let ios_manager = self.ios_manager.clone();
 
         #[cfg(target_os = "macos")]
         if let Some(ios_manager) = ios_manager {
