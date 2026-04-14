@@ -1,7 +1,7 @@
 use super::{state, App, Mode, Panel};
 use crate::constants::{
     messages::{
-        errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS,
+        errors::{CANNOT_SELECT_DURING_DOWNLOAD, CANNOT_SELECT_DURING_SYSTEM_IMAGE_OPERATION},
         notifications::{
             INSTALL_PROGRESS_COMPLETE, SYSTEM_IMAGE_INSTALLED, SYSTEM_IMAGE_UNINSTALLED,
         },
@@ -29,10 +29,6 @@ impl App {
                 .iter()
                 .any(|variant| variant.is_installed);
         }
-    }
-
-    fn set_api_level_busy_error(api_mgmt: &mut state::ApiLevelManagementState) {
-        api_mgmt.error_message = Some(SYSTEM_IMAGE_OPERATION_IN_PROGRESS.to_string());
     }
 
     pub(super) async fn open_api_level_management(&mut self) {
@@ -108,7 +104,7 @@ impl App {
                 let mut state = self.state.lock().await;
                 let can_install = if let Some(api_mgmt) = state.api_level_management.as_mut() {
                     if api_mgmt.is_busy() {
-                        Self::set_api_level_busy_error(api_mgmt);
+                        state.add_warning_notification(CANNOT_SELECT_DURING_DOWNLOAD.to_string());
                         false
                     } else {
                         true
@@ -126,7 +122,9 @@ impl App {
                 let mut state = self.state.lock().await;
                 let can_uninstall = if let Some(api_mgmt) = state.api_level_management.as_mut() {
                     if api_mgmt.is_busy() {
-                        Self::set_api_level_busy_error(api_mgmt);
+                        state.add_warning_notification(
+                            CANNOT_SELECT_DURING_SYSTEM_IMAGE_OPERATION.to_string(),
+                        );
                         false
                     } else {
                         true

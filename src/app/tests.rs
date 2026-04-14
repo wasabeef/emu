@@ -1031,9 +1031,13 @@ async fn test_handle_api_level_mode_key_ignores_install_while_busy() {
         .api_level_management
         .as_ref()
         .expect("API level management should remain open");
+    assert!(api_state.error_message.is_none());
     assert_eq!(
-        api_state.error_message.as_deref(),
-        Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+        state
+            .notifications
+            .back()
+            .map(|notification| notification.message.as_str()),
+        Some(crate::constants::messages::errors::CANNOT_SELECT_DURING_DOWNLOAD)
     );
 }
 
@@ -1106,9 +1110,13 @@ async fn test_handle_api_level_mode_key_ignores_uninstall_while_busy() {
         .api_level_management
         .as_ref()
         .expect("API level management should remain open");
+    assert!(api_state.error_message.is_none());
     assert_eq!(
-        api_state.error_message.as_deref(),
-        Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+        state
+            .notifications
+            .back()
+            .map(|notification| notification.message.as_str()),
+        Some(crate::constants::messages::errors::CANNOT_SELECT_DURING_SYSTEM_IMAGE_OPERATION)
     );
 }
 
@@ -1314,15 +1322,15 @@ exit 0
     app.handle_api_level_mode_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
         .await;
 
-    let busy_error_seen = {
+    let busy_warning_seen = {
         let state = app.state.lock().await;
         state
-            .api_level_management
-            .as_ref()
-            .and_then(|api_mgmt| api_mgmt.error_message.as_deref())
-            == Some(crate::constants::messages::errors::SYSTEM_IMAGE_OPERATION_IN_PROGRESS)
+            .notifications
+            .back()
+            .map(|notification| notification.message.as_str())
+            == Some(crate::constants::messages::errors::CANNOT_SELECT_DURING_DOWNLOAD)
     };
-    assert!(busy_error_seen);
+    assert!(busy_warning_seen);
 
     for _ in 0..80 {
         let is_complete = {
