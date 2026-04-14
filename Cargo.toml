@@ -1,6 +1,6 @@
 [package]
 name = "emu"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 authors = ["Daichi Furiya"]
 description = "A terminal user interface for managing Android emulators and iOS simulators with a lazygit-inspired design"
