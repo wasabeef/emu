@@ -32,6 +32,48 @@ impl App {
             return;
         }
 
+        if matches!(active_panel, Panel::Android) {
+            let (cached_devices, cached_targets) = tokio::join!(
+                self.android_manager.get_cached_available_devices(),
+                self.android_manager.get_cached_available_targets()
+            );
+
+            if let (Some(devices), Some(targets)) = (cached_devices, cached_targets) {
+                let mut state = self.state.lock().await;
+                state.create_device_form.available_device_types = devices.clone();
+                state.create_device_form.available_versions = targets.clone();
+
+                {
+                    let mut cache = state.device_cache.write().await;
+                    cache.android_device_cache = Some(devices.clone());
+                    cache.update_android_cache(devices, targets);
+                }
+
+                if let Some((id, display)) = state
+                    .create_device_form
+                    .available_device_types
+                    .first()
+                    .cloned()
+                {
+                    state.create_device_form.device_type_id = id;
+                    state.create_device_form.device_type = display;
+                    state.create_device_form.selected_device_type_index = 0;
+                }
+
+                if let Some((value, display)) =
+                    state.create_device_form.available_versions.first().cloned()
+                {
+                    state.create_device_form.version = value;
+                    state.create_device_form.version_display = display;
+                    state.create_device_form.selected_api_level_index = 0;
+                }
+
+                state.create_device_form.generate_placeholder_name();
+                state.create_device_form.is_loading_cache = false;
+                return;
+            }
+        }
+
         let state_clone = Arc::clone(&self.state);
         let android_manager = self.android_manager.clone();
         let ios_manager = self.ios_manager.clone();

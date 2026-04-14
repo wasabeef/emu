@@ -418,7 +418,7 @@ impl AndroidManager {
         })
     }
 
-    async fn get_cached_available_targets(&self) -> Option<Vec<(String, String)>> {
+    pub(crate) async fn get_cached_available_targets(&self) -> Option<Vec<(String, String)>> {
         let cache = self.available_targets_cache.read().await;
         cache.as_ref().and_then(|cache| {
             cache
@@ -432,7 +432,7 @@ impl AndroidManager {
         *cache = Some(TimedCache::new(targets));
     }
 
-    async fn get_cached_available_devices(&self) -> Option<Vec<(String, String)>> {
+    pub(crate) async fn get_cached_available_devices(&self) -> Option<Vec<(String, String)>> {
         let cache = self.available_devices_cache.read().await;
         cache.as_ref().and_then(|cache| {
             cache

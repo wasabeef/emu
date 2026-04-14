@@ -984,6 +984,43 @@ async fn test_enter_create_device_mode_uses_cached_android_form_immediately() {
     );
 }
 
+#[test]
+async fn test_enter_create_device_mode_uses_manager_cache_when_state_cache_is_empty() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+
+    let mut app = App::new()
+        .await
+        .expect("App should initialize with startup test environment");
+
+    let _ = tokio::join!(
+        app.android_manager.list_available_devices(),
+        app.android_manager.list_available_targets()
+    );
+
+    {
+        let state = app.state.lock().await;
+        let mut cache = state.device_cache.write().await;
+        cache.android_device_types.clear();
+        cache.android_api_levels.clear();
+        cache.android_device_cache = None;
+    }
+
+    let start = std::time::Instant::now();
+    app.enter_create_device_mode().await;
+    let elapsed = start.elapsed();
+
+    let state = app.state.lock().await;
+    assert_eq!(state.mode, Mode::CreateDevice);
+    assert!(!state.create_device_form.is_loading_cache);
+    assert!(!state.create_device_form.available_device_types.is_empty());
+    assert!(!state.create_device_form.available_versions.is_empty());
+    assert!(
+        elapsed <= crate::constants::performance::CREATE_DEVICE_DIALOG_OPEN_TARGET,
+        "opening create-device dialog from manager cache should be immediate, took {elapsed:?}"
+    );
+}
+
 #[allow(dead_code)]
 async fn test_event_processing_disabled() {
     let temp_dir = tempfile::tempdir().unwrap();

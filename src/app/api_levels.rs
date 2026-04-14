@@ -9,6 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 impl App {
     pub(super) async fn open_api_level_management(&mut self) {
         let cached_api_levels = self.android_manager.get_cached_api_levels().await;
+        let has_warm_cache = cached_api_levels.is_some();
 
         let should_open = {
             let mut state = self.state.lock().await;
@@ -27,6 +28,10 @@ impl App {
         };
 
         if !should_open {
+            return;
+        }
+
+        if has_warm_cache {
             return;
         }
 
