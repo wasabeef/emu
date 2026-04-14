@@ -845,6 +845,7 @@ async fn test_should_use_full_device_refresh_without_any_devices() {
         false,
         false,
         false,
+        false,
         Duration::from_secs(1),
     ));
 }
@@ -854,16 +855,40 @@ async fn test_should_use_full_device_refresh_for_pending_device() {
     assert!(App::should_use_full_device_refresh(
         true,
         false,
+        false,
         true,
         Duration::from_secs(1),
     ));
 }
 
 #[test]
-async fn test_should_use_status_only_refresh_when_ios_devices_exist_and_refresh_is_fresh() {
-    assert!(!App::should_use_full_device_refresh(
+async fn test_should_use_full_device_refresh_when_android_list_is_empty() {
+    assert!(App::should_use_full_device_refresh(
         false,
         true,
+        true,
+        false,
+        Duration::from_secs(1),
+    ));
+}
+
+#[test]
+async fn test_should_use_full_device_refresh_when_ios_list_is_empty_on_macos() {
+    assert!(App::should_use_full_device_refresh(
+        true,
+        false,
+        true,
+        false,
+        Duration::from_secs(1),
+    ));
+}
+
+#[test]
+async fn test_should_use_status_only_refresh_when_android_devices_exist_without_ios_manager() {
+    assert!(!App::should_use_full_device_refresh(
+        true,
+        false,
+        false,
         false,
         Duration::from_secs(1),
     ));
@@ -872,6 +897,7 @@ async fn test_should_use_status_only_refresh_when_ios_devices_exist_and_refresh_
 #[test]
 async fn test_should_use_full_device_refresh_when_interval_expires() {
     assert!(App::should_use_full_device_refresh(
+        true,
         true,
         true,
         false,
@@ -1018,6 +1044,71 @@ async fn test_enter_create_device_mode_uses_manager_cache_when_state_cache_is_em
     assert!(
         elapsed <= crate::constants::performance::CREATE_DEVICE_DIALOG_OPEN_TARGET,
         "opening create-device dialog from manager cache should be immediate, took {elapsed:?}"
+    );
+}
+
+#[test]
+async fn test_enter_create_device_mode_uses_manager_cache_empty_state_messages() {
+    let _env_lock = acquire_test_env_lock().await;
+    let _env = StartupTestEnv::new();
+    let android_home =
+        std::env::var("ANDROID_HOME").expect("ANDROID_HOME should be set by StartupTestEnv");
+    let sdkmanager_path =
+        std::path::PathBuf::from(android_home).join("cmdline-tools/latest/bin/sdkmanager");
+
+    std::fs::write(
+        &sdkmanager_path,
+        r#"#!/bin/sh
+if echo "$@" | grep -q -- "--list"; then
+    cat <<'EOF'
+Installed packages:
+  Path | Version | Description | Location
+
+Available Packages:
+EOF
+    exit 0
+fi
+
+exit 0
+"#,
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&sdkmanager_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&sdkmanager_path, perms).unwrap();
+    }
+
+    let mut app = App::new()
+        .await
+        .expect("App should initialize with startup test environment");
+
+    let _ = app.android_manager.list_available_devices().await.unwrap();
+    let targets = app.android_manager.list_available_targets().await.unwrap();
+    assert!(
+        targets.is_empty(),
+        "target cache should be warmed with an empty list"
+    );
+
+    {
+        let state = app.state.lock().await;
+        let mut cache = state.device_cache.write().await;
+        cache.android_device_types.clear();
+        cache.android_api_levels.clear();
+        cache.android_device_cache = None;
+    }
+
+    app.enter_create_device_mode().await;
+
+    let state = app.state.lock().await;
+    assert_eq!(state.mode, Mode::CreateDevice);
+    assert!(!state.create_device_form.is_loading_cache);
+    assert_eq!(
+        state.create_device_form.error_message.as_deref(),
+        Some("No Android targets found. Use Android Studio SDK Manager to install system images.")
     );
 }
 

@@ -19,6 +19,7 @@ impl App {
         let should_full_refresh = Self::should_use_full_device_refresh(
             has_android_devices,
             has_ios_devices,
+            self.ios_manager.is_some(),
             pending_device.is_some(),
             self.last_full_device_refresh.elapsed(),
         );
@@ -197,11 +198,13 @@ impl App {
     pub(super) fn should_use_full_device_refresh(
         has_android_devices: bool,
         has_ios_devices: bool,
+        has_ios_manager: bool,
         has_pending_device: bool,
         elapsed_since_last_full_refresh: std::time::Duration,
     ) -> bool {
         has_pending_device
-            || (!has_android_devices && !has_ios_devices)
+            || !has_android_devices
+            || (has_ios_manager && !has_ios_devices)
             || elapsed_since_last_full_refresh
                 >= crate::constants::performance::FULL_DEVICE_REFRESH_INTERVAL
     }

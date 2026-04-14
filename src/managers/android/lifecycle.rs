@@ -20,10 +20,14 @@ use tokio::fs;
 impl AndroidManager {
     /// Optimized parallel version of list_devices
     pub async fn list_devices_parallel(&self) -> Result<Vec<AndroidDevice>> {
-        let cached_targets = self
+        let mut cached_targets = self
             .get_cached_available_targets()
             .await
             .unwrap_or_default();
+        if cached_targets.is_empty() && self.get_cached_sdkmanager_verbose_output().await.is_some()
+        {
+            cached_targets = self.list_available_targets().await.unwrap_or_default();
+        }
         let avd_list_future = self
             .command_executor
             .run(&self.avdmanager_path, &["list", "avd"]);
