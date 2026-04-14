@@ -4,14 +4,10 @@ use crate::{
         commands, env_vars,
         limits::{ANDROID_COMMAND_PARTS_MINIMUM, SYSTEM_IMAGE_PARTS_REQUIRED},
     },
-    models::{
-        device_info::{
-            ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
-        },
-        ApiLevel,
+    models::device_info::{
+        ApiLevelInfo, DeviceCategory, DeviceInfo, DynamicDeviceConfig, DynamicDeviceProvider,
     },
     utils::command_executor::CommandExecutor,
-    utils::ApiLevelCache,
 };
 use anyhow::{Context, Result};
 use std::{
@@ -157,43 +153,6 @@ impl AndroidManager {
             let api_b: u32 = b.0.parse().unwrap_or(0);
             api_b.cmp(&api_a)
         });
-
-        let api_levels: Vec<ApiLevel> = result
-            .iter()
-            .map(|(level_str, display)| {
-                let api: u32 = level_str.parse().unwrap_or(0);
-                let version = if let Some(dash_pos) = display.find(" - ") {
-                    display[dash_pos + 3..].to_string()
-                } else {
-                    format!("API {api}")
-                };
-                ApiLevel {
-                    api,
-                    version,
-                    display_name: display.clone(),
-                    system_image_id: format!("android-{api}"),
-                    is_installed: true,
-                    variants: vec![],
-                }
-            })
-            .collect();
-
-        let cache = ApiLevelCache {
-            api_levels,
-            timestamp: std::time::SystemTime::now(),
-        };
-
-        if result.is_empty() {
-            if let Err(error) = ApiLevelCache::clear_from_disk() {
-                log::warn!("Failed to clear API level cache: {error}");
-            } else {
-                log::debug!("Cleared API level cache because no installed targets were found");
-            }
-        } else if let Err(error) = cache.save_to_disk() {
-            log::warn!("Failed to save API level cache: {error}");
-        } else {
-            log::debug!("Saved {} API levels to cache", result.len());
-        }
 
         self.set_cached_available_targets(result.clone()).await;
         log::debug!(

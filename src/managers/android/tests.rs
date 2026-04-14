@@ -451,7 +451,7 @@ async fn test_run_commands_parallel() {
 }
 
 #[tokio::test]
-async fn test_list_available_targets_ignores_stale_disk_cache_when_no_images_are_installed() {
+async fn test_list_available_targets_ignores_stale_disk_cache() {
     let _env_lock = acquire_test_env_lock().await;
     let sdk_dir = setup_test_android_sdk();
     let home_dir = tempfile::tempdir().unwrap();
@@ -501,7 +501,7 @@ async fn test_list_available_targets_ignores_stale_disk_cache_when_no_images_are
     let targets = manager.list_available_targets().await.unwrap();
 
     assert!(targets.is_empty());
-    assert!(ApiLevelCache::load_from_disk().is_none());
+    assert!(ApiLevelCache::load_from_disk().is_some());
 }
 
 #[tokio::test]

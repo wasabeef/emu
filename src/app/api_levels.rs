@@ -3,7 +3,6 @@ use crate::constants::{
     messages::notifications::INSTALL_PROGRESS_COMPLETE,
     performance::API_INSTALLATION_COMPLETION_DELAY, progress::PROGRESS_PHASE_100_PERCENT,
 };
-use crate::utils::ApiLevelCache;
 use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
@@ -158,9 +157,6 @@ impl App {
                     let mut cache = state.device_cache.write().await;
                     cache.invalidate_android_cache();
                 }
-                if let Err(error) = ApiLevelCache::clear_from_disk() {
-                    log::warn!("Failed to clear API level cache after install: {error}");
-                }
 
                 if let Some(ref mut api_mgmt) = state.api_level_management {
                     api_mgmt.is_loading = true;
@@ -253,9 +249,6 @@ impl App {
             {
                 let mut cache = state.device_cache.write().await;
                 cache.invalidate_android_cache();
-            }
-            if let Err(error) = ApiLevelCache::clear_from_disk() {
-                log::warn!("Failed to clear API level cache after uninstall: {error}");
             }
 
             let android_manager_refresh = android_manager.clone();
